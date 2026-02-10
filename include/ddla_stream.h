@@ -97,6 +97,8 @@ public:
         this->comm = comm_group;
         MPI_Comm_rank(comm_group, &myid);
         MPI_Comm_size(comm_group, &nprocs);
+        nprows_ = nprows;
+        npcols_ = npcols;
         if(nprows_ * npcols_ != nprocs){
             std::cerr << "nprows * npcols != nprocs" << std::endl;
             exit(1);

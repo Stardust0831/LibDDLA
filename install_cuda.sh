@@ -44,10 +44,7 @@ export OMPI_FC=$FC
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
 BUILD_DIR=./build_test
-INSTALL_DIR="${PWD}_install"
-echo 'Build Dir:' $BUILD_DIR
-echo 'Install Dir:' $INSTALL_DIR
-echo "任务运行节点列表: ${SLURM_NODELIST}"
+INSTALL_DIR=/data/home/hbchen/work/libddla_install
 rm -rf ${BUILD_DIR}
 rm -rf ${INSTALL_DIR}
 mkdir ${INSTALL_DIR}

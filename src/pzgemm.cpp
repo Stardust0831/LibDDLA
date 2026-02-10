@@ -9,8 +9,8 @@ void pzgemm(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const std::complex<double>& alpha,
-    std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
-    std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
+    const std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
+    const std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
     const std::complex<double>& beta,
     std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
 )

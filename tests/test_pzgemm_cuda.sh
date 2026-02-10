@@ -1,12 +1,12 @@
 #!/bin/bash
-#SBATCH -p gpu4090_128
+#SBATCH -p amdgpu40g
 ##SBATCH --nodelist 
 ##SBATCH --exclude 
 #SBATCH -J pzgemm
 #SBATCH -A xgren
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:2
+#SBATCH --ntasks-per-node=2
 #SBATCH --cpus-per-task=1
 #SBATCH --output=./log_pzgemm
 #SBATCH --error=./err_pzgemm
@@ -22,10 +22,12 @@ module purge
 source ~/app/gcc/250808/setup_gcc
 source ~/abacus/251205/toolchain_amd/build/setup_openmpi_extern4
 source ~/app/hpc/250711/Linux_x86_64/setup_nvhpc
+cd ..
 LibDDLA_PATH="${PWD}_install"
 export CPATH=$LibDDLA_PATH/include:$CPATH
 export LIBRARY_PATH=$LibDDLA_PATH/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$LibDDLA_PATH/lib:$LD_LIBRARY_PATH
+cd tests/
 
 
 echo "========================="

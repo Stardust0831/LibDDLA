@@ -19,8 +19,8 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
 
     DDLA::DdlaDesc matrix_desc(ddla_handle);
     matrix_desc.init_square_blk(n, n, 0, 0);
-    int nb = std::min(128, matrix_desc.mb());
-    matrix_desc.init(n, n, nb, nb, 0, 0);
+    // int nb = std::min(128, matrix_desc.mb());
+    // matrix_desc.init(n, n, nb, nb, 0, 0);
 
     int myid = matrix_desc.mypcol() + matrix_desc.myprow()*matrix_desc.npcols();
     printf("myid:%d, m_loc:%d, n_loc:%d, mb:%d, nb:%d, m:%d, n:%d\n", myid, matrix_desc.m_loc(), matrix_desc.n_loc(), matrix_desc.mb(), matrix_desc.nb(), matrix_desc.m(), matrix_desc.n());

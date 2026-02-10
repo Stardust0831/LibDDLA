@@ -21,6 +21,20 @@ DdlaDesc::DdlaDesc(const DdlaHandle_t& ddla_handle)
     this->mypcol_ = ddla_handle->mypcol_;
 }
 
+void DdlaDesc::set_ddla_handle(const DdlaHandle_t& ddla_handle)
+{
+    this->ddla_handle_ = ddla_handle;
+    this->nprows_ = ddla_handle->nprows_;
+    this->npcols_ = ddla_handle->npcols_;
+    this->myprow_ = ddla_handle->myprow_;
+    this->mypcol_ = ddla_handle->mypcol_;
+    if(is_initialized_){
+        this->init(this->m_, this->n_, this->mb_, this->nb_, this->irsrc_, this->icsrc_);
+    }
+    return;
+
+}
+
 void DdlaDesc::init(const int &m, const int &n, const int &mb, const int &nb, const int &irsrc, const int &icsrc){
     this->m_ = m;
     this->n_ = n;
@@ -32,6 +46,7 @@ void DdlaDesc::init(const int &m, const int &n, const int &mb, const int &nb, co
     this->m_local_ = DDLA::num_loc(m, mb, myprow_, irsrc_, nprows_);
     this->n_local_ = DDLA::num_loc(n, nb, mypcol_, icsrc_, npcols_);
     this->lld_ = std::max(this->m_local_,1);
+    is_initialized_ = true;
     return;
 }
 

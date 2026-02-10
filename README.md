@@ -1,4 +1,3 @@
-LibDDLA is the library of distributed device linear algorithm 
+``` LibDDLA is the library of distributed device linear algorithm ```
 
-now our package support PZGETRF PZGETRS PZTRTRS PZGEMM for distributed system in device(cuda or hip)
-
+now our package support PZGETRF PZGETRS PZTRTRS PZGEMM PZGESV for distributed system in device(cuda or hip)

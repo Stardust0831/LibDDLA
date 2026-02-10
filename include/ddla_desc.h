@@ -51,10 +51,12 @@ private:
     int npcols_;
     int myprow_;
     int mypcol_;
-    DdlaHandle_t ddla_handle_;
+    DdlaHandle_t ddla_handle_ = nullptr;    
+    bool is_initialized_ = false;
 public:
-
     DdlaDesc(const DdlaHandle_t& ddla_handle);
+    DdlaDesc(){};
+    void set_ddla_handle(const DdlaHandle_t& ddla_handle);
     void init_square_blk(const int &m, const int &n, const int &irsrc, const int &icsrc);
     void init(const int &m, const int &n, const int &mb, const int &nb, const int &irsrc, const int &icsrc);
     int indx_g2l_r(int gindx) const;
@@ -82,6 +84,7 @@ public:
     const int& mypcol() const { return mypcol_; }
     const int& nprows() const { return nprows_; }
     const int& npcols() const { return npcols_; }
+    const bool& is_initialized() const { return is_initialized_; }
 
     const DdlaHandle_t& ddla_handle() const{ return ddla_handle_; }
     

@@ -17,6 +17,7 @@ list(APPEND lib_sources
     pzlapiv.cpp
     pzgetrf.cpp
     pzgetrs.cpp
+    pzgesv.cpp
     pzgemm.cpp
     ddla_handle_t.cpp
     ddla_desc.cpp

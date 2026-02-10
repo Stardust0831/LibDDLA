@@ -151,6 +151,33 @@ inline deblasStatus_t deblasZscal(deblasHandle_t handle, int n, const std::compl
     return hipblasZscal(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx);
     #endif
 }
+
+inline deblasStatus_t deblasZscal(deblasHandle_t handle, int64_t n, const std::complex<double> *alpha, std::complex<double> *x, int64_t incx) {
+    #ifdef ENABLE_CUDA
+    return cublasZscal(handle, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasZscal(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx);
+    #endif
+}
+inline deblasStatus_t deblasZdscal(deblasHandle_t handle, int64_t n, const double *alpha, std::complex<double> *x, int incx) {
+    #ifdef ENABLE_CUDA
+    return cublasZdscal(handle, n, alpha, (cuDoubleComplex*)x, incx);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasZdscal(handle, n, alpha, (hipblasDoubleComplex*)x, incx);
+    #endif
+}
+
+inline deblasStatus_t deblasZaxpy(deblasHandle_t handle, const int64_t& n, const std::complex<double> *alpha, const std::complex<double> *x, int incx, std::complex<double> *y, int incy) {
+    #ifdef ENABLE_CUDA
+    return cublasZaxpy(handle, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx, (cuDoubleComplex*)y, incy);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasZaxpy(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx, (hipblasDoubleComplex*)y, incy);
+    #endif
+}
+
 inline deblasStatus_t deblasZgeru(deblasHandle_t handle, int m, int n, const std::complex<double> *alpha, const std::complex<double> *x, int incx, const std::complex<double> *y, int incy, std::complex<double> *A, int lda) {
     #ifdef ENABLE_CUDA
     return cublasZgeru(handle, m, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx, (cuDoubleComplex*)y, incy, (cuDoubleComplex*)A, lda);
