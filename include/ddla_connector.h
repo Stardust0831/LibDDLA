@@ -31,8 +31,10 @@ using deblasStatus_t = cublasStatus_t;
 using deblasHandle_t = cublasHandle_t;
 using desolverHandle_t = cusolverDnHandle_t;
 #define deviceMemcpyAsync cudaMemcpyAsync
+#define deviceMemcpy cudaMemcpy
 #define deviceMemcpy2DAsync cudaMemcpy2DAsync
 #define deviceMallocAsync cudaMallocAsync
+#define deviceMalloc cudaMalloc
 #define deviceMemsetAsync cudaMemsetAsync
 #define deviceFreeAsync cudaFreeAsync
 #define deviceFree cudaFree
@@ -74,8 +76,10 @@ using deblasStatus_t = hipblasStatus_t;
 using deblasHandle_t = hipblasHandle_t;
 using desolverHandle_t = hipsolverHandle_t;
 #define deviceMemcpyAsync hipMemcpyAsync
+#define deviceMemcpy hipMemcpy
 #define deviceMemcpy2DAsync hipMemcpy2DAsync
 #define deviceMallocAsync hipMallocAsync
+#define deviceMalloc hipMalloc
 #define deviceMemsetAsync hipMemsetAsync
 #define deviceFreeAsync hipFreeAsync
 #define deviceFree hipFree
@@ -135,20 +139,24 @@ inline hipError_t deviceStreamSynchronize(hipStream_t stream) {
 }
 #endif
 
+#ifdef ENABLE_CUDA
+inline cudaError_t deviceDeviceSynchronize(){
+    return cudaDeviceSynchronize();
+}
+#endif
+
+#ifdef ENABLE_HIP
+inline hipError_t deviceDeviceSynchronize(){
+    return hipDeviceSynchronize();
+}
+#endif
+
 inline deblasStatus_t deblasIzamax(deblasHandle_t handle, int n, const std::complex<double> *x, int incx, int *result) {
     #ifdef ENABLE_CUDA
     return cublasIzamax(handle, n, (cuDoubleComplex*)x, incx, result);
     #endif
     #ifdef ENABLE_HIP
     return hipblasIzamax(handle, n, (hipblasDoubleComplex*)x, incx, result);
-    #endif
-}
-inline deblasStatus_t deblasZscal(deblasHandle_t handle, int n, const std::complex<double> *alpha, std::complex<double> *x, int incx) {
-    #ifdef ENABLE_CUDA
-    return cublasZscal(handle, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx);
-    #endif
-    #ifdef ENABLE_HIP
-    return hipblasZscal(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx);
     #endif
 }
 
@@ -160,12 +168,41 @@ inline deblasStatus_t deblasZscal(deblasHandle_t handle, int64_t n, const std::c
     return hipblasZscal(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx);
     #endif
 }
-inline deblasStatus_t deblasZdscal(deblasHandle_t handle, int64_t n, const double *alpha, std::complex<double> *x, int incx) {
+inline deblasStatus_t deblasZdscal(deblasHandle_t handle, int64_t n, const double *alpha, std::complex<double> *x, int64_t incx) {
     #ifdef ENABLE_CUDA
     return cublasZdscal(handle, n, alpha, (cuDoubleComplex*)x, incx);
     #endif
     #ifdef ENABLE_HIP
     return hipblasZdscal(handle, n, alpha, (hipblasDoubleComplex*)x, incx);
+    #endif
+}
+
+inline deblasStatus_t deblasScal(deblasHandle_t handle, int64_t n, const double *alpha, double *x, int64_t incx)
+{
+    #ifdef ENABLE_CUDA
+    return cublasDscal(handle, n, alpha, x, incx);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasDscal(handle, n, alpha, x, incx);
+    #endif
+}
+
+inline deblasStatus_t deblasScal(deblasHandle_t handle, int64_t n, const double *alpha, std::complex<double> *x, int64_t incx)
+{
+    #ifdef ENABLE_CUDA
+    return cublasZdscal(handle, n, alpha, (cuDoubleComplex*)x, incx);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasZdscal(handle, n, alpha, (hipblasDoubleComplex*)x, incx);
+    #endif
+}
+
+inline deblasStatus_t deblasScal(deblasHandle_t handle, int64_t n, const std::complex<double> *alpha, std::complex<double> *x, int64_t incx) {
+    #ifdef ENABLE_CUDA
+    return cublasZscal(handle, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx);
+    #endif
+    #ifdef ENABLE_HIP
+    return hipblasZscal(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx);
     #endif
 }
 
@@ -236,9 +273,40 @@ inline deblasStatus_t deblasZgemm(
     return cublasZgemm(handle, transa, transb, m, n, k, (cuDoubleComplex*)alpha, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)B, ldb, (cuDoubleComplex*)beta, (cuDoubleComplex*)C, ldc);
 }
 #endif
+
+#ifdef ENABLE_CUDA
+inline deblasStatus_t deblasGemm(
+    deblasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, 
+    int m, int n, int k, 
+    const std::complex<double> *alpha, 
+    const std::complex<double> *A, int lda, 
+    const std::complex<double> *B, int ldb,
+    const std::complex<double> *beta,
+    std::complex<double> *C, int ldc
+)
+{
+    return cublasZgemm(handle, transa, transb, m, n, k, (cuDoubleComplex*)alpha, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)B, ldb, (cuDoubleComplex*)beta, (cuDoubleComplex*)C, ldc);
+}
+#endif
+
+#ifdef ENABLE_CUDA
+inline deblasStatus_t deblasGemm(
+    deblasHandle_t handle, cublasOperation_t transa, cublasOperation_t transb, 
+    int m, int n, int k, 
+    const double *alpha, 
+    const double *A, int lda, 
+    const double *B, int ldb,
+    const double *beta,
+    double *C, int ldc
+)
+{
+    return cublasDgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+}
+#endif
+
 #ifdef ENABLE_HIP
 inline deblasStatus_t deblasZgemm(
-    hipblasHandle_t handle, hipblasOperation_t transa, hipblasOperation_t transb,
+    deblasHandle_t handle, hipblasOperation_t transa, hipblasOperation_t transb,
     int m, int n, int k,
     const std::complex<double> *alpha,
     const std::complex<double> *A, int lda,
@@ -250,6 +318,66 @@ inline deblasStatus_t deblasZgemm(
     return hipblasZgemm(handle, transa, transb, m, n, k, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)B, ldb, (hipblasDoubleComplex*)beta, (hipblasDoubleComplex*)C, ldc);
 }
 #endif
+
+#ifdef ENABLE_HIP
+inline deblasStatus_t deblasGemm(
+    deblasHandle_t handle, hipblasOperation_t transa, hipblasOperation_t transb,
+    int m, int n, int k,
+    const std::complex<double> *alpha,
+    const std::complex<double> *A, int lda,
+    const std::complex<double> *B, int ldb,
+    const std::complex<double> *beta,
+    std::complex<double> *C, int ldc
+)
+{
+    return hipblasZgemm(handle, transa, transb, m, n, k, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)B, ldb, (hipblasDoubleComplex*)beta, (hipblasDoubleComplex*)C, ldc);
+}
+#endif
+
+#ifdef ENABLE_HIP
+inline deblasStatus_t deblasGemm(
+    deblasHandle_t handle, hipblasOperation_t transa, hipblasOperation_t transb,
+    int m, int n, int k,
+    const double *alpha,
+    const double *A, int lda,
+    const double *B, int ldb,
+    const double *beta,
+    double *C, int ldc
+)
+{
+    return hipblasDgemm(handle, transa, transb, m, n, k, alpha, A, lda, B, ldb, beta, C, ldc);
+}
+#endif
+
+inline ncclResult_t cclSend(const double* sendbuff, size_t count, int peer, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclSend(sendbuff, count, ncclFloat64, peer, comm, stream);
+}
+
+inline ncclResult_t cclSend(const std::complex<double>* sendbuff, size_t count, int peer, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclSend(sendbuff, count*2, ncclFloat64, peer, comm, stream);
+}
+
+inline ncclResult_t  cclRecv(double* recvbuff, size_t count, int peer, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclRecv(recvbuff, count, ncclFloat64, peer, comm, stream);
+}
+
+inline ncclResult_t  cclRecv(std::complex<double>* recvbuff, size_t count, int peer, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclRecv(recvbuff, count*2, ncclFloat64, peer, comm, stream);
+}
+
+inline ncclResult_t  cclBroadcast(const double* sendbuff, double* recvbuff, size_t count, int root, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclBroadcast(sendbuff, recvbuff, count, ncclFloat64, root, comm, stream);
+}
+
+inline ncclResult_t  cclBroadcast(const std::complex<double>* sendbuff, std::complex<double>* recvbuff, size_t count, int root, ncclComm_t comm, deviceStream_t stream)
+{
+    return ncclBroadcast(sendbuff, recvbuff, count*2, ncclFloat64, root, comm, stream);
+}
 
 } // namespace DDLA
 

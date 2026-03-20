@@ -21,7 +21,7 @@ inline int indxl2g(const int &indxloc, const int &nb, const int &iproc, const in
             ((nprocs + iproc - isrcproc) % nprocs) * nb;
 }
 
-inline int num_loc(const int n, const int nb, const int iproc, const int srcproc, const int nprocs)
+inline int num_loc(const int& n, const int& nb, const int& iproc, const int& srcproc, const int& nprocs)
 {
     int count = n / (nb * nprocs) * nb;
     int rest = n % (nb * nprocs);

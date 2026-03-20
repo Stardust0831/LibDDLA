@@ -1,26 +1,22 @@
 #!/bin/bash
-#SBATCH -p gpu4090_128
+#SBATCH -p v100g32
 ##SBATCH --nodelist gpu005
-#SBATCH -J trtri
-#SBATCH -A xgren
+#SBATCH -J test
+##SBATCH -A xgren
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:0
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --output=./log_install
-#SBATCH --error=./err_install
+#SBATCH --gres=gpu:3
+#SBATCH --ntasks-per-node=3
+#SBATCH --cpus-per-task=3
+#SBATCH --output=./log_test
+#SBATCH --error=./err_test
 
-ulimit -s unlimited
-ulimit -c unlimited
+module load gcc/11.3.0
+module load cuda/11.8
+module load openmpi/4.1.8-cuda
+module load cmake/3.25.3
 
-unset CPATH
-module purge
+source /data/home/renxg/app/nvhpc/setup_nvhpc
 
-
-source ~/app/gcc/250808/setup_gcc
-source ~/abacus/251205/toolchain_amd/build/setup_openmpi_extern4
-source ~/app/hpc/250711/Linux_x86_64/setup_nvhpc
-source ~/abacus/250815/abacus-develop-LTSv3.10.0/toolchain/build/setup_cmake
 echo "========================="
 echo 'LD_LIBRARY_PATH:' $LD_LIBRARY_PATH
 echo "========================="
@@ -36,16 +32,18 @@ echo 'CPLUS_INCLUDE_PATH:' $CPLUS_INCLUDE_PATH
 echo "========================="
 
 
-export OMPI_CXX=$CXX
-export OMPI_CC=$CC
-export OMPI_FC=$FC
+# export OMPI_CXX=$CXX
+# export OMPI_CC=$CC
+# export OMPI_FC=$FC
 
 
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
-BUILD_DIR=./build_test
-INSTALL_DIR=/data/home/hbchen/work/libddla_install
-rm -rf ${BUILD_DIR}
+cd ..
+BUILD_DIR=../build_test
+INSTALL_DIR="${PWD}_install"
+# cd install_scripts
+# rm -rf ${BUILD_DIR}
 rm -rf ${INSTALL_DIR}
 mkdir ${INSTALL_DIR}
 cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \

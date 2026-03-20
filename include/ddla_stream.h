@@ -50,6 +50,7 @@ public:
     hipsolverHandle_t solverH = nullptr;
     hipblasHandle_t blasH = nullptr;
     #endif
+    char major;
     static inline void nccl_comm_create(ncclComm_t &comm, const MPI_Comm &comm_group){
         int rank,size;
         MPI_Comm_rank(comm_group, &rank);
@@ -82,7 +83,7 @@ public:
         MPI_Comm_rank(comm_group, &myid);
         MPI_Comm_size(comm_group, &nprocs);
         nprows_ = std::ceil(std::sqrt(nprocs));
-        if(nprocs % nprows_ != 0){
+        while(nprocs % nprows_ != 0){
             nprows_--;
         }
         npcols_ = nprocs / nprows_;
@@ -94,6 +95,7 @@ public:
             DEVICE_CHECK(deviceFree(NULL));
             set_local_device(DdlaStream::getLocalDevice());
         }
+        this->major = major;
         this->comm = comm_group;
         MPI_Comm_rank(comm_group, &myid);
         MPI_Comm_size(comm_group, &nprocs);
@@ -214,6 +216,18 @@ public:
         DEVICE_CHECK(deviceMemGetInfo(&free_mem, &total_mem));
         printf("myid:%d, local_device:%d, free_mem:%lf GB, total_mem:%lf GB\n", myid, local_device, free_mem/1024./1024/1024, total_mem/1024./1024/1024);
         return;
+    }
+
+    void rank_to_rc(const int& rank, int& row, int& col){
+        if(major == 'R'){
+            row = rank / this->npcols_;
+            col = rank % this->npcols_;
+        }else if(major == 'C'){
+            row = rank % this->nprows_;
+            col = rank / this->nprows_;
+        }else{
+            throw std::runtime_error("major should be 'R' or 'C'\n");
+        }
     }
 };
 

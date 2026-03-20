@@ -22,6 +22,20 @@ void pzlapiv(
     int* iwork
 );
 
+void pzgetf2(
+    const int& m, const int& nb_real,
+    std::complex<double>* d_A, const int& n_s, const DDLA::DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+void pzgetf2_panel(
+    const int& m, const int& nb_real,
+    std::complex<double>* d_A, const int& n_start, const DDLA::DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
 void pzgetrf(
     const int& m, const int& n,
     std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
@@ -53,6 +67,18 @@ void pzgemm(
     const std::complex<double>& beta,
     std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
 );
+
+template <typename T>
+void pgemm(
+    const char& transa, const char& transb,
+    const int& m, const int& n, const int& k,
+    const T& alpha,
+    const T* d_A, const DDLA::DdlaDesc& array_descA,
+    const T* d_B, const DDLA::DdlaDesc& array_descB,
+    const T& beta,
+    T* d_C, const DDLA::DdlaDesc& array_descC
+);
+
 
 } // namespace DDLA
 

@@ -6,14 +6,15 @@
 #include <vector>
 namespace DDLA{
 
-void pzgemm(
+template <typename T>
+void pgemm(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
-    const std::complex<double>& alpha,
-    const std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
-    const std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
-    const std::complex<double>& beta,
-    std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
+    const T& alpha,
+    const T* d_A, const DDLA::DdlaDesc& array_descA,
+    const T* d_B, const DDLA::DdlaDesc& array_descB,
+    const T& beta,
+    T* d_C, const DDLA::DdlaDesc& array_descC
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
@@ -73,7 +74,7 @@ void pzgemm(
     int lldA = array_descA.lld();
     int lldB = array_descB.lld();
 
-    const std::complex<double> one = {1.0,0.0};
+    const T one = 1.0;
 
     deviceStream_t stream = ddla_handle->stream;
     deviceStream_t stream_data = ddla_handle->stream_data;
@@ -84,13 +85,13 @@ void pzgemm(
     deBlasOperation_t opB = (transb == 'N') ? DEBLAS_OP_N :
                             (transb == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
 
-    BLAS_CHECK(deblasZscal(blasH, m_loc_C*n_loc_C, &beta, d_C, 1));
+    BLAS_CHECK(deblasScal(blasH, m_loc_C*n_loc_C, &beta, d_C, 1));
 
     const int buffer_max = 2;
-    std::complex<double> *d_A_temp[buffer_max],*d_B_temp[buffer_max];
+    T *d_A_temp[buffer_max],*d_B_temp[buffer_max];
     for(int i=0;i<buffer_max;i++){
-        DEVICE_CHECK(deviceMallocAsync(&d_A_temp[i], sizeof(std::complex<double>) * (transa=='N'?m_loc_C:(std::max(n_loc_A, m_loc_C))) * nb, stream_data));
-        DEVICE_CHECK(deviceMallocAsync(&d_B_temp[i], sizeof(std::complex<double>) * nb * (transb=='N'?n_loc_C:(std::max(m_loc_B, n_loc_C))), stream_data));
+        DEVICE_CHECK(deviceMallocAsync(&d_A_temp[i], sizeof(T) * (transa=='N'?m_loc_C:(std::max(n_loc_A, m_loc_C))) * nb, stream_data));
+        DEVICE_CHECK(deviceMallocAsync(&d_B_temp[i], sizeof(T) * nb * (transb=='N'?n_loc_C:(std::max(m_loc_B, n_loc_C))), stream_data));
     }
 
     int temp_buffer = 0;
@@ -107,26 +108,26 @@ void pzgemm(
             int owner_row_A = DDLA::indxg2p(k_s, nb, array_descA.irsrc(), array_descA.nprows());
             if(myprow == owner_row_A){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_A_temp[temp_buffer], kb * sizeof(std::complex<double>),
-                    d_A + array_descA.indx_g2l_r(k_s), lldA * sizeof(std::complex<double>),
-                    kb * sizeof(std::complex<double>), n_loc_A,
+                    d_A_temp[temp_buffer], kb * sizeof(T),
+                    d_A + array_descA.indx_g2l_r(k_s), lldA * sizeof(T),
+                    kb * sizeof(T), n_loc_A,
                     deviceMemcpyDeviceToDevice, stream_data
                 ));
                 if(myprow != mypcol){
-                    CCL_CHECK(ncclSend(d_A_temp[temp_buffer], kb * n_loc_A * 2, ncclFloat64, mypcol, col_nccl_comm, stream_data));
+                    CCL_CHECK(cclSend(d_A_temp[temp_buffer], kb * n_loc_A, mypcol, col_nccl_comm, stream_data));
                 }
             }else{
                 if(myprow == mypcol)
-                    CCL_CHECK(ncclRecv(d_A_temp[temp_buffer], kb * n_loc_A * 2, ncclFloat64, owner_row_A, col_nccl_comm, stream_data));
+                    CCL_CHECK(cclRecv(d_A_temp[temp_buffer], kb * n_loc_A, owner_row_A, col_nccl_comm, stream_data));
             }
             src_A = myprow;
         }else{
             src_A = DDLA::indxg2p(k_s, nb, array_descA.icsrc(), array_descA.npcols());
             if(mypcol == src_A){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_A_temp[temp_buffer], m_loc_A * sizeof(std::complex<double>),
-                    d_A + array_descA.indx_g2l_c(k_s) * lldA, lldA * sizeof(std::complex<double>),
-                    m_loc_A * sizeof(std::complex<double>), kb,
+                    d_A_temp[temp_buffer], m_loc_A * sizeof(T),
+                    d_A + array_descA.indx_g2l_c(k_s) * lldA, lldA * sizeof(T),
+                    m_loc_A * sizeof(T), kb,
                     deviceMemcpyDeviceToDevice, stream_data
                 ));
             }
@@ -134,11 +135,7 @@ void pzgemm(
         
         
         // broadcast A block
-        CCL_CHECK(ncclBroadcast(
-            d_A_temp[temp_buffer], d_A_temp[temp_buffer],
-            m_loc_C * kb * 2, ncclFloat64,
-            src_A, row_nccl_comm, stream_data
-        ));
+        CCL_CHECK(cclBroadcast(d_A_temp[temp_buffer], d_A_temp[temp_buffer], m_loc_C * kb, src_A, row_nccl_comm, stream_data));
         // end communicate A
 
         int src_B;
@@ -147,17 +144,17 @@ void pzgemm(
             int owner_col_B = DDLA::indxg2p(k_s, nb, array_descB.icsrc(), array_descB.npcols());
             if(mypcol == owner_col_B){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_B_temp[temp_buffer], m_loc_B * sizeof(std::complex<double>),
-                    d_B + array_descB.indx_g2l_c(k_s) * lldB, lldB * sizeof(std::complex<double>),
-                    m_loc_B * sizeof(std::complex<double>), kb,
+                    d_B_temp[temp_buffer], m_loc_B * sizeof(T),
+                    d_B + array_descB.indx_g2l_c(k_s) * lldB, lldB * sizeof(T),
+                    m_loc_B * sizeof(T), kb,
                     deviceMemcpyDeviceToDevice, stream_data
                 ));
                 if(myprow != mypcol){
-                    CCL_CHECK(ncclSend(d_B_temp[temp_buffer], kb * m_loc_B * 2, ncclFloat64, myprow, row_nccl_comm, stream_data));
+                    CCL_CHECK(cclSend(d_B_temp[temp_buffer], kb * m_loc_B, myprow, row_nccl_comm, stream_data));
                 }
             }else{
                 if(myprow == mypcol){
-                    CCL_CHECK(ncclRecv(d_B_temp[temp_buffer], kb * m_loc_B * 2, ncclFloat64, owner_col_B, row_nccl_comm, stream_data));
+                    CCL_CHECK(cclRecv(d_B_temp[temp_buffer], kb * m_loc_B, owner_col_B, row_nccl_comm, stream_data));
                 }
             }
             src_B = mypcol;
@@ -166,63 +163,21 @@ void pzgemm(
             src_B = DDLA::indxg2p(k_s, nb, array_descB.irsrc(), array_descB.nprows());
             if(myprow == src_B){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_B_temp[temp_buffer], kb * sizeof(std::complex<double>),
-                    d_B + array_descB.indx_g2l_r(k_s), lldB * sizeof(std::complex<double>),
-                    kb * sizeof(std::complex<double>), n_loc_C,
+                    d_B_temp[temp_buffer], kb * sizeof(T),
+                    d_B + array_descB.indx_g2l_r(k_s), lldB * sizeof(T),
+                    kb * sizeof(T), n_loc_C,
                     deviceMemcpyDeviceToDevice, stream_data
                 ));
             }
         }
         // broadcast B block
-        CCL_CHECK(ncclBroadcast(
-            d_B_temp[temp_buffer], d_B_temp[temp_buffer],
-            kb * n_loc_C * 2, ncclFloat64,
-            src_B, col_nccl_comm, stream_data
-        ));
+        CCL_CHECK(cclBroadcast(d_B_temp[temp_buffer], d_B_temp[temp_buffer], kb * n_loc_C, src_B, col_nccl_comm, stream_data));
     };
-    // auto data_trans = [&kb, &num_blocks,&nb,&k,&array_descA,&array_descB,
-    //     &d_A,&d_B,&d_A_temp,&d_B_temp,&m_loc_A,&n_loc_B,&lldA,&lldB,
-    //     &mypcol,&myprow,&row_nccl_comm,&col_nccl_comm,&stream_data,&temp_buffer](int k_s) 
-    // {
-    //     kb = std::min(num_blocks*nb, k - k_s);
-
-    //     int owner_col_A = DDLA::indxg2p(k_s, nb, array_descA.icsrc(), array_descA.npcols());
-    //     int owner_row_B = DDLA::indxg2p(k_s, nb, array_descB.irsrc(), array_descB.nprows());
-    //     if(kb<=0) return;
-    //     // broadcast A block column
-    //     if(mypcol == owner_col_A){
-    //         DEVICE_CHECK(deviceMemcpy2DAsync(
-    //             d_A_temp[temp_buffer], m_loc_A * sizeof(std::complex<double>),
-    //             d_A + array_descA.indx_g2l_c(k_s) * lldA, lldA * sizeof(std::complex<double>),
-    //             m_loc_A * sizeof(std::complex<double>), kb,
-    //             deviceMemcpyDeviceToDevice, stream_data
-    //         ));
-    //     }
-    //     CCL_CHECK(ncclBroadcast(
-    //         d_A_temp[temp_buffer], d_A_temp[temp_buffer],
-    //         m_loc_A * kb * 2, ncclFloat64,
-    //         owner_col_A, row_nccl_comm, stream_data
-    //     ));
-    //     // broadcast B block row
-    //     if(myprow == owner_row_B){
-    //         DEVICE_CHECK(deviceMemcpy2DAsync(
-    //             d_B_temp[temp_buffer], kb * sizeof(std::complex<double>),
-    //             d_B + array_descB.indx_g2l_r(k_s), lldB * sizeof(std::complex<double>),
-    //             kb * sizeof(std::complex<double>), n_loc_B,
-    //             deviceMemcpyDeviceToDevice, stream_data
-    //         ));
-    //     }
-    //     CCL_CHECK(ncclBroadcast(
-    //         d_B_temp[temp_buffer], d_B_temp[temp_buffer],
-    //         kb * n_loc_B * 2, ncclFloat64,
-    //         owner_row_B, col_nccl_comm, stream_data
-    //     ));
-    // };
     get_data(k_s);
     for(k_s=0; k_s<k; k_s+=nb){
         DEVICE_CHECK(deviceStreamSynchronize(stream_data));
         DEVICE_CHECK(deviceStreamSynchronize(stream));
-        BLAS_CHECK(deblasZgemm(
+        BLAS_CHECK(deblasGemm(
             blasH, opA, opB,
             m_loc_C, n_loc_C, kb,
             &alpha,
@@ -242,5 +197,25 @@ void pzgemm(
     }
     return;
 }
+
+template void pgemm<double>(
+    const char& transa, const char& transb,
+    const int& m, const int& n, const int& k,
+    const double& alpha,
+    const double* d_A, const DDLA::DdlaDesc& array_descA,
+    const double* d_B, const DDLA::DdlaDesc& array_descB,
+    const double& beta,
+    double* d_C, const DDLA::DdlaDesc& array_descC
+);
+
+template void pgemm<std::complex<double>>(
+    const char& transa, const char& transb,
+    const int& m, const int& n, const int& k,
+    const std::complex<double>& alpha,
+    const std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
+    const std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
+    const std::complex<double>& beta,
+    std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
+);
 
 }

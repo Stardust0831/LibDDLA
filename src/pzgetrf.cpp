@@ -66,7 +66,7 @@ void pzgetrf(
     DEVICE_CHECK(deviceMallocAsync(&d_temp_U, sizeof(std::complex<double>)*nb*n_loc, stream));
 
     DEVICE_CHECK(deviceStreamSynchronize(stream));
-    printf("myid:%d before pgetf2\n", ddla_handle->myid);
+    
     MPI_Barrier(MPI_COMM_WORLD);
 
     const std::complex<double> minus_one = {-1.0,0.0};
@@ -99,194 +99,188 @@ void pzgetrf(
         // start pgetf2
 
         start_time = MPI_Wtime();
-        for(int i_tf2 = 0; i_tf2 < nb_real; i_tf2++){
-            double start_time_tf2 = MPI_Wtime();
-            DEVICE_CHECK(deviceMemsetAsync(d_max,0,nprows*sizeof(std::complex<double>),stream));
-            // memset(h_max.data(),0,nprows*sizeof(std::complex<double>));
-            memset(h_id_max.data(),0,nprows*sizeof(int));
-            // printf("myid:%d, n_s:%d, i_tf2:%d\n",mpi_comm_global_h.myid,n_s,i_tf2);
-            // find max_rows and value
-            int i_panel, j_panel;
-            if(i_loc >= 0)
-                i_panel = i_loc + i_tf2;
-            else
-                i_panel = mm_row_start;
-            if(j_loc >= 0)
-                j_panel = j_loc + i_tf2;
-            else
-                j_panel = mm_col_start;
-            if(j_loc >= 0){
-                double start_time_local_max = MPI_Wtime();
-                if(i_panel<m_loc){
-                    BLAS_CHECK(deblasIzamax(
-                        blasH, m_loc-i_panel,
-                        d_A + j_panel * lld + i_panel,1,
-                        h_id_max.data()+myprow
-                    ));
-                    DEVICE_CHECK(deviceMemcpyAsync(
-                        d_max+myprow, d_A + (i_panel + (h_id_max[myprow]-1) + j_panel * lld), sizeof(std::complex<double>),
-                        deviceMemcpyDeviceToDevice, stream
-                    ));
-                }
-                // DEVICE_CHECK(cudaStreamSynchronize(stream));
-                DEVICE_CHECK(deviceStreamSynchronize(stream));
-                // MPI_Barrier(col_comm);
-                // time_for_local_max += MPI_Wtime() - start_time_local_max;
-                // double start_time_allreduce = MPI_Wtime();
-                CCL_CHECK(ncclAllReduce(
-                    d_max, d_max, nprows * 2, ncclFloat64, ncclSum, col_nccl_comm, stream
-                ));
-                // device_stream.cudaSync();
-                // MPI_Allreduce(MPI_IN_PLACE,h_max.data(),nprows,MPI_DOUBLE_COMPLEX,MPI_SUM,col_comm);
-                // time_for_allreduce_device += MPI_Wtime() - start_time_allreduce;
-                // double start_time_global_max = MPI_Wtime();
-                BLAS_CHECK(deblasIzamax(blasH, nprows, d_max, 1, &max_prow));
-                // max_prow = izamax_(&nprows, h_max.data(), &one_int);
-                // device_stream.cudaSync();
-                DEVICE_CHECK(deviceStreamSynchronize(stream));
-                // time_for_global_max += MPI_Wtime() - start_time_global_max;
-                // double start_time_allreduce_host = MPI_Wtime();
-                max_prow--;
-                h_id_max[myprow]=array_descA.indx_l2g_r(i_panel+h_id_max[myprow]-1);
-                MPI_Allreduce(MPI_IN_PLACE,h_id_max.data(),nprows,MPI_INT,MPI_SUM,col_comm);
-                // time_for_allreduce_host += MPI_Wtime() - start_time_allreduce_host;
-                max_row = h_id_max[max_prow];
-                // DEVICE_CHECK(cudaMemcpyAsync(
-                //     &max_value, d_max+max_prow, sizeof(std::complex<double>),
-                //     cudaMemcpyDeviceToHost, stream)
-                // );
-                DEVICE_CHECK(deviceMemcpyAsync(
-                    &max_value, d_max+max_prow, sizeof(std::complex<double>),
-                    deviceMemcpyDeviceToHost, stream
-                ));
-                // max_value = h_max[max_prow];
-                // MPI_Bcast(&max_value, sizeof(std::complex<double>), MPI_BYTE, owner_row, col_comm);
-            }
-            // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-            // time_for_max += MPI_Wtime() - start_time_tf2;
-            
-            MPI_Bcast(&max_row, 1, MPI_INT, owner_col, row_comm);
-            int max_loc_row = array_descA.indx_g2l_r(max_row);
-            // printf("myid:%d, n_s:%d, i_tf2:%d, max_row:%d, max_prow:%d, max_value:%lf+%lfi\n",mpi_comm_global_h.myid,n_s,i_tf2,max_row,max_prow,max_value.real(),max_value.imag());
-            if(myprow == owner_row){
-                ipiv[i_panel] = max_row + 1; // 1-based index like fortran
-            }
-            MPI_Bcast(&max_prow, 1, MPI_INT, owner_col, row_comm);
-            start_time_tf2 = MPI_Wtime();
-            // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-            // printf("myid:%d,max_loc_row:%d,i_panel:%d,j_panel:%d\n",mpi_comm_global_h.myid,max_loc_row,i_panel,j_panel);
-            // exchange rows
-            if(owner_row == max_prow){
-                if(myprow == owner_row && max_loc_row != i_panel)
-                    BLAS_CHECK(deblasZswap(
-                        blasH, n_loc,
-                        d_A + i_panel, lld,
-                        d_A + max_loc_row, lld
-                    ));
-                // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-            }else{
-                if(myprow == owner_row){
-                    DEVICE_CHECK(deviceMemcpy2DAsync(
-                        d_temp, sizeof(std::complex<double>),
-                        d_A + i_panel, lld * sizeof(std::complex<double>),
-                        sizeof(std::complex<double>), n_loc,
-                        deviceMemcpyDeviceToDevice, stream
-                    ));
-                    // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                    CCL_CHECK(
-                        ncclSend(d_temp, n_loc * 2, ncclFloat64, max_prow, col_nccl_comm, stream)
-                    );
-                    CCL_CHECK(
-                        ncclRecv(d_temp, n_loc  * 2, ncclFloat64, max_prow, col_nccl_comm, stream)
-                    );
-                    BLAS_CHECK(deblasZswap(
-                        blasH, n_loc,
-                        d_A + i_panel, lld,
-                        d_temp, 1
-                    ));
-                    // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                }else if(myprow == max_prow){
-                    CCL_CHECK(
-                        ncclRecv(d_temp, n_loc* 2, ncclFloat64, owner_row, col_nccl_comm, stream)
-                    );
-                    BLAS_CHECK(deblasZswap(
-                        blasH, n_loc,
-                        d_A + max_loc_row, lld,
-                        d_temp, 1
-                    ));
-                    // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                    CCL_CHECK(
-                        ncclSend(d_temp, n_loc * 2, ncclFloat64, owner_row, col_nccl_comm, stream)
-                    );
-                    // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                }
-            }
-            // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-            // time_for_swap += MPI_Wtime() - start_time_tf2;
-            // start_time_tf2 = MPI_Wtime();
-            
-            // finish exchange rows
-            MPI_Bcast(&max_value, sizeof(std::complex<double>), MPI_BYTE, owner_col, row_comm);
-            if(std::abs(max_value)<1e-10){
-                info = n_s+i_tf2+1;
-                return;
-            }
-            // start reduce columns
-            if(j_loc>=0){
-                max_value = 1.0 / max_value; // inverse
-                int64_t a_off;
-                int length_row;
+        // for(int i_tf2 = 0; i_tf2 < nb_real; i_tf2++){
+        //     double start_time_tf2 = MPI_Wtime();
+        //     DEVICE_CHECK(deviceMemsetAsync(d_max,0,nprows*sizeof(std::complex<double>),stream));
+        //     // memset(h_max.data(),0,nprows*sizeof(std::complex<double>));
+        //     memset(h_id_max.data(),0,nprows*sizeof(int));
+        //     // printf("myid:%d, n_s:%d, i_tf2:%d\n",mpi_comm_global_h.myid,n_s,i_tf2);
+        //     // find max_rows and value
+        //     int i_panel, j_panel;
+        //     if(i_loc >= 0)
+        //         i_panel = i_loc + i_tf2;
+        //     else
+        //         i_panel = mm_row_start;
+        //     if(j_loc >= 0)
+        //         j_panel = j_loc + i_tf2;
+        //     else
+        //         j_panel = mm_col_start;
+        //     if(j_loc >= 0){
+        //         double start_time_local_max = MPI_Wtime();
+        //         if(i_panel<m_loc){
+        //             BLAS_CHECK(deblasIzamax(
+        //                 blasH, m_loc-i_panel,
+        //                 d_A + j_panel * lld + i_panel,1,
+        //                 h_id_max.data()+myprow
+        //             ));
+        //             DEVICE_CHECK(deviceMemcpyAsync(
+        //                 d_max+myprow, d_A + (i_panel + (h_id_max[myprow]-1) + j_panel * lld), sizeof(std::complex<double>),
+        //                 deviceMemcpyDeviceToDevice, stream
+        //             ));
+        //         }
+        //         // DEVICE_CHECK(cudaStreamSynchronize(stream));
+        //         DEVICE_CHECK(deviceStreamSynchronize(stream));
+        //         // MPI_Barrier(col_comm);
+        //         // time_for_local_max += MPI_Wtime() - start_time_local_max;
+        //         // double start_time_allreduce = MPI_Wtime();
+        //         CCL_CHECK(ncclAllReduce(
+        //             d_max, d_max, nprows * 2, ncclFloat64, ncclSum, col_nccl_comm, stream
+        //         ));
+        //         // device_stream.cudaSync();
+        //         // MPI_Allreduce(MPI_IN_PLACE,h_max.data(),nprows,MPI_DOUBLE_COMPLEX,MPI_SUM,col_comm);
+        //         // time_for_allreduce_device += MPI_Wtime() - start_time_allreduce;
+        //         // double start_time_global_max = MPI_Wtime();
+        //         BLAS_CHECK(deblasIzamax(blasH, nprows, d_max, 1, &max_prow));
+        //         // max_prow = izamax_(&nprows, h_max.data(), &one_int);
+        //         // device_stream.cudaSync();
+        //         DEVICE_CHECK(deviceStreamSynchronize(stream));
+        //         // time_for_global_max += MPI_Wtime() - start_time_global_max;
+        //         // double start_time_allreduce_host = MPI_Wtime();
+        //         max_prow--;
+        //         h_id_max[myprow]=array_descA.indx_l2g_r(i_panel+h_id_max[myprow]-1);
+        //         MPI_Allreduce(MPI_IN_PLACE,h_id_max.data(),nprows,MPI_INT,MPI_SUM,col_comm);
+        //         // time_for_allreduce_host += MPI_Wtime() - start_time_allreduce_host;
+        //         max_row = h_id_max[max_prow];
                 
-                if(i_loc>=0){
-                    a_off = (i_panel + 1) + j_panel * lld;
-                    length_row = m_loc - (i_panel + 1);
-                }else{
-                    a_off = mm_row_start + j_panel * lld;
-                    length_row = m_loc - mm_row_start;
-                }
-                if(length_row>0){
-                    BLAS_CHECK(deblasZscal(
-                        blasH, length_row,
-                        &max_value,
-                        d_A + a_off, 1
-                    ));
-                }
-                // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                // time_for_scal += MPI_Wtime() - start_time_tf2;
-                // start_time_tf2 = MPI_Wtime();
-                // printf("myid:%d, n_s:%d, i_tf2:%d, length_row:%d\n",mpi_comm_global_h.myid,n_s,i_tf2,length_row);
-                int length_col = nb_real - i_tf2 - 1;
-                if(myprow == owner_row){
-                    DEVICE_CHECK(deviceMemcpy2DAsync(
-                        d_temp, 1 * sizeof(std::complex<double>),
-                        d_A + i_panel + (j_panel + 1) * lld, lld * sizeof(std::complex<double>),
-                        1*sizeof(std::complex<double>), length_col,
-                        deviceMemcpyDeviceToDevice, stream
-                    ));
-                }
-                if(length_col>0)
-                    ncclBroadcast(d_temp,d_temp,length_col* 2,ncclFloat64,owner_row,col_nccl_comm,stream);
-                // finish reduce columns
-                // start update trailing matrix
+        //         DEVICE_CHECK(deviceMemcpyAsync(
+        //             &max_value, d_max+max_prow, sizeof(std::complex<double>),
+        //             deviceMemcpyDeviceToHost, stream
+        //         ));
+        //     }
+        //     // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //     // time_for_max += MPI_Wtime() - start_time_tf2;
+            
+        //     MPI_Bcast(&max_row, 1, MPI_INT, owner_col, row_comm);
+        //     int max_loc_row = array_descA.indx_g2l_r(max_row);
+        //     if(myprow == owner_row){
+        //         ipiv[i_panel] = max_row + 1; // 1-based index like fortran
+        //     }
+        //     MPI_Bcast(&max_prow, 1, MPI_INT, owner_col, row_comm);
+        //     start_time_tf2 = MPI_Wtime();
+        //     // exchange rows
+        //     if(owner_row == max_prow){
+        //         if(myprow == owner_row && max_loc_row != i_panel)
+        //             BLAS_CHECK(deblasZswap(
+        //                 blasH, n_loc,
+        //                 d_A + i_panel, lld,
+        //                 d_A + max_loc_row, lld
+        //             ));
+        //     }else{
+        //         if(myprow == owner_row){
+        //             DEVICE_CHECK(deviceMemcpy2DAsync(
+        //                 d_temp, sizeof(std::complex<double>),
+        //                 d_A + i_panel, lld * sizeof(std::complex<double>),
+        //                 sizeof(std::complex<double>), n_loc,
+        //                 deviceMemcpyDeviceToDevice, stream
+        //             ));
+        //             // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //             CCL_CHECK(
+        //                 ncclSend(d_temp, n_loc * 2, ncclFloat64, max_prow, col_nccl_comm, stream)
+        //             );
+        //             CCL_CHECK(
+        //                 ncclRecv(d_temp, n_loc  * 2, ncclFloat64, max_prow, col_nccl_comm, stream)
+        //             );
+        //             BLAS_CHECK(deblasZswap(
+        //                 blasH, n_loc,
+        //                 d_A + i_panel, lld,
+        //                 d_temp, 1
+        //             ));
+        //             // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //         }else if(myprow == max_prow){
+        //             CCL_CHECK(
+        //                 ncclRecv(d_temp, n_loc* 2, ncclFloat64, owner_row, col_nccl_comm, stream)
+        //             );
+        //             BLAS_CHECK(deblasZswap(
+        //                 blasH, n_loc,
+        //                 d_A + max_loc_row, lld,
+        //                 d_temp, 1
+        //             ));
+        //             // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //             CCL_CHECK(
+        //                 ncclSend(d_temp, n_loc * 2, ncclFloat64, owner_row, col_nccl_comm, stream)
+        //             );
+        //             // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //         }
+        //     }
+        //     // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //     // time_for_swap += MPI_Wtime() - start_time_tf2;
+        //     // start_time_tf2 = MPI_Wtime();
+            
+        //     // finish exchange rows
+        //     MPI_Bcast(&max_value, sizeof(std::complex<double>), MPI_BYTE, owner_col, row_comm);
+        //     if(std::abs(max_value)<1e-10){
+        //         info = n_s+i_tf2+1;
+        //         return;
+        //     }
+        //     // start reduce columns
+        //     if(j_loc>=0){
+        //         max_value = 1.0 / max_value; // inverse
+        //         int64_t a_off;
+        //         int length_row;
                 
-                if(length_row>0&&length_row>0){
-                    BLAS_CHECK(deblasZgeru(
-                        blasH, length_row, length_col,
-                        &minus_one,
-                        d_A + a_off, 1,
-                        d_temp, 1,
-                        d_A + a_off + lld, lld
-                    ));
-                }
-                // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-                // time_for_geru += MPI_Wtime() - start_time_tf2;
-            }
-            // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
-            DEVICE_CHECK(deviceStreamSynchronize(stream));
-        }
+        //         if(i_loc>=0){
+        //             a_off = (i_panel + 1) + j_panel * lld;
+        //             length_row = m_loc - (i_panel + 1);
+        //         }else{
+        //             a_off = mm_row_start + j_panel * lld;
+        //             length_row = m_loc - mm_row_start;
+        //         }
+        //         if(length_row>0){
+        //             BLAS_CHECK(deblasZscal(
+        //                 blasH, length_row,
+        //                 &max_value,
+        //                 d_A + a_off, 1
+        //             ));
+        //         }
+        //         // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //         // time_for_scal += MPI_Wtime() - start_time_tf2;
+        //         // start_time_tf2 = MPI_Wtime();
+        //         // printf("myid:%d, n_s:%d, i_tf2:%d, length_row:%d\n",mpi_comm_global_h.myid,n_s,i_tf2,length_row);
+        //         int length_col = nb_real - i_tf2 - 1;
+        //         if(myprow == owner_row){
+        //             DEVICE_CHECK(deviceMemcpy2DAsync(
+        //                 d_temp, 1 * sizeof(std::complex<double>),
+        //                 d_A + i_panel + (j_panel + 1) * lld, lld * sizeof(std::complex<double>),
+        //                 1*sizeof(std::complex<double>), length_col,
+        //                 deviceMemcpyDeviceToDevice, stream
+        //             ));
+        //         }
+        //         if(length_col>0)
+        //             ncclBroadcast(d_temp,d_temp,length_col* 2,ncclFloat64,owner_row,col_nccl_comm,stream);
+        //         // finish reduce columns
+        //         // start update trailing matrix
+                
+        //         if(length_row>0&&length_row>0){
+        //             BLAS_CHECK(deblasZgeru(
+        //                 blasH, length_row, length_col,
+        //                 &minus_one,
+        //                 d_A + a_off, 1,
+        //                 d_temp, 1,
+        //                 d_A + a_off + lld, lld
+        //             ));
+        //         }
+        //         // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //         // time_for_geru += MPI_Wtime() - start_time_tf2;
+        //     }
+        //     // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
+        //     DEVICE_CHECK(deviceStreamSynchronize(stream));
+        // }
+        pzgetf2(
+            m, nb_real,
+            d_A, n_s, array_descA,
+            ipiv, info
+        );
         // finish pgetf2
-        // device_stream.cudaSync();
-        // DEVICE_CHECK(cudaStreamSynchronize((cudaStream_t)stream));
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         time_for_pgetf2 += MPI_Wtime() - start_time;
         start_time = MPI_Wtime();
@@ -358,6 +352,7 @@ void pzgetrf(
     DEVICE_CHECK(deviceFreeAsync(d_temp_block, stream));
     DEVICE_CHECK(deviceFreeAsync(d_temp_L, stream));
     DEVICE_CHECK(deviceFreeAsync(d_temp_U, stream));
+    DEVICE_CHECK(deviceStreamSynchronize(stream));
     printf("myid:%d, pzgetrf time_for_pgetf2:%lf, time_for_other:%lf\n",ddla_handle->myid,time_for_pgetf2,time_for_other);
 
 }

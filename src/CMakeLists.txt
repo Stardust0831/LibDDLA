@@ -13,12 +13,15 @@ message(STATUS "Building ddla library version ${CMAKE_PROJECT_VERSION}")
 list(APPEND lib_sources
     ddla_stream.cpp
     ddla_utils.cpp
+    pzgetf2.cpp
+    pzgetf2_panel.cpp
+    pzgetrf.cpp
     pztrtrs.cpp
     pzlapiv.cpp
-    pzgetrf.cpp
     pzgetrs.cpp
     pzgesv.cpp
     pzgemm.cpp
+    pgemm.cpp
     ddla_handle_t.cpp
     ddla_desc.cpp
 )
