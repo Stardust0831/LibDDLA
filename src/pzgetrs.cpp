@@ -28,13 +28,13 @@ void pzgetrs(
     );
     printf("myid:%d, pzlapiv time:%lf\n",ddla_handle->myid,MPI_Wtime()-start_time_swap);
     double start_time = MPI_Wtime();
-    pztrtrs(
-        'L', 'U', n, nrhs,
+    ptrtrs(
+        'L', 'L', 'N', 'U', n, nrhs,
         d_A, array_descA,
         d_B, array_descB
     );
-    pztrtrs(
-        'U', 'N', n, nrhs,
+    ptrtrs(
+        'L', 'U', 'N', 'N', n, nrhs,
         d_A, array_descA,
         d_B, array_descB
     );

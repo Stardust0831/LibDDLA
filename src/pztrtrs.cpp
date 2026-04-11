@@ -3,6 +3,10 @@
 #include <ddla_connector.h>
 #include <ddla_utils.h>
 #include <ddla_stream.h>
+#include "trsm.h"
+#ifdef ENABLE_GPU_CPU_TUNNEL
+#include <vector>
+#endif
 namespace DDLA{
 
 void pztrtrs(
@@ -12,10 +16,6 @@ void pztrtrs(
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
-    
-    MPI_Comm comm_group = ddla_handle->comm;
-    int rank=ddla_handle->myid;
-    int size=ddla_handle->nprocs;
     
     assert(array_descA.m() == array_descA.n());
     assert(array_descA.mb()==array_descA.nb());
@@ -32,31 +32,33 @@ void pztrtrs(
     // printf("nprows:%d, npcols:%d\n",nprows,npcols);
 
     // 初始化 NCCL  
-    ncclComm_t comm=ddla_handle->nccl_comm;
+    #ifdef ENABLE_CCL
     ncclComm_t row_comm=ddla_handle->nccl_row_comm;
     ncclComm_t col_comm=ddla_handle->nccl_col_comm;
-
+    #else
+    MPI_Comm row_comm=ddla_handle->row_comm;
+    MPI_Comm col_comm=ddla_handle->col_comm;
+    #endif
     deviceStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
-    desolverHandle_t solverH=ddla_handle->solverH;
 
-    #ifdef ENABLE_CUDA
-    cublasFillMode_t uplo_device = (uplo == 'U') ? CUBLAS_FILL_MODE_UPPER : CUBLAS_FILL_MODE_LOWER;
-    cublasDiagType_t diag_device = (diag == 'U') ? CUBLAS_DIAG_UNIT : CUBLAS_DIAG_NON_UNIT;
-    cublasOperation_t trans_device = CUBLAS_OP_N;
-    cublasSideMode_t side_device = CUBLAS_SIDE_LEFT;
-    #endif
-    #ifdef ENABLE_HIP
-    hipblasFillMode_t uplo_device = (uplo == 'U') ? HIPBLAS_FILL_MODE_UPPER : HIPBLAS_FILL_MODE_LOWER;
-    hipblasDiagType_t diag_device = (diag == 'U') ? HIPBLAS_DIAG_UNIT : HIPBLAS_DIAG_NON_UNIT;
-    hipblasOperation_t trans_device = HIPBLAS_OP_N;
-    hipblasSideMode_t side_device = HIPBLAS_SIDE_LEFT;
-    #endif
+    deblasFillMode_t uplo_device = (uplo == 'U') ? DEBLAS_FILL_MODE_UPPER : DEBLAS_FILL_MODE_LOWER;
+    deblasDiagType_t diag_device = (diag == 'U') ? DEBLAS_DIAG_UNIT : DEBLAS_DIAG_NON_UNIT;
+    deblasOperation_t trans_device = DEBLAS_OP_N;
+    deblasSideMode_t side_device = DEBLAS_SIDE_LEFT;
+    
     // double start_time = MPI_Wtime();
     std::complex<double>* d_block_diag,*d_block_A,*d_block_B;
     DEVICE_CHECK(deviceMallocAsync(&d_block_diag, nb * nb * sizeof(std::complex<double>), stream));
     DEVICE_CHECK(deviceMallocAsync(&d_block_B, nb * array_descB.n_loc() * sizeof(std::complex<double>), stream));
     DEVICE_CHECK(deviceMallocAsync(&d_block_A, array_descA.m_loc() * nb * sizeof(std::complex<double>), stream));
+
+    #ifdef ENABLE_GPU_CPU_TUNNEL
+    std::vector<std::complex<double>> h_temp(nb * std::max(array_descB.n_loc(), array_descA.m_loc()));
+    #endif
+
+    std::complex<double> one = 1.0;
+
     int mm_row_start,mm_row_step;
     // int mm_col_start=0;
     int n_s_start,n_s_end,n_s_step;
@@ -89,8 +91,6 @@ void pztrtrs(
         owner_col = DDLA::indxg2p(n_s, nb, array_descA.icsrc(), npcols);
         // printf("owner_row:%d,owner_col:%d\n",owner_row,owner_col);
 
-        const std::complex<double> one = {1.0, 0.0};
-        const std::complex<double> minus_one = {-1.0, 0.0};
         if(l_row_s>=0&&l_col_s>=0){
             DEVICE_CHECK(deviceMemcpy2DAsync(
                 d_block_diag, nb_real * sizeof(std::complex<double>),
@@ -102,10 +102,14 @@ void pztrtrs(
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         // 广播当前块行
         if(l_row_s>=0){
-            CCL_CHECK(ncclBroadcast(d_block_diag,d_block_diag,nb_real * nb_real * 2,ncclFloat64,owner_col,row_comm,stream));
-            BLAS_CHECK(deblasZtrsm(
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_col, ddla_handle->row_comm, stream));
+            #else
+            CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_col, row_comm, stream));
+            #endif
+            BLAS_CHECK(deblasTrsm(
                 blasH, side_device, uplo_device, trans_device, diag_device,
-                nb_real, array_descB.n_loc(), &one,
+                nb_real, array_descB.n_loc(), 1.0,
                 d_block_diag, nb_real,
                 d_B+l_row_s, lldB
             ));
@@ -118,7 +122,11 @@ void pztrtrs(
             mm_row_start+=mm_row_step;
         }
         DEVICE_CHECK(deviceStreamSynchronize(stream));
-        CCL_CHECK(ncclBroadcast(d_block_B,d_block_B,nb_real * array_descB.n_loc() * 2,ncclFloat64,owner_row,col_comm,stream));
+        #ifdef ENABLE_GPU_CPU_TUNNEL
+        MPI_CHECK(cclBcast(h_temp.data(), d_block_B, nb_real * array_descB.n_loc(), owner_row,ddla_handle->col_comm, stream));
+        #else
+        CCL_CHECK(cclBcast(d_block_B,nb_real * array_descB.n_loc(),owner_row,col_comm,stream));
+        #endif
         lld_block_A = uplo=='L'?array_descA.m_loc()-mm_row_start:mm_row_start;
         A_offset = uplo=='L'?mm_row_start+l_col_s*lldA:l_col_s*lldA;
         
@@ -134,13 +142,17 @@ void pztrtrs(
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         B_offset = uplo=='L'?mm_row_start:0;
         if(lld_block_A>0){
-            CCL_CHECK(ncclBroadcast(d_block_A,d_block_A,lld_block_A * nb_real * 2,ncclFloat64,owner_col,row_comm,stream));
-            BLAS_CHECK(deblasZgemm(
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_A, lld_block_A * nb_real, owner_col, ddla_handle->row_comm, stream));
+            #else
+            CCL_CHECK(cclBcast(d_block_A,lld_block_A * nb_real,owner_col,row_comm,stream));
+            #endif
+            BLAS_CHECK(deblasGemm(
                 blasH, trans_device, trans_device,lld_block_A,array_descB.n_loc(),nb_real,
-                &minus_one,
+                -1.0,
                 d_block_A,lld_block_A,
                 d_block_B,nb_real,
-                &one,
+                1.0,
                 d_B+B_offset, lldB
             ));
         }
@@ -149,7 +161,6 @@ void pztrtrs(
     DEVICE_CHECK(deviceFreeAsync(d_block_A,stream));
     DEVICE_CHECK(deviceFreeAsync(d_block_B,stream));
     DEVICE_CHECK(deviceFreeAsync(d_block_diag,stream));
-    DEVICE_CHECK(deviceStreamSynchronize(stream));
 }
 
 }

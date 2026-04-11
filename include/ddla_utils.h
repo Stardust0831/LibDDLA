@@ -6,8 +6,19 @@
 #include <chrono>
 #include <fstream>
 #include <complex>
-#include <ddla_connector.h>
 
+#ifndef MPI_CHECK
+#define MPI_CHECK(call)                                                                                               \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        int status = call;                                                                                             \
+        if (status != MPI_SUCCESS)                                                                                     \
+        {                                                                                                              \
+            fprintf(stderr, "MPI error at %s:%d : %d\n", __FILE__, __LINE__, status);\
+            exit(EXIT_FAILURE);                                                                                        \
+        }                                                                                                              \
+    }  while(0)
+#endif
 #ifdef ENABLE_CUDA
 #define DEVICE_CHECK(call)                                                                                               \
     do                                                                                                                 \
@@ -39,6 +50,7 @@
     } while (0)
 #endif
 
+#ifdef ENABLE_CCL
 #ifndef CCL_CHECK
 #define CCL_CHECK(call)                                                                                               \
     do                                                                                                                 \
@@ -50,6 +62,9 @@
             exit(EXIT_FAILURE);                                                                                        \
         }                                                                                                              \
     } while (0)
+#endif
+#else
+#define CCL_CHECK(call) MPI_CHECK(call)
 #endif
 
 #ifdef ENABLE_HIP
@@ -127,13 +142,7 @@
         }                                                                                                              \
     } while (0)
 #endif
-namespace DDLA{
 
-void random_generator(void* c_data, const int64_t& lengthOfData, const deviceDataType_t& compute_type);
-// col major
-void write_matrix(std::complex<double>* A, const int& m,const int& n, const char* filename);
-
-} // end of namespace DDLA
 
 
 #endif // DDLA_UTILS_H

@@ -1,7 +1,7 @@
 #ifndef DDLA_STREAM_H
 #define DDLA_STREAM_H
 
-#include "ddla_utils.h"
+#include "ddla_connector.h"
 #include <mpi.h>
 #include <iostream>
 #include <cmath>
@@ -37,19 +37,17 @@ public:
     MPI_Comm col_comm = MPI_COMM_NULL;
     int myid,nprocs;
     int myprow_,nprows_,mypcol_,npcols_;
+    #ifdef ENABLE_CCL
     ncclComm_t nccl_comm = nullptr, nccl_row_comm = nullptr, nccl_col_comm = nullptr;
-    #ifdef ENABLE_CUDA
-    cudaStream_t stream = nullptr;
-    cudaStream_t stream_data = nullptr; // for data transfer
-    cusolverDnHandle_t solverH = nullptr;
-    cublasHandle_t blasH = nullptr;
     #endif
-    #ifdef ENABLE_HIP
-    hipStream_t stream = nullptr;
-    hipStream_t stream_data = nullptr; // for data transfer
-    hipsolverHandle_t solverH = nullptr;
-    hipblasHandle_t blasH = nullptr;
-    #endif
+
+    deviceStream_t stream = nullptr;
+    deviceStream_t stream_data = nullptr; // for data transfer
+    desolverHandle_t solverH = nullptr;
+    deblasHandle_t blasH = nullptr;
+
+    char major;
+    #ifdef ENABLE_CCL
     static inline void nccl_comm_create(ncclComm_t &comm, const MPI_Comm &comm_group){
         int rank,size;
         MPI_Comm_rank(comm_group, &rank);
@@ -66,6 +64,7 @@ public:
         CCL_CHECK(ncclCommInitRank(&comm, size, id, rank));
         return;
     }
+    #endif
     void set_local_device(int local_device){
         DdlaStream::local_device = local_device;
         // printf("myid:%d,local_device:%d\n",myid,local_device);
@@ -75,14 +74,13 @@ public:
         #ifdef ENABLE_HIP
         DEVICE_CHECK(hipSetDevice(DdlaStream::local_device));
         #endif
-        // printf("after set local device, myid = %d, nprocs = %d\n",myid,nprocs);
         return;
     }
     void init(MPI_Comm comm_group = MPI_COMM_WORLD, const char& major = 'R'){
         MPI_Comm_rank(comm_group, &myid);
         MPI_Comm_size(comm_group, &nprocs);
         nprows_ = std::ceil(std::sqrt(nprocs));
-        if(nprocs % nprows_ != 0){
+        while(nprocs % nprows_ != 0){
             nprows_--;
         }
         npcols_ = nprocs / nprows_;
@@ -94,6 +92,7 @@ public:
             DEVICE_CHECK(deviceFree(NULL));
             set_local_device(DdlaStream::getLocalDevice());
         }
+        this->major = major;
         this->comm = comm_group;
         MPI_Comm_rank(comm_group, &myid);
         MPI_Comm_size(comm_group, &nprocs);
@@ -115,12 +114,11 @@ public:
         }
         MPI_Comm_split(comm_group, myprow_, myid, &row_comm);
         MPI_Comm_split(comm_group, mypcol_, myid, &col_comm);
+        #ifdef ENABLE_CCL
         DdlaStream::nccl_comm_create(nccl_comm, comm_group);
-        // printf("after nccl_comm create, myid = %d, nprocs = %d\n",myid,nprocs);
         DdlaStream::nccl_comm_create(nccl_row_comm, row_comm);
-        // printf("after nccl_row_comm create, myid = %d, nprocs = %d\n",myid,nprocs);
         DdlaStream::nccl_comm_create(nccl_col_comm, col_comm);
-        // printf("after nccl_col_comm create, myid = %d, nprocs = %d\n",myid,nprocs);
+        #endif
         
         #ifdef ENABLE_CUDA
         DEVICE_CHECK(cudaStreamCreate(&stream));
@@ -184,6 +182,7 @@ public:
             #endif
             blasH = nullptr;
         }
+        #ifdef ENABLE_CCL
         if(nccl_comm != nullptr){
             ncclCommDestroy(nccl_comm);
             nccl_comm = nullptr;
@@ -196,6 +195,7 @@ public:
             ncclCommDestroy(nccl_col_comm);
             nccl_col_comm = nullptr;
         }
+        #endif
         if(row_comm != MPI_COMM_NULL){
             MPI_Comm_free(&row_comm);
             row_comm = MPI_COMM_NULL;
@@ -214,6 +214,28 @@ public:
         DEVICE_CHECK(deviceMemGetInfo(&free_mem, &total_mem));
         printf("myid:%d, local_device:%d, free_mem:%lf GB, total_mem:%lf GB\n", myid, local_device, free_mem/1024./1024/1024, total_mem/1024./1024/1024);
         return;
+    }
+
+    void rank_to_rc(const int& rank, int& row, int& col){
+        if(major == 'R'){
+            row = rank / this->npcols_;
+            col = rank % this->npcols_;
+        }else if(major == 'C'){
+            row = rank % this->nprows_;
+            col = rank / this->nprows_;
+        }else{
+            throw std::runtime_error("major should be 'R' or 'C'\n");
+        }
+    }
+
+    int rc_to_rank(const int& row, const int& col){
+        if(major == 'R'){
+            return row * this->npcols_ + col;
+        }else if(major == 'C'){
+            return col * this->nprows_ + row;
+        }else{
+            throw std::runtime_error("major should be 'R' or 'C'\n");
+        }
     }
 };
 

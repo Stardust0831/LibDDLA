@@ -36,8 +36,11 @@ void pzlapiv(
 
     // 初始化 NCCL
     MPI_Comm col_comm = ddla_handle->col_comm;
+    #ifdef ENABLE_CCL
     ncclComm_t col_nccl_comm=ddla_handle->nccl_col_comm;
-
+    #else
+    MPI_Comm col_nccl_comm=ddla_handle->col_comm;
+    #endif
     int i_loc;
     int owner_row;
     int target_row;
@@ -69,15 +72,15 @@ void pzlapiv(
                     1*sizeof(std::complex<double>), array_descA.n_loc(),
                     deviceMemcpyDeviceToDevice, stream
                 ));
-                CCL_CHECK(ncclSend(temp_A_target, array_descA.n_loc()*2, ncclFloat64, owner_row, col_nccl_comm, stream));
+                CCL_CHECK(cclSend(temp_A_target, array_descA.n_loc(), owner_row, col_nccl_comm, stream));
             }else if(myprow==owner_row){
-                CCL_CHECK(ncclRecv(temp_A_target, array_descA.n_loc()*2, ncclFloat64, target_row, col_nccl_comm, stream));
+                CCL_CHECK(cclRecv(temp_A_target, array_descA.n_loc(), target_row, col_nccl_comm, stream));
                 BLAS_CHECK(deblasZswap(blasH,array_descA.n_loc(),d_A+i_loc,lldA,temp_A_target,1));
             }
             if(myprow == owner_row){
-                CCL_CHECK(ncclSend(temp_A_target, array_descA.n_loc()*2, ncclFloat64, target_row, col_nccl_comm, stream));
+                CCL_CHECK(cclSend(temp_A_target, array_descA.n_loc(), target_row, col_nccl_comm, stream));
             }else if(myprow==target_row){
-                CCL_CHECK(ncclRecv(temp_A_target, array_descA.n_loc()*2, ncclFloat64, owner_row, col_nccl_comm, stream));
+                CCL_CHECK(cclRecv(temp_A_target, array_descA.n_loc(), owner_row, col_nccl_comm, stream));
                 BLAS_CHECK(deblasZswap(blasH,array_descA.n_loc(),d_A+target_i_loc,lldA,temp_A_target,1));
             }
         }

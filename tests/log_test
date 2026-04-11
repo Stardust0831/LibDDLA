@@ -1,0 +1,242 @@
+=========================
+LD_LIBRARY_PATH: /data/home/renxg/app/libddla/260328/LibDDLA_install_test/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/nccl/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/hpcx/hpcx-2.14/ucx/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/hpcx/hpcx-2.14/ucc/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//cuda/11.8/targets/x86_64-linux/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//math_libs/11.8/targets/x86_64-linux/lib:/data/app/openmpi/4.1.8-cuda/lib:/data/app/gcc/11.3.0/lib64:/data/app/gcc/11.3.0/lib
+=========================
+PATH: /data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//cuda/11.8/bin:/data/app/cmake/3.25.3/bin:/data/app/openmpi/4.1.8-cuda/bin:/data/app/gcc/11.3.0/bin:/data/home/renxg/.vscode-server/bin/8b3775030ed1a69b13e4f4c628c612102e30a681/bin/remote-cli:/usr/lpp/mmfs/bin:/data/home/renxg/.vscode-server/bin/8b3775030ed1a69b13e4f4c628c612102e30a681/bin/remote-cli:/data/home/renxg/.vscode-server/bin/8b3775030ed1a69b13e4f4c628c612102e30a681/bin/remote-cli:/usr/lpp/mmfs/bin:/data/home/renxg/.vscode-server/bin/8b3775030ed1a69b13e4f4c628c612102e30a681/bin/remote-cli:/data/home/renxg/.local/bin:/data/home/renxg/bin:/usr/share/Modules/bin:/usr/lpp/mmfs/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/chess/clustertech/ng/bin:/usr/lpp/mmfs/bin:/chess/clustertech/ng/bin:/usr/lpp/mmfs/bin:/chess/clustertech/ng/bin:/usr/lpp/mmfs/bin
+=========================
+CPATH: /data/home/renxg/app/libddla/260328/LibDDLA_install_test/include:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/nccl/include:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//math_libs/11.8/include:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//cuda/11.8/include:/data/app/openmpi/4.1.8-cuda/include:/data/app/gcc/11.3.0/include
+=========================
+C_INCLUDE_PATH:
+=========================
+LIBRARY_PATH: /data/home/renxg/app/libddla/260328/LibDDLA_install_test/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/nccl/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/hpcx/hpcx-2.14/ucx/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//comm_libs/11.8/hpcx/hpcx-2.14/ucc/lib:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//cuda/11.8/lib64:/data/group_home/renxg/nvidia/hpc_sdk/Linux_x86_64/25.5//math_libs/11.8/lib64:/data/app/openmpi/4.1.8-cuda/lib:/data/app/gcc/11.3.0/lib64:/data/app/gcc/11.3.0/lib
+=========================
+CPLUS_INCLUDE_PATH:
+=========================
+任务运行节点列表: c2v100m2-5
+Begin Time: Sat Apr 11 15:41:06 CST 2026
+/data/app/openmpi/4.1.8-cuda/bin/mpicxx
+np: 4
+before stream init
+before stream init
+before stream init
+before stream init
+after stream init
+myid:2, m_loc:2440, n_loc:2560, mb:128, nb:128, m:5000, n:5000
+after stream init
+myid:0, m_loc:2560, n_loc:2560, mb:128, nb:128, m:5000, n:5000
+after stream init
+myid:3, m_loc:2440, n_loc:2440, mb:128, nb:128, m:5000, n:5000
+after stream init
+myid:1, m_loc:2560, n_loc:2440, mb:128, nb:128, m:5000, n:5000
+myid:3, local_device:3, free_mem:31.163391 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:30.253235 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:31.163391 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:31.143860 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:30.975891 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:30.034485 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:30.975891 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:30.956360 GB, total_mem:31.739380 GB
+myid:3, pgeadd time:0.025611
+myid:0, pgeadd time:0.025628
+myid:1, pgeadd time:0.026699
+myid:2, pgeadd time:0.026770
+myid:1, start ppotrf
+myid:0, start ppotrf
+myid:3, start ppotrf
+myid:2, start ppotrf
+myid:3, ppotrf time:0.161009
+myid:0, ppotrf time:0.161004
+myid:2, ppotrf time:0.161470
+myid:1, ppotrf time:0.161334
+myid:1 2xtrtrs time:0.186626
+myid:0 2xtrtrs time:0.186638
+myid:0, ppotrs time:0.186665
+myid:0, start check identity result for ppotrf and ppotrs
+myid:1, ppotrs time:0.186847
+myid:1, start check identity result for ppotrf and ppotrs
+myid:3 2xtrtrs time:0.186874
+myid:3, ppotrs time:0.186905
+myid:3, start check identity result for ppotrf and ppotrs
+myid:2 2xtrtrs time:0.186888
+myid:2, ppotrs time:0.187185
+myid:2, start check identity result for ppotrf and ppotrs
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+testing matrix size: 5000
+myid:1, m_loc:2560, n_loc:2440, mb:128, nb:128, m:5000, n:5000
+testing matrix size: 5000
+myid:0, m_loc:2560, n_loc:2560, mb:128, nb:128, m:5000, n:5000
+testing matrix size: 5000
+myid:3, m_loc:2440, n_loc:2440, mb:128, nb:128, m:5000, n:5000
+testing matrix size: 5000
+myid:2, m_loc:2440, n_loc:2560, mb:128, nb:128, m:5000, n:5000
+myid:0, local_device:0, free_mem:30.184875 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:31.102844 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:31.095032 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:31.083313 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:30.938782 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:29.997375 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:30.915344 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:30.895813 GB, total_mem:31.739380 GB
+myid:3, pgeadd time:0.000383
+myid:0, pgeadd time:0.000424
+myid:1, pgeadd time:0.006447
+myid:2, pgeadd time:0.006522
+myid:1, start ppotrf
+myid:0, start ppotrf
+myid:3, start ppotrf
+myid:2, start ppotrf
+myid:3, ppotrf time:0.035547
+myid:0, ppotrf time:0.035539
+myid:1, ppotrf time:0.035855
+myid:2, ppotrf time:0.036006
+myid:1 2xtrtrs time:0.154482
+myid:0 2xtrtrs time:0.154494
+myid:0, ppotrs time:0.154512
+myid:0, start check identity result for ppotrf and ppotrs
+myid:1, ppotrs time:0.154719
+myid:1, start check identity result for ppotrf and ppotrs
+myid:3 2xtrtrs time:0.154737
+myid:3, ppotrs time:0.154747
+myid:3, start check identity result for ppotrf and ppotrs
+myid:2 2xtrtrs time:0.154756
+myid:2, ppotrs time:0.155017
+myid:2, start check identity result for ppotrf and ppotrs
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+testing matrix size: 10000
+myid:3, m_loc:4992, n_loc:4992, mb:128, nb:128, m:10000, n:10000
+testing matrix size: 10000
+myid:1, m_loc:5008, n_loc:4992, mb:128, nb:128, m:10000, n:10000
+testing matrix size: 10000
+myid:2, m_loc:4992, n_loc:5008, mb:128, nb:128, m:10000, n:10000
+testing matrix size: 10000
+myid:0, m_loc:5008, n_loc:5008, mb:128, nb:128, m:10000, n:10000
+myid:0, local_device:0, free_mem:30.184875 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:31.083313 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:31.095032 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:31.102844 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:30.333313 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:30.352844 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:29.434875 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:30.345032 GB, total_mem:31.739380 GB
+myid:0, pgeadd time:0.001537
+myid:3, pgeadd time:0.001537
+myid:2, pgeadd time:0.025487
+myid:1, pgeadd time:0.025561
+myid:2, start ppotrf
+myid:3, start ppotrf
+myid:0, start ppotrf
+myid:1, start ppotrf
+myid:3, ppotrf time:0.139294
+myid:0, ppotrf time:0.139310
+myid:1, ppotrf time:0.139738
+myid:2, ppotrf time:0.139972
+myid:0 2xtrtrs time:0.702450
+myid:0, ppotrs time:0.702470
+myid:0, start check identity result for ppotrf and ppotrs
+myid:1 2xtrtrs time:0.702465
+myid:3 2xtrtrs time:0.702739
+myid:3, ppotrs time:0.702756
+myid:3, start check identity result for ppotrf and ppotrs
+myid:2 2xtrtrs time:0.702727
+myid:1, ppotrs time:0.702752
+myid:1, start check identity result for ppotrf and ppotrs
+myid:2, ppotrs time:0.703081
+myid:2, start check identity result for ppotrf and ppotrs
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+testing matrix size: 15000
+myid:3, m_loc:7448, n_loc:7448, mb:128, nb:128, m:15000, n:15000
+testing matrix size: 15000
+myid:1, m_loc:7552, n_loc:7448, mb:128, nb:128, m:15000, n:15000
+testing matrix size: 15000
+myid:0, m_loc:7552, n_loc:7552, mb:128, nb:128, m:15000, n:15000
+testing matrix size: 15000
+myid:2, m_loc:7448, n_loc:7552, mb:128, nb:128, m:15000, n:15000
+myid:0, local_device:0, free_mem:30.153625 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:31.063782 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:31.083313 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:31.102844 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:29.407532 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:29.395813 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:29.415344 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:28.466125 GB, total_mem:31.739380 GB
+myid:3, pgeadd time:0.003339
+myid:0, pgeadd time:0.003481
+myid:1, pgeadd time:0.057214
+myid:2, pgeadd time:0.057310
+myid:1, start ppotrf
+myid:0, start ppotrf
+myid:3, start ppotrf
+myid:2, start ppotrf
+myid:3, ppotrf time:0.351394
+myid:2, ppotrf time:0.351784
+myid:0, ppotrf time:0.351895
+myid:1, ppotrf time:0.352281
+myid:1 2xtrtrs time:1.855543
+myid:0 2xtrtrs time:1.855556
+myid:3 2xtrtrs time:1.855902
+myid:1, ppotrs time:1.855914
+myid:1, start check identity result for ppotrf and ppotrs
+myid:2 2xtrtrs time:1.855906
+myid:0, ppotrs time:1.856038
+myid:0, start check identity result for ppotrf and ppotrs
+myid:3, ppotrs time:1.856286
+myid:3, start check identity result for ppotrf and ppotrs
+myid:2, ppotrs time:1.856405
+myid:2, start check identity result for ppotrf and ppotrs
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+testing matrix size: 20000
+myid:3, m_loc:9984, n_loc:9984, mb:128, nb:128, m:20000, n:20000
+testing matrix size: 20000
+myid:1, m_loc:10016, n_loc:9984, mb:128, nb:128, m:20000, n:20000
+testing matrix size: 20000
+myid:2, m_loc:9984, n_loc:10016, mb:128, nb:128, m:20000, n:20000
+testing matrix size: 20000
+myid:0, m_loc:10016, n_loc:10016, mb:128, nb:128, m:20000, n:20000
+myid:0, local_device:0, free_mem:30.153625 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:31.102844 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:31.083313 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:31.063782 GB, total_mem:31.739380 GB
+myid:1, local_device:1, free_mem:28.102844 GB, total_mem:31.739380 GB
+myid:0, local_device:0, free_mem:27.153625 GB, total_mem:31.739380 GB
+myid:2, local_device:2, free_mem:28.083313 GB, total_mem:31.739380 GB
+myid:3, local_device:3, free_mem:28.063782 GB, total_mem:31.739380 GB
+myid:0, pgeadd time:0.005979
+myid:3, pgeadd time:0.006018
+myid:2, pgeadd time:0.105544
+myid:1, pgeadd time:0.105618
+myid:3, start ppotrf
+myid:0, start ppotrf
+myid:2, start ppotrf
+myid:1, start ppotrf
+myid:1, ppotrf time:0.724137
+myid:0, ppotrf time:0.724241
+myid:2, ppotrf time:0.724909
+myid:3, ppotrf time:0.725006
+myid:0 2xtrtrs time:3.828435
+myid:1 2xtrtrs time:3.828439
+myid:1, ppotrs time:3.828778
+myid:1, start check identity result for ppotrf and ppotrs
+myid:3 2xtrtrs time:3.828838
+myid:2 2xtrtrs time:3.828822
+myid:0, ppotrs time:3.828883
+myid:0, start check identity result for ppotrf and ppotrs
+myid:3, ppotrs time:3.829175
+myid:3, start check identity result for ppotrf and ppotrs
+myid:2, ppotrs time:3.829291
+myid:2, start check identity result for ppotrf and ppotrs
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+end check pztrtrs result between scalapack and bcast
+End Time: Sat Apr 11 15:41:37 CST 2026
