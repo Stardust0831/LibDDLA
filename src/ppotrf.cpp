@@ -57,7 +57,7 @@ void ppotrf(
     DEVICE_CHECK(deviceMallocAsync((void**)&d_info, sizeof(int), stream));
 
     #ifdef ENABLE_GPU_CPU_TUNNEL
-    std::vector<T> h_temp(nb * std::max(array_descB.n_loc(), array_descA.m_loc()));
+    std::vector<T> h_temp(nb * std::max(array_descA.n_loc(), array_descA.m_loc()));
     #endif
 
     int owner_row, owner_col;
@@ -86,8 +86,6 @@ void ppotrf(
         owner_row = indxg2p(n_s, nb, array_descA.irsrc(), nprows);
         owner_col = indxg2p(n_s, nb, array_descA.icsrc(), npcols);
 
-        
-
         if(myprow == owner_row && mypcol == owner_col)
         {
             SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
@@ -110,7 +108,11 @@ void ppotrf(
             mm_row_start += nb_real;
         length_row = array_descA.m_loc() - mm_row_start;
         if(mypcol == owner_col){
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_row, ddla_handle->col_comm, ddla_handle->stream));
+            #else
             CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_row, col_comm, stream));
+            #endif
             if(length_row > 0){
                 BLAS_CHECK(deblasTrsm(
                     blasH, side_device, uplo_device, trans_device, diag_device,
@@ -129,14 +131,24 @@ void ppotrf(
         if(mypcol == owner_col)
             mm_col_start += nb_real;
         length_col = array_descA.n_loc() - mm_col_start;
-        if(length_row > 0)
+        if(length_row > 0){
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_col, length_row * nb_real, owner_col, ddla_handle->row_comm, ddla_handle->stream));
+            #else
             CCL_CHECK(cclBcast(d_block_col, length_row * nb_real, owner_col, row_comm, stream));
+            #endif
+        }
         if(myprow == mypcol){
             if(length_col > 0)
                 DEVICE_CHECK(deviceMemcpyAsync(d_block_row, d_block_col, length_col * nb_real * sizeof(T), deviceMemcpyDeviceToDevice, stream));
         }
-        if(length_col > 0)
+        if(length_col > 0){
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_row, nb_real * length_col, mypcol, ddla_handle->col_comm, ddla_handle->stream));
+            #else
             CCL_CHECK(cclBcast(d_block_row, nb_real * length_col, mypcol, col_comm, stream));
+            #endif
+        }
         if(myprow == mypcol){
             if(length_row > 0)
                 deblasHerk(

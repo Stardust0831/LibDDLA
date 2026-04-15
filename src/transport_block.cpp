@@ -54,7 +54,11 @@ void transport_block(
                     deviceMemcpyDeviceToDevice, ddla_handle->stream
                 ));
             }
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_A, m * (n_loc - j_loc), owner_row, ddla_handle->col_comm, ddla_handle->stream));
+            #else   
             CCL_CHECK(cclBcast(d_block_A, m * (n_loc - j_loc), owner_row, col_nccl_comm, ddla_handle->stream));
+            #endif
         }else if(sData == 'C' && m_loc > i_loc){
             if(array_descA.mypcol() == owner_col){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
@@ -64,7 +68,11 @@ void transport_block(
                     deviceMemcpyDeviceToDevice, ddla_handle->stream
                 ));
             }
+            #ifdef ENABLE_GPU_CPU_TUNNEL
+            MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (m_loc - i_loc) * n, owner_col, ddla_handle->row_comm, ddla_handle->stream));
+            #else
             CCL_CHECK(cclBcast(d_block_A, (m_loc - i_loc) * n, owner_col, row_nccl_comm, ddla_handle->stream));
+            #endif
         }
     }else{
         int trans_j_loc = num_loc(ja, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
@@ -99,8 +107,13 @@ void transport_block(
                     }
                 }
             }
-            if(trans_n_loc > trans_j_loc)
+            if(trans_n_loc > trans_j_loc){
+                #ifdef ENABLE_GPU_CPU_TUNNEL
+                MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (trans_n_loc - trans_j_loc) * m, array_descA.myprow(), ddla_handle->row_comm, ddla_handle->stream));
+                #else
                 CCL_CHECK(cclBcast(d_block_A, (trans_n_loc - trans_j_loc) * m, array_descA.myprow(), row_nccl_comm, ddla_handle->stream));
+                #endif
+            }
         }else if(sData == 'C'){
             if(m_loc > i_loc){
                 if(array_descA.mypcol() == owner_col){
@@ -127,8 +140,13 @@ void transport_block(
                     }
                 }
             }
-            if(trans_m_loc > trans_i_loc)
+            if(trans_m_loc > trans_i_loc){
+                #ifdef ENABLE_GPU_CPU_TUNNEL
+                MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (trans_m_loc - trans_i_loc) * n, array_descA.mypcol(), ddla_handle->col_comm, ddla_handle->stream));
+                #else   
                 CCL_CHECK(cclBcast(d_block_A, (trans_m_loc - trans_i_loc) * n, array_descA.mypcol(), col_nccl_comm, ddla_handle->stream));
+                #endif
+            }
         }
     }
     return;
