@@ -50,9 +50,9 @@ void ppotrf(
     deblasSideMode_t side_device = (uplo == 'U') ?DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
 
     T* d_block_diag, *d_block_row, *d_block_col;
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_diag, nb*nb*sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_row, nb*array_descA.m_loc()*sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_col, nb*array_descA.n_loc()*sizeof(T), stream));
+    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_diag, nb * nb * sizeof(T), stream));
+    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_row, nb * array_descA.n_loc() * sizeof(T), stream));
+    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_col, nb * array_descA.m_loc() * sizeof(T), stream));
     int *d_info;
     DEVICE_CHECK(deviceMallocAsync((void**)&d_info, sizeof(int), stream));
 
