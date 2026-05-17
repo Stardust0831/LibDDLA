@@ -4,7 +4,8 @@
 #include <ddla_utils.h>
 #include <ddla_stream.h>
 #include <vector>
-
+#include <type_traits>
+#include <cmath>
 
 #include "trsm.h"
 #include "potrf.h"
@@ -13,16 +14,31 @@
 namespace DDLA{
 
 template<typename T>
-void ppotrf(
+bool ppotrf(
     const char& uplo, const int& n,
     T* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 )
 {
+    bool is_nega = false;
     assert(uplo == 'L');
     assert(array_descA.mb() == array_descA.nb());
     assert(n > 0);
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    if(is_head)
+    if(location != -1 && location != n){
+        pswap(
+            n,
+            A, location, 1, array_descA, array_descA.m(),
+            A, n, 1, array_descA, array_descA.m()
+        );
+        pswap(
+            n,
+            A, 1, location, array_descA, 1,
+            A, 1, location, array_descA, 1
+        );
+    }
 
     int nb = array_descA.mb();
     int lldA = array_descA.lld();
@@ -88,7 +104,42 @@ void ppotrf(
 
         if(myprow == owner_row && mypcol == owner_col)
         {
-            SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+            if(n_s + nb_real == array_descA.m() && is_head){
+                if(nb_real > 1){
+                    SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+                    BLAS_CHECK(deblasTrsm(
+                        blasH, side_device, uplo_device, trans_device, diag_device,
+                        1, nb_real - 1, (T)1.0, 
+                        A + mm_row_start + mm_col_start * lldA, lldA,
+                        A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA
+                    ));
+                    BLAS_CHECK(deblasHerk(
+                        blasH, uplo_device, DEBLAS_OP_N,
+                        1, nb_real - 1,
+                        -1.0, A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA,
+                        1.0, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, lldA
+                    ));
+                }
+                T last_value;
+                DEVICE_CHECK(deviceMemcpyAsync(&last_value, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, sizeof(T), deviceMemcpyDeviceToHost, stream));
+                is_nega = false;
+                if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>){
+                    if(last_value < 0){
+                        is_nega = true;
+                        last_value = -last_value;
+                    }
+                }else if constexpr (std::is_same_v<T, std::complex<double>> || std::is_same_v<T, std::complex<float>>){
+                    if(last_value.real() < 0){
+                        is_nega = true;
+                        last_value = -last_value;
+                    }                
+                }else{
+                    throw std::runtime_error("unsupported template type\n");
+                }
+                last_value = std::sqrt(last_value);
+                DEVICE_CHECK(deviceMemcpyAsync(A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, &last_value, sizeof(T), deviceMemcpyHostToDevice, stream));
+            }else
+                SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             DEVICE_CHECK(deviceMemcpy(&info, d_info, sizeof(int), deviceMemcpyDeviceToHost));
             DEVICE_CHECK(deviceMemcpy2DAsync(
@@ -98,6 +149,8 @@ void ppotrf(
                 deviceMemcpyDeviceToDevice, stream
             ));
         }
+        if(n_s + nb_real == array_descA.m())
+            MPI_CHECK(MPI_Bcast(&is_nega, 1, MPI_CXX_BOOL, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
         MPI_CHECK(MPI_Bcast(&info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
         if(info != 0){
             info = info + n_s;
@@ -151,12 +204,12 @@ void ppotrf(
         }
         if(myprow == mypcol){
             if(length_row > 0)
-                deblasHerk(
+                BLAS_CHECK(deblasHerk(
                     blasH, uplo_device, DEBLAS_OP_N,
                     length_row, nb_real,
                     -1.0, d_block_col, length_row,
                     1.0, A + mm_row_start + mm_col_start * lldA, lldA
-                );
+                ));
         }else{
             // the first approach in which the unused block will be polluted
             // if(length_row > 0 && length_col > 0)
@@ -267,19 +320,22 @@ void ppotrf(
     DEVICE_CHECK(deviceFreeAsync(d_block_row, stream));
     DEVICE_CHECK(deviceFreeAsync(d_block_col, stream));
     DEVICE_CHECK(deviceFreeAsync(d_info, stream));
+    return is_nega;
 
 }
 
-template void ppotrf<std::complex<float>>(
+template bool ppotrf<std::complex<float>>(
     const char& uplo, const int& n,
     std::complex<float>* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 );
 
-template void ppotrf<std::complex<double>>(
+template bool ppotrf<std::complex<double>>(
     const char& uplo, const int& n,
     std::complex<double>* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 );
 
 
