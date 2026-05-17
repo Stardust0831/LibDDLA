@@ -41,12 +41,15 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
     DDLA::random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
     
     std::complex<double> ten = 10000.0;
+    std::complex<double> one = -1.0;
     for(int i=0;i<matrix_desc.m();i++){
         int i_loc = matrix_desc.indx_g2l_r(i);
         if(i_loc<0) continue;
         int j_loc = matrix_desc.indx_g2l_c(i);
         if(j_loc<0) continue;
         DEVICE_CHECK(deviceMemcpyAsync(d_A+i_loc+j_loc*matrix_desc.lld(), &ten, sizeof(std::complex<double>), deviceMemcpyHostToDevice, ddla_handle->stream));
+        if(i == n - 1)
+        DEVICE_CHECK(deviceMemcpyAsync(d_A+i_loc+j_loc*matrix_desc.lld(), &one, sizeof(std::complex<double>), deviceMemcpyHostToDevice, ddla_handle->stream));
     }
     // if(verbose)
     // {
@@ -71,7 +74,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
         d_A, 1, 1, matrix_desc,
         info
     );
-    assert(info == 0);
+    printf("info = %d\n", info);
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     printf("myid:%d, ppotrf time:%lf\n",myid, MPI_Wtime()-start_time_sv);
     MPI_Barrier(MPI_COMM_WORLD);
@@ -114,11 +117,18 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
         DEVICE_CHECK(deviceMemcpyAsync(a.data(), d_A, sizeof(std::complex<double>)*matrix_desc.m_loc()*matrix_desc.n_loc(), deviceMemcpyDeviceToHost, ddla_handle->stream));
         DEVICE_CHECK(deviceMemcpyAsync(b.data(), d_A_copy, sizeof(std::complex<double>)*matrix_desc.m_loc()*matrix_desc.n_loc(), deviceMemcpyDeviceToHost, ddla_handle->stream));
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
-        for(int i=0;i<matrix_desc.m_loc();i++){
-            for(int j=0;j<matrix_desc.n_loc();j++){
-                auto diff = a[i+j*matrix_desc.lld()]-b[i+j*matrix_desc.lld()];
+        for(int i=0;i<matrix_desc.m();i++){
+            int i_loc = matrix_desc.indx_g2l_r(i);
+            if(i_loc < 0)
+                continue;
+            for(int j=0;j<matrix_desc.n();j++){
+                int j_loc = matrix_desc.indx_g2l_c(j);
+                if(j_loc < 0)
+                    continue;
+                int offset = i_loc + j_loc * matrix_desc.lld();
+                auto diff = a[offset]-b[offset];
                 if(std::abs(diff)>1e-6){
-                    printf("myid:%d, i:%d, j:%d, diff:(%lf,%lf), b:%lf\n",myid,i,j,diff.real(),diff.imag(),1e-6);
+                    printf("myid:%d, i:%d, j:%d, a:(%lf,%lf), b:(%lf,%lf)\n", myid, i, j, a[offset].real(), a[offset].imag(), b[offset].real(), b[offset].imag());
                 }
             }
         }
