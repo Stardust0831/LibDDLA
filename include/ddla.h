@@ -127,7 +127,8 @@ void ppotrs(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
     T* d_A, const DDLA::DdlaDesc& array_descA,
-    T* d_B, const DDLA::DdlaDesc& array_descB
+    T* d_B, const DDLA::DdlaDesc& array_descB,
+    bool is_nega = false, int location = -1
 );
 
 template <typename T>
@@ -136,7 +137,8 @@ void pposv(
     const int & n, const int& nrhs,
     T* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
     T* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
-    int& info // device pointer
+    int& info, // host pointer
+    bool is_head = false, int location = -1
 );
 
 
