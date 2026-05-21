@@ -18,7 +18,7 @@ set(CMAKE_PROJECT_VERSION "${version}")
 set(LIB_NAME            "ddla")
 set(math_libs "")
 
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 option(BUILD_TESTS "Build test programs" OFF) 
@@ -47,6 +47,13 @@ if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
+message(STATUS "CMAKE_CXX_FLAGS: ${CMAKE_CXX_FLAGS}")
+message(STATUS "ENABLE_CCL: ${ENABLE_CCL}")
+message(STATUS "ENABLE_GPU_CPU_TUNNEL: ${ENABLE_GPU_CPU_TUNNEL}")
+if (ENABLE_CCL AND ENABLE_GPU_CPU_TUNNEL)
+    message(WARNING "ENABLE_CCL and ENABLE_GPU_CPU_TUNNEL are both enabled, the library will need ccl library but it will not be used, if you want use ccl communication, please set ENABLE_GPU_CPU_TUNNEL to OFF")
+endif()
+message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 
 enable_language(CXX)
 

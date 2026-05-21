@@ -19,6 +19,8 @@ list(APPEND lib_sources
     pztrtrs.cpp
     ptrtrs.cpp
     pzlapiv.cpp
+    plapiv.cpp
+    pswap.cpp
     pzgetrs.cpp
     pzgesv.cpp
     pzgemm.cpp

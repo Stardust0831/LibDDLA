@@ -7,12 +7,13 @@ void pposv(
     const int & n, const int& nrhs,
     T* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
     T* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 )
 {
-    ppotrf(uplo, n, d_A, ia, ja, array_descA, info);
-    if(info == 0)
-        ppotrs(side, uplo, trans, n, nrhs, d_A, array_descA, d_B, array_descB);
+    bool is_nega = ppotrf(uplo, n, d_A, ia, ja, array_descA, info, is_head, location);
+    if(info == 0 && !is_nega)
+        ppotrs(side, uplo, trans, n, nrhs, d_A, array_descA, d_B, array_descB, is_nega, location);
     return;
 }
 
@@ -21,7 +22,8 @@ template void pposv<std::complex<float>>(
     const int & n, const int& nrhs,
     std::complex<float>* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
     std::complex<float>* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 );
 
 template void pposv<std::complex<double>>(
@@ -29,7 +31,8 @@ template void pposv<std::complex<double>>(
     const int & n, const int& nrhs,
     std::complex<double>* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
     std::complex<double>* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head, int location
 );
 
 } // namespace DDLA

@@ -30,6 +30,22 @@ void pzlapiv(
     int* iwork
 );
 
+template <typename T>
+void plapiv(
+    const char& direc, const char& rowcol, const char& pivroc,
+    const int& m, const int& n,
+    T* d_A,const DDLA::DdlaDesc& array_descA,
+    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    int* iwork
+);
+
+template <typename T>
+void pswap(
+    const int& N, 
+    T* A, int ia, int ja, const DdlaDesc& array_descA, const int& inca,
+    T* B, int ib, int jb, const DdlaDesc& array_descB, const int& incb
+);
+
 void pzgetf2(
     const int& m, const int& nb_real,
     std::complex<double>* d_A, const int& n_s, const DDLA::DdlaDesc& array_descA,
@@ -99,10 +115,11 @@ void pgeadd(
 );
 
 template<typename T>
-void ppotrf(
+bool ppotrf(
     const char& uplo, const int& n,
     T* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
-    int& info // host pointer
+    int& info, // host pointer
+    bool is_head = false, int location = -1
 );
 
 template <typename T>
@@ -110,7 +127,8 @@ void ppotrs(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
     T* d_A, const DDLA::DdlaDesc& array_descA,
-    T* d_B, const DDLA::DdlaDesc& array_descB
+    T* d_B, const DDLA::DdlaDesc& array_descB,
+    bool is_nega = false, int location = -1
 );
 
 template <typename T>
@@ -119,7 +137,8 @@ void pposv(
     const int & n, const int& nrhs,
     T* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
     T* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
-    int& info // device pointer
+    int& info, // host pointer
+    bool is_head = false, int location = -1
 );
 
 
