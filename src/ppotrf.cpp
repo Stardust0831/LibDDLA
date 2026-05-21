@@ -155,7 +155,7 @@ bool ppotrf(
         if(info != 0){
             info = info + n_s;
             printf("the matrix is not positive definite myid:%d, info:%d\n", ddla_handle->myid, info);
-            return;
+            return false;
         }
         if(myprow == owner_row)
             mm_row_start += nb_real;

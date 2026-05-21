@@ -5,6 +5,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <vector>
+#include <map>
 #include <complex>
 #include <string>
 #include <ddla.h>
@@ -15,9 +16,14 @@
 #include "../src/trsm.h"
 using namespace DDLA;
 
-void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
-{
+const static std::string type_name = "cholesky_dcu";
+static std::string filename = type_name;
 
+void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
+{
+    std::ofstream outfile;
+    if(is_write && ddla_handle->myid == 0)
+        outfile.open(filename, std::ios::app);
     DDLA::DdlaDesc matrix_desc(ddla_handle);
     matrix_desc.init_square_blk(n, n, 0, 0);
     int nb = std::min(128, matrix_desc.mb());
@@ -48,6 +54,9 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
         int j_loc = matrix_desc.indx_g2l_c(i);
         if(j_loc<0) continue;
         DEVICE_CHECK(deviceMemcpyAsync(d_A+i_loc+j_loc*matrix_desc.lld(), &ten, sizeof(std::complex<double>), deviceMemcpyHostToDevice, ddla_handle->stream));
+        std::complex<double> one = -1.0;
+        if(i == n - 1)
+        DEVICE_CHECK(deviceMemcpyAsync(d_A+i_loc+j_loc*matrix_desc.lld(), &one, sizeof(std::complex<double>), deviceMemcpyHostToDevice, ddla_handle->stream));
     }
 
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
@@ -87,20 +96,25 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
         MPI_Barrier(MPI_COMM_WORLD);
         printf("myid:%d, start ppotrf\n",ddla_handle->myid);
         double start_time_ppotrf = MPI_Wtime();
-        ppotrf(
+        bool is_nega = ppotrf(
             'L', n,
             d_A, 1, 1, matrix_desc,
-            info
+            info,
+            true, -1
         );
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
-        printf("myid:%d, ppotrf time:%lf\n", ddla_handle->myid, MPI_Wtime() - start_time_ppotrf);
+        double time_for_cholesky = MPI_Wtime() - start_time_ppotrf;
+        printf("myid:%d, ppotrf time:%lf, is_nega:%d, info:%d\n", ddla_handle->myid, time_for_cholesky, is_nega, info);
+        outfile << n << " " << time_for_cholesky << std::endl;
+        outfile.close();
         MPI_Barrier(MPI_COMM_WORLD);
         double start_time_ppotrs = MPI_Wtime();
         ppotrs(
             'L', 'L', 'N',
             n, n,
             d_A, matrix_desc,
-            d_A_copy, matrix_desc
+            d_A_copy, matrix_desc,
+            is_nega, -1
         );
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
         printf("myid:%d, ppotrs time:%lf\n", ddla_handle->myid, MPI_Wtime() - start_time_ppotrs);
@@ -156,12 +170,24 @@ int main(int argc, char* argv[]) {
     ddla_init(ddla_handle);
     ddla_set(ddla_handle, MPI_COMM_WORLD, 'R');
     printf("after stream init\n");
-    check_ppotrf(5000, ddla_handle);
-    for(int i=5000;i<=4*5000;i+=5000){
+    // std::ofstream outfile;
+    // filename += "_" + std::to_string(ddla_handle->nprocs) + ".dat";
+    // if(ddla_handle->myid == 0)
+    //     outfile.open(filename.c_str(), std::ios::out | std::ios::trunc);
+    // outfile << type_name << std::endl;
+    // outfile.close();
+    check_ppotrf(1000, ddla_handle);
+
+    std::map<int, int> mpi_to_size;
+    mpi_to_size[1] = 15000;
+    mpi_to_size[4] = 20000;
+    mpi_to_size[16] = 60000; 
+
+    for(int i = 5000; i <= mpi_to_size.at(ddla_handle->nprocs);i += 5000){
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n",i);
-        check_ppotrf(i,ddla_handle);
+        check_ppotrf(i, ddla_handle, false);
     }
     ddla_destroy(ddla_handle);
     MPI_Finalize();
