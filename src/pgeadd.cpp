@@ -1,22 +1,23 @@
 #include <ddla.h>
 #include <cassert>
 #include <ddla_connector.h>
-#include <ddla_utils.h>
 #include <ddla_stream.h>
 #include <vector>
 #include "transport_block.h"
 #include "geam.h"
-namespace DDLA{
+#include "ddla_comm.h"
+
+namespace ddla{
 
 template <typename T>
 void pgeadd(
     const char& transa, const char& transb,
     const int& m, const int& n,
     const T& alpha,
-    const T* d_A, const DDLA::DdlaDesc& array_descA,
+    const T* d_A, const DdlaDesc& array_descA,
     const T& beta,
-    const T* d_B, const DDLA::DdlaDesc& array_descB,
-    T* d_C, const DDLA::DdlaDesc& array_descC
+    const T* d_B, const DdlaDesc& array_descB,
+    T* d_C, const DdlaDesc& array_descC
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
@@ -164,40 +165,40 @@ template void pgeadd<float>(
     const char& transa, const char& transb,
     const int& m, const int& n,
     const float& alpha,
-    const float* d_A, const DDLA::DdlaDesc& array_descA,
+    const float* d_A, const DdlaDesc& array_descA,
     const float& beta,
-    const float* d_B, const DDLA::DdlaDesc& array_descB,
-    float* d_C, const DDLA::DdlaDesc& array_descC
+    const float* d_B, const DdlaDesc& array_descB,
+    float* d_C, const DdlaDesc& array_descC
 );
 
 template void pgeadd<double>(
     const char& transa, const char& transb,
     const int& m, const int& n,
     const double& alpha,
-    const double* d_A, const DDLA::DdlaDesc& array_descA,
+    const double* d_A, const DdlaDesc& array_descA,
     const double& beta,
-    const double* d_B, const DDLA::DdlaDesc& array_descB,
-    double* d_C, const DDLA::DdlaDesc& array_descC
+    const double* d_B, const DdlaDesc& array_descB,
+    double* d_C, const DdlaDesc& array_descC
 );
 
 template void pgeadd<std::complex<float>>(
     const char& transa, const char& transb,
     const int& m, const int& n,
     const std::complex<float>& alpha,
-    const std::complex<float>* d_A, const DDLA::DdlaDesc& array_descA,
+    const std::complex<float>* d_A, const DdlaDesc& array_descA,
     const std::complex<float>& beta,
-    const std::complex<float>* d_B, const DDLA::DdlaDesc& array_descB,
-    std::complex<float>* d_C, const DDLA::DdlaDesc& array_descC
+    const std::complex<float>* d_B, const DdlaDesc& array_descB,
+    std::complex<float>* d_C, const DdlaDesc& array_descC
 );
 
 template void pgeadd<std::complex<double>>(
     const char& transa, const char& transb,
     const int& m, const int& n,
     const std::complex<double>& alpha,
-    const std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
+    const std::complex<double>* d_A, const DdlaDesc& array_descA,
     const std::complex<double>& beta,
-    const std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
-    std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
+    const std::complex<double>* d_B, const DdlaDesc& array_descB,
+    std::complex<double>* d_C, const DdlaDesc& array_descC
 );
 
 

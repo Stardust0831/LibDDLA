@@ -1,21 +1,24 @@
 #include <ddla.h>
 #include <cassert>
 #include <ddla_connector.h>
-#include <ddla_utils.h>
 #include <ddla_stream.h>
 #include <vector>
 #include "transport_block.h"
-namespace DDLA{
+#include "ddla_comm.h"
+#include "scal.h"
+#include "gemm.h"
+
+namespace ddla{
 
 template <typename T>
 void pgemm(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const T& alpha,
-    const T* d_A, const DDLA::DdlaDesc& array_descA,
-    const T* d_B, const DDLA::DdlaDesc& array_descB,
+    const T* d_A, const DdlaDesc& array_descA,
+    const T* d_B, const DdlaDesc& array_descB,
     const T& beta,
-    T* d_C, const DDLA::DdlaDesc& array_descC
+    T* d_C, const DdlaDesc& array_descC
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
@@ -109,7 +112,7 @@ void pgemm(
         // int src_A;
         
         // if(transa != 'N'){
-        //     int owner_row_A = DDLA::indxg2p(k_s, nb, array_descA.irsrc(), array_descA.nprows());
+        //     int owner_row_A = indxg2p(k_s, nb, array_descA.irsrc(), array_descA.nprows());
         //     if(myprow == owner_row_A){
         //         DEVICE_CHECK(deviceMemcpy2DAsync(
         //             d_A_temp[temp_buffer], kb * sizeof(T),
@@ -135,7 +138,7 @@ void pgemm(
         //     }
         //     src_A = myprow;
         // }else{
-        //     src_A = DDLA::indxg2p(k_s, nb, array_descA.icsrc(), array_descA.npcols());
+        //     src_A = indxg2p(k_s, nb, array_descA.icsrc(), array_descA.npcols());
         //     if(mypcol == src_A){
         //         DEVICE_CHECK(deviceMemcpy2DAsync(
         //             d_A_temp[temp_buffer], m_loc_A * sizeof(T),
@@ -199,7 +202,7 @@ void pgemm(
             d_B_temp[temp_buffer]
         );
         // if(transb != 'N'){
-        //     int owner_col_B = DDLA::indxg2p(k_s, nb, array_descB.icsrc(), array_descB.npcols());
+        //     int owner_col_B = indxg2p(k_s, nb, array_descB.icsrc(), array_descB.npcols());
         //     if(mypcol == owner_col_B){
         //         DEVICE_CHECK(deviceMemcpy2DAsync(
         //             d_B_temp[temp_buffer], m_loc_B * sizeof(T),
@@ -226,7 +229,7 @@ void pgemm(
         //     src_B = mypcol;
         // }
         // else{
-        //     src_B = DDLA::indxg2p(k_s, nb, array_descB.irsrc(), array_descB.nprows());
+        //     src_B = indxg2p(k_s, nb, array_descB.irsrc(), array_descB.nprows());
         //     if(myprow == src_B){
         //         DEVICE_CHECK(deviceMemcpy2DAsync(
         //             d_B_temp[temp_buffer], kb * sizeof(T),
@@ -272,40 +275,40 @@ template void pgemm<float>(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const float& alpha,
-    const float* d_A, const DDLA::DdlaDesc& array_descA,
-    const float* d_B, const DDLA::DdlaDesc& array_descB,
+    const float* d_A, const DdlaDesc& array_descA,
+    const float* d_B, const DdlaDesc& array_descB,
     const float& beta,
-    float* d_C, const DDLA::DdlaDesc& array_descC
+    float* d_C, const DdlaDesc& array_descC
 );
 
 template void pgemm<double>(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const double& alpha,
-    const double* d_A, const DDLA::DdlaDesc& array_descA,
-    const double* d_B, const DDLA::DdlaDesc& array_descB,
+    const double* d_A, const DdlaDesc& array_descA,
+    const double* d_B, const DdlaDesc& array_descB,
     const double& beta,
-    double* d_C, const DDLA::DdlaDesc& array_descC
+    double* d_C, const DdlaDesc& array_descC
 );
 
 template void pgemm<std::complex<float>>(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const std::complex<float>& alpha,
-    const std::complex<float>* d_A, const DDLA::DdlaDesc& array_descA,
-    const std::complex<float>* d_B, const DDLA::DdlaDesc& array_descB,
+    const std::complex<float>* d_A, const DdlaDesc& array_descA,
+    const std::complex<float>* d_B, const DdlaDesc& array_descB,
     const std::complex<float>& beta,
-    std::complex<float>* d_C, const DDLA::DdlaDesc& array_descC
+    std::complex<float>* d_C, const DdlaDesc& array_descC
 );
 
 template void pgemm<std::complex<double>>(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
     const std::complex<double>& alpha,
-    const std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
-    const std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
+    const std::complex<double>* d_A, const DdlaDesc& array_descA,
+    const std::complex<double>* d_B, const DdlaDesc& array_descB,
     const std::complex<double>& beta,
-    std::complex<double>* d_C, const DDLA::DdlaDesc& array_descC
+    std::complex<double>* d_C, const DdlaDesc& array_descC
 );
 
 

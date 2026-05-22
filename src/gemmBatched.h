@@ -4,7 +4,7 @@
 
 #include <ddla_connector.h>
 
-namespace DDLA{
+namespace ddla{
 
 inline deblasStatus_t deblasGemmBatched(
     deblasHandle_t handle, deblasOperation_t transa, deblasOperation_t transb,

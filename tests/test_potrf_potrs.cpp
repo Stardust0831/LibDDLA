@@ -12,9 +12,9 @@
 #include <ddla_connector.h>
 #include <random>
 #include <ddla_stream.h>
-#include "../src/potrf.h"
-#include "../src/trsm.h"
-using namespace DDLA;
+#include <fstream>
+
+using namespace ddla;
 
 const static std::string type_name = "cholesky_dcu";
 static std::string filename = type_name;
@@ -24,7 +24,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
     std::ofstream outfile;
     if(is_write && ddla_handle->myid == 0)
         outfile.open(filename, std::ios::app);
-    DDLA::DdlaDesc matrix_desc(ddla_handle);
+    DdlaDesc matrix_desc(ddla_handle);
     matrix_desc.init_square_blk(n, n, 0, 0);
     int nb = std::min(128, matrix_desc.mb());
     matrix_desc.init(n, n, nb, nb, 0, 0);
@@ -46,7 +46,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    DDLA::random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
+    random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
     std::complex<double> ten = 1000.0;
     for(int i=0;i<matrix_desc.m();i++){
         int i_loc = matrix_desc.indx_g2l_r(i);
@@ -89,7 +89,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
             std::string filename = "ppotrf_myid_";
             filename += std::to_string(ddla_handle->myid);
             filename += ".txt";
-            DDLA::write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
+            write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
         }
 
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
@@ -127,7 +127,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
         std::string filename = "after_ppotrs_myid_";
         filename += std::to_string(ddla_handle->myid);
         filename += ".txt";
-        DDLA::write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
+        write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
     }
     {
         // check the data from scalapack and bcast

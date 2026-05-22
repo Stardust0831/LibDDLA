@@ -1,7 +1,6 @@
 #include <ddla.h>
 #include <cassert>
 #include <ddla_connector.h>
-#include <ddla_utils.h>
 #include <ddla_stream.h>
 #include <vector>
 #include <type_traits>
@@ -11,7 +10,10 @@
 #include "potrf.h"
 #include "gemmBatched.h"
 #include "herk.h"
-namespace DDLA{
+#include "gemm.h"
+#include "ddla_comm.h"
+
+namespace ddla{
 
 template<typename T>
 bool ppotrf(

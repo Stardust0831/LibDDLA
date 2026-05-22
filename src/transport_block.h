@@ -1,10 +1,10 @@
 #ifndef TRANSPORT_BLOCK_H
 #define TRANSPORT_BLOCK_H
 
-#include "ddla_desc.h"
+#include <ddla_desc.h>
 #include <complex>
 
-namespace DDLA{
+namespace ddla{
 
 template <typename T>
 void transport_block(

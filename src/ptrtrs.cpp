@@ -1,22 +1,23 @@
 #include <ddla.h>
 #include <cassert>
 #include <ddla_connector.h>
-#include <ddla_utils.h>
 #include <ddla_stream.h>
 #include "trsm.h"
 #include "transport_block.h"
+#include "ddla_comm.h"
+#include "gemm.h"
 #ifdef ENABLE_GPU_CPU_TUNNEL
 #include <vector>
 #endif
-namespace DDLA{
+namespace ddla{
 
 
 template<typename T>
 void ptrtrs(
     const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    T* d_A, const DDLA::DdlaDesc& array_descA,
-    T* d_B, const DDLA::DdlaDesc& array_descB
+    T* d_A, const DdlaDesc& array_descA,
+    T* d_B, const DdlaDesc& array_descB
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
@@ -92,8 +93,8 @@ void ptrtrs(
         mm_row_start = num_loc(n_s, nb, array_descA.myprow(), array_descA.irsrc(), nprows);
         mm_col_start = num_loc(n_s, nb, array_descA.mypcol(), array_descA.icsrc(), npcols);
 
-        owner_row = DDLA::indxg2p(n_s, nb, array_descA.irsrc(), nprows);
-        owner_col = DDLA::indxg2p(n_s, nb, array_descA.icsrc(), npcols);
+        owner_row = indxg2p(n_s, nb, array_descA.irsrc(), nprows);
+        owner_col = indxg2p(n_s, nb, array_descA.icsrc(), npcols);
 
         if(array_descA.myprow() == owner_row)
             mm_row_step = nb_real;
@@ -244,32 +245,32 @@ template void ptrtrs<float>
 (
     const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    float* d_A, const DDLA::DdlaDesc& array_descA,
-    float* d_B, const DDLA::DdlaDesc& array_descB
+    float* d_A, const DdlaDesc& array_descA,
+    float* d_B, const DdlaDesc& array_descB
 );
 
 template void ptrtrs<double>
 (
     const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    double* d_A, const DDLA::DdlaDesc& array_descA,
-    double* d_B, const DDLA::DdlaDesc& array_descB
+    double* d_A, const DdlaDesc& array_descA,
+    double* d_B, const DdlaDesc& array_descB
 );
 
 template void ptrtrs<std::complex<float>>
 (
     const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    std::complex<float>* d_A, const DDLA::DdlaDesc& array_descA,
-    std::complex<float>* d_B, const DDLA::DdlaDesc& array_descB
+    std::complex<float>* d_A, const DdlaDesc& array_descA,
+    std::complex<float>* d_B, const DdlaDesc& array_descB
 );
 
 template void ptrtrs<std::complex<double>>
 (
     const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
-    std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB
+    std::complex<double>* d_A, const DdlaDesc& array_descA,
+    std::complex<double>* d_B, const DdlaDesc& array_descB
 );
 
 

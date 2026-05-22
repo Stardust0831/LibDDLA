@@ -3,7 +3,7 @@
 
 #include <ddla_connector.h>
 
-namespace DDLA{
+namespace ddla{
 
 inline desolverStatus_t desolverPotrf(
     desolverHandle_t handle,

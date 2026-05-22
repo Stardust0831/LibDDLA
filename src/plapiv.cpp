@@ -1,17 +1,18 @@
 #include <ddla.h>
 #include <cassert>
 #include <ddla_connector.h>
-#include <ddla_utils.h>
 #include <ddla_stream.h>
 #include "swap.h"
-namespace DDLA{
+#include "ddla_comm.h"
+
+namespace ddla{
 
 template <typename T>
 void plapiv(
     const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    T* d_A,const DDLA::DdlaDesc& array_descA,
-    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    T* d_A,const DdlaDesc& array_descA,
+    const int* ipiv, const DdlaDesc& array_descIP,
     int* iwork
 )
 {
@@ -49,14 +50,14 @@ void plapiv(
     int target_i_global,target_i_loc;
     for(int i=0; i<m; i++){
         i_loc = array_descA.indx_g2l_r(i);
-        owner_row = DDLA::indxg2p(i, mb, array_descA.irsrc(), nprows);
+        owner_row = indxg2p(i, mb, array_descA.irsrc(), nprows);
         if(i_loc>=0){
             target_i_global = ipiv[i_loc] - 1;
         }
         MPI_Bcast(&target_i_global, 1, MPI_INT, owner_row, col_comm);
         if(target_i_global == i)
             continue;
-        target_row = DDLA::indxg2p(target_i_global,array_descIP.mb(),array_descA.irsrc(),nprows);
+        target_row = indxg2p(target_i_global,array_descIP.mb(),array_descA.irsrc(),nprows);
         target_i_loc = array_descIP.indx_g2l_r(target_i_global);
         // if(i_loc>=0)
         //     printf("myid:%d, i:%d, i_loc:%d, target_i_global:%d, target_i_loc:%d, owner_row:%d, target_row:%d\n",mpi_comm_global_h.myid,i,i_loc,target_i_global,target_i_loc,owner_row,target_row);
@@ -97,32 +98,32 @@ void plapiv(
 template void plapiv<std::complex<double>>(
     const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    std::complex<double>* d_A,const DDLA::DdlaDesc& array_descA,
-    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    std::complex<double>* d_A,const DdlaDesc& array_descA,
+    const int* ipiv, const DdlaDesc& array_descIP,
     int* iwork
 );
 
 template void plapiv<std::complex<float>>(
     const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    std::complex<float>* d_A,const DDLA::DdlaDesc& array_descA,
-    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    std::complex<float>* d_A,const DdlaDesc& array_descA,
+    const int* ipiv, const DdlaDesc& array_descIP,
     int* iwork
 );
 
 template void plapiv<float>(
     const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    float* d_A,const DDLA::DdlaDesc& array_descA,
-    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    float* d_A,const DdlaDesc& array_descA,
+    const int* ipiv, const DdlaDesc& array_descIP,
     int* iwork
 );
 
 template void plapiv<double>(
     const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    double* d_A,const DDLA::DdlaDesc& array_descA,
-    const int* ipiv, const DDLA::DdlaDesc& array_descIP,
+    double* d_A,const DdlaDesc& array_descA,
+    const int* ipiv, const DdlaDesc& array_descIP,
     int* iwork
 );
 

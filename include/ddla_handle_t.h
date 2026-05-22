@@ -4,7 +4,7 @@
 #include <iostream>
 #include <mpi.h>
 
-namespace DDLA{
+namespace ddla{
 class DdlaStream;
 
 using DdlaHandle_t = DdlaStream*;

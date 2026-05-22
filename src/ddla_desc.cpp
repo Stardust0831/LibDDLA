@@ -1,7 +1,7 @@
 #include <ddla_desc.h>
 #include <ddla_stream.h>
 
-namespace DDLA{
+namespace ddla{
 
 void DdlaDesc::init_square_blk(const int &m, const int &n, const int &irsrc, const int &icsrc)
 {
@@ -43,17 +43,17 @@ void DdlaDesc::init(const int &m, const int &n, const int &mb, const int &nb, co
     this->irsrc_ = irsrc;
     this->icsrc_ = icsrc;
     // compute local sizes
-    this->m_local_ = DDLA::num_loc(m, mb, myprow_, irsrc_, nprows_);
-    this->n_local_ = DDLA::num_loc(n, nb, mypcol_, icsrc_, npcols_);
+    this->m_local_ = num_loc(m, mb, myprow_, irsrc_, nprows_);
+    this->n_local_ = num_loc(n, nb, mypcol_, icsrc_, npcols_);
     this->lld_ = std::max(this->m_local_,1);
     is_initialized_ = true;
     return;
 }
 
 int DdlaDesc::indx_g2l_r(int gindx) const{
-    if(this->myprow_ != DDLA::indxg2p(gindx, this->mb_, this->irsrc_, this->nprows_) || gindx >= this->m_)
+    if(this->myprow_ != indxg2p(gindx, this->mb_, this->irsrc_, this->nprows_) || gindx >= this->m_)
         return -1;
-    return DDLA::indxg2l(gindx, this->mb_, this->nprows_);
+    return indxg2l(gindx, this->mb_, this->nprows_);
 }
 
 

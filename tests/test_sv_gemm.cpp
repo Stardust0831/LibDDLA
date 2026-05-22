@@ -11,13 +11,14 @@
 #include <ddla_connector.h>
 #include <random>
 #include <ddla_stream.h>
-using namespace DDLA;
+
+using namespace ddla;
 
 
 void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
 {
 
-    DDLA::DdlaDesc matrix_desc(ddla_handle);
+    DdlaDesc matrix_desc(ddla_handle);
     matrix_desc.init_square_blk(n, n, 0, 0);
     int nb = std::min(128, matrix_desc.mb());
     matrix_desc.init(n, n, nb, nb, 0, 0);
@@ -53,7 +54,7 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    DDLA::random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
+    random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
     
     DEVICE_CHECK(deviceMemcpyAsync(d_A_copy, d_A, sizeof(std::complex<double>)*matrix_desc.m_loc()*matrix_desc.n_loc(), deviceMemcpyDeviceToDevice, ddla_handle->stream));
     DEVICE_CHECK(deviceMemcpyAsync(a.data(), d_A, matrix_desc.m_loc() * matrix_desc.n_loc()* sizeof(std::complex<double>), deviceMemcpyDeviceToHost, ddla_handle->stream));
@@ -65,13 +66,13 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
         std::string filename = "before_trf_myid_";
         filename += std::to_string(myid);
         filename += ".txt";
-        DDLA::write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
+        write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
     }
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     MPI_Barrier(MPI_COMM_WORLD);
     printf("myid:%d, start sv\n",myid);
     double start_time_sv = MPI_Wtime();
-    pzgesv(
+    pgesv(
         n, n,
         d_A, matrix_desc,
         d_identity, matrix_desc
@@ -100,7 +101,7 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
         std::string filename = "identity_myid_";
         filename += std::to_string(myid);
         filename += ".txt";
-        DDLA::write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
+        write_matrix(a.data(), matrix_desc.m_loc(), matrix_desc.n_loc(), filename.c_str());
     }
     {
         // check the data from scalapack and bcast
@@ -148,7 +149,7 @@ int main(int argc, char* argv[]) {
     // DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     printf("after stream init\n");
     check_pzgetrf(5000, ddla_handle);
-    for(int i=5000;i<=4*5000;i+=5000){
+    for(int i=5000;i<=2*5000;i+=5000){
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n",i);

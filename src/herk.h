@@ -3,7 +3,7 @@
 
 #include <ddla_connector.h>
 
-namespace DDLA{
+namespace ddla{
 
 inline deblasStatus_t deblasHerk(
     deblasHandle_t handle,

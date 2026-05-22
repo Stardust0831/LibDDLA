@@ -7,8 +7,8 @@
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=3
-#SBATCH --output=./log_install
-#SBATCH --error=./err_install
+#SBATCH --output=../../log_install
+#SBATCH --error=../../err_install
 
 module load gcc/11.3.0
 module load openmpi/4.1.8-cuda
@@ -40,16 +40,18 @@ echo "========================="
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
 cd ..
-BUILD_DIR=../build_test
-INSTALL_DIR="${PWD}_install_test"
-# cd install_scripts
+BUILD_DIR=../build
+INSTALL_DIR="${PWD}_install"
+
 # rm -rf ${BUILD_DIR}
 # rm -rf ${INSTALL_DIR}
 # mkdir ${INSTALL_DIR}
-# cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
-#         -DCMAKE_CXX_COMPILER=g++ \
-#         -DENABLE_CUDA=ON \
-#         -DENABLE_CCL=ON \
+cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
+        -DCMAKE_CXX_COMPILER=g++ \
+        -DENABLE_CUDA=ON \
+        -DENABLE_CCL=ON \
+
+
         # -DBUILD_TESTS=ON \
         # -DCMAKE_Fortran_COMPILER=gfortran \
         # -DMPI_CXX_COMPILER=mpicxx \
