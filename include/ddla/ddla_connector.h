@@ -173,14 +173,6 @@ inline hipError_t deviceDeviceSynchronize(){
 }
 #endif
 
-// inline deblasStatus_t deblasZaxpy(deblasHandle_t handle, const int64_t& n, const std::complex<double> *alpha, const std::complex<double> *x, int incx, std::complex<double> *y, int incy) {
-//     #ifdef ENABLE_CUDA
-//     return cublasZaxpy(handle, n, (cuDoubleComplex*)alpha, (cuDoubleComplex*)x, incx, (cuDoubleComplex*)y, incy);
-//     #endif
-//     #ifdef ENABLE_HIP
-//     return hipblasZaxpy(handle, n, (hipblasDoubleComplex*)alpha, (hipblasDoubleComplex*)x, incx, (hipblasDoubleComplex*)y, incy);
-//     #endif
-// }
 
 static inline void MPI_CHECK(int status)
 {

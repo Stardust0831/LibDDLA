@@ -43,8 +43,8 @@ cd ..
 BUILD_DIR=../build
 INSTALL_DIR="${PWD}_install"
 
-# rm -rf ${BUILD_DIR}
-# rm -rf ${INSTALL_DIR}
+rm -rf ${BUILD_DIR}
+rm -rf ${INSTALL_DIR}
 # mkdir ${INSTALL_DIR}
 cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
         -DCMAKE_CXX_COMPILER=g++ \
