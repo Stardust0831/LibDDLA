@@ -1,17 +1,16 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
-#include <ddla_connector.h>
-#include <ddla_stream.h>
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
 #include <vector>
 #include <type_traits>
 #include <cmath>
-
-#include "trsm.h"
-#include "potrf.h"
-#include "gemmBatched.h"
-#include "herk.h"
-#include "gemm.h"
-#include "ddla_comm.h"
+#include <ddla/trsm.h>
+#include <ddla/potrf.h>
+#include <ddla/gemmBatched.h>
+#include <ddla/herk.h>
+#include <ddla/gemm.h>
+#include <ddla/ddla_comm.h>
 
 namespace ddla{
 

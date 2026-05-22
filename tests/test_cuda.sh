@@ -47,11 +47,11 @@ echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
 which mpicxx
 
-FILENAME=test_sv_gemm
+# FILENAME=test_sv_gemm
 # FILENAME=test_aware
 # FILENAME=test_pgeadd
 # FILENAME=test_potrf_solvermp
-# FILENAME=test_potrf_potrs
+FILENAME=test_potrf_potrs
 
 # nvidia-smi
 

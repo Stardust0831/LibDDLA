@@ -1,12 +1,13 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
-#include <ddla_connector.h>
-#include <ddla_stream.h>
-#include "trsm.h"
-#include "ddla_comm.h"
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
+#include <ddla/trsm.h>
+#include <ddla/ddla_comm.h>
 #ifdef ENABLE_GPU_CPU_TUNNEL
 #include <vector>
 #endif
+
 namespace ddla{
 
 template <typename T>

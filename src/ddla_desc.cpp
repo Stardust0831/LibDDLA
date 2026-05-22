@@ -1,5 +1,5 @@
-#include <ddla_desc.h>
-#include <ddla_stream.h>
+#include <ddla/ddla_desc.h>
+#include <ddla/ddla_stream.h>
 
 namespace ddla{
 

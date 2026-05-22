@@ -1,13 +1,13 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla_connector.h>
-#include <ddla_stream.h>
-#include "scal.h"
-#include "geru.h"
-#include "ddla_comm.h"
-#include "iamax.h"
-#include "swap.h"
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
+#include <ddla/scal.h>
+#include <ddla/geru.h>
+#include <ddla/ddla_comm.h>
+#include <ddla/iamax.h>
+#include <ddla/swap.h>
 
 namespace ddla{
 

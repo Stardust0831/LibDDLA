@@ -1,7 +1,7 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla_stream.h>
+#include <ddla/ddla_stream.h>
 namespace ddla{
 
 template <typename T>

@@ -7,10 +7,10 @@
 #include <vector>
 #include <complex>
 #include <string>
-#include <ddla.h>
-#include <ddla_connector.h>
+#include <ddla/ddla.h>
+#include <ddla/ddla_connector.h>
 #include <random>
-#include <ddla_stream.h>
+#include <ddla/ddla_stream.h>
 
 using namespace ddla;
 
