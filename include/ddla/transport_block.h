@@ -4,7 +4,7 @@
 #include "ddla_desc.h"
 #include <complex>
 
-namespace DDLA{
+namespace ddla{
 
 template <typename T>
 void transport_block(

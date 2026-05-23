@@ -1,15 +1,15 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla_stream.h>
-namespace DDLA{
+#include <ddla/ddla_stream.h>
+namespace ddla{
 
 template <typename T>
 void ppotrs(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
-    T* d_A, const DDLA::DdlaDesc& array_descA,
-    T* d_B, const DDLA::DdlaDesc& array_descB,
+    T* d_A, const DdlaDesc& array_descA,
+    T* d_B, const DdlaDesc& array_descB,
     bool is_nega, int location
 )
 {
@@ -56,16 +56,16 @@ void ppotrs(
 template void ppotrs<std::complex<double>>(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
-    std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
-    std::complex<double>* d_B, const DDLA::DdlaDesc& array_descB,
+    std::complex<double>* d_A, const DdlaDesc& array_descA,
+    std::complex<double>* d_B, const DdlaDesc& array_descB,
     bool is_nega, int location
 );
 
 template void ppotrs<std::complex<float>>(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
-    std::complex<float>* d_A, const DDLA::DdlaDesc& array_descA,
-    std::complex<float>* d_B, const DDLA::DdlaDesc& array_descB,
+    std::complex<float>* d_A, const DdlaDesc& array_descA,
+    std::complex<float>* d_B, const DdlaDesc& array_descB,
     bool is_nega, int location
 );
 

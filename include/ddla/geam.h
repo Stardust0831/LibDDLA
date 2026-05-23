@@ -1,9 +1,9 @@
 #ifndef GEAM_H
 #define GEAM_H
 
-#include <ddla_connector.h>
+#include "ddla_connector.h"
 
-namespace DDLA{
+namespace ddla{
 
 inline deblasStatus_t deblasGeam(
     deblasHandle_t handle, deblasOperation_t transA, deblasOperation_t transB,
@@ -15,7 +15,7 @@ inline deblasStatus_t deblasGeam(
     float* C, int ldc
     )
 {
-    #if defined(ENABLE_CUDA)
+#if defined(ENABLE_CUDA)
     return cublasSgeam(
         handle, transA, transB,
         m, n,
@@ -25,7 +25,7 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-    #elif defined(ENABLE_HIP)
+#elif defined(ENABLE_HIP)
     return hipblasSgeam(
         handle, transA, transB,
         m, n,
@@ -35,11 +35,9 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-    #else
+#else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
-    #endif
-
-
+#endif
 }
 
 inline deblasStatus_t deblasGeam(
@@ -52,7 +50,7 @@ inline deblasStatus_t deblasGeam(
     double* C, int ldc
     )
 {
-    #if defined(ENABLE_CUDA)
+#if defined(ENABLE_CUDA)
     return cublasDgeam(
         handle, transA, transB,
         m, n,
@@ -62,7 +60,7 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-    #elif defined(ENABLE_HIP)
+#elif defined(ENABLE_HIP)
     return hipblasDgeam(
         handle, transA, transB,
         m, n,
@@ -72,9 +70,9 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-    #else
+#else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
-    #endif
+#endif
 }
 
 inline deblasStatus_t deblasGeam(
@@ -122,7 +120,7 @@ inline deblasStatus_t deblasGeam(
     std::complex<double>* C, int ldc
     )
 {
-    #if defined(ENABLE_CUDA)
+#if defined(ENABLE_CUDA)
     return cublasZgeam(
         handle, transA, transB,
         m, n,
@@ -132,7 +130,7 @@ inline deblasStatus_t deblasGeam(
         (cuDoubleComplex*)B, ldb,
         (cuDoubleComplex*)C, ldc
     );
-    #elif defined(ENABLE_HIP)
+#elif defined(ENABLE_HIP)
     return hipblasZgeam(
         handle, transA, transB,
         m, n,
@@ -142,9 +140,9 @@ inline deblasStatus_t deblasGeam(
         (hipblasDoubleComplex*)B, ldb,
         (hipblasDoubleComplex*)C, ldc
     );
-    #else
+#else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
-    #endif
+#endif
 }
 
 }

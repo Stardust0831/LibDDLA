@@ -1,9 +1,9 @@
 #ifndef POTRF_H
 #define POTRF_H
 
-#include <ddla_connector.h>
+#include "ddla_connector.h"
 
-namespace DDLA{
+namespace ddla{
 
 inline desolverStatus_t desolverPotrf(
     desolverHandle_t handle,

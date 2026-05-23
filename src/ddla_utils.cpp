@@ -1,6 +1,8 @@
-#include <ddla_connector.h>
+#include <ddla/ddla_connector.h>
+#include <chrono>
+#include <fstream>
 
-namespace DDLA{
+namespace ddla{
 
 void random_generator(void* c_data, const int64_t& lengthOfData, const deviceDataType_t& compute_type)
 {
@@ -23,6 +25,7 @@ void random_generator(void* c_data, const int64_t& lengthOfData, const deviceDat
     DERAND_CHECK(derandDestroyGenerator(gen));
     return;
 }
+
 void write_matrix(std::complex<double>* A, const int& m,const int& n, const char* filename)
 {
 
@@ -47,4 +50,6 @@ void write_matrix(std::complex<double>* A, const int& m,const int& n, const char
     outfile.close();
     return;
 }
-}
+
+
+} // namespace ddla

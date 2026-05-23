@@ -1,12 +1,13 @@
-#include <ddla.h>
-namespace DDLA{
+#include <ddla/ddla.h>
+
+namespace ddla{
 
 template <typename T>
 void pposv(
     const char& side, const char& uplo, const char& trans,
     const int & n, const int& nrhs,
-    T* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
-    T* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
+    T* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    T* d_B, const int& ib, const int& jb, const DdlaDesc& array_descB,
     int& info, // host pointer
     bool is_head, int location
 )
@@ -20,8 +21,8 @@ void pposv(
 template void pposv<std::complex<float>>(
     const char& side, const char& uplo, const char& trans,
     const int & n, const int& nrhs,
-    std::complex<float>* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
-    std::complex<float>* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
+    std::complex<float>* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    std::complex<float>* d_B, const int& ib, const int& jb, const DdlaDesc& array_descB,
     int& info, // host pointer
     bool is_head, int location
 );
@@ -29,8 +30,8 @@ template void pposv<std::complex<float>>(
 template void pposv<std::complex<double>>(
     const char& side, const char& uplo, const char& trans,
     const int & n, const int& nrhs,
-    std::complex<double>* d_A, const int& ia, const int& ja, const DDLA::DdlaDesc& array_descA,
-    std::complex<double>* d_B, const int& ib, const int& jb, const DDLA::DdlaDesc& array_descB,
+    std::complex<double>* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    std::complex<double>* d_B, const int& ib, const int& jb, const DdlaDesc& array_descB,
     int& info, // host pointer
     bool is_head, int location
 );

@@ -3,7 +3,7 @@
 
 #include "ddla_handle_t.h"
 
-namespace DDLA{
+namespace ddla{
 
 inline int indxg2p(const int &indxglob, const int &nb,
                               const int &isrcproc, const int &nprocs)
@@ -61,15 +61,15 @@ public:
     void init(const int &m, const int &n, const int &mb, const int &nb, const int &irsrc, const int &icsrc);
     int indx_g2l_r(int gindx) const;
     int indx_g2l_c(int gindx) const{
-        if(this->mypcol_ != DDLA::indxg2p(gindx, this->nb_, this->icsrc_, this->npcols_) || gindx >= this->n_)
+        if(this->mypcol_ != indxg2p(gindx, this->nb_, this->icsrc_, this->npcols_) || gindx >= this->n_)
             return -1;
-        return DDLA::indxg2l(gindx, this->nb_, this->npcols_);
+        return indxg2l(gindx, this->nb_, this->npcols_);
     }
     int indx_l2g_r(int lindx) const{
-        return DDLA::indxl2g(lindx, this->mb_, this->myprow_, this->irsrc_, this->nprows_);
+        return indxl2g(lindx, this->mb_, this->myprow_, this->irsrc_, this->nprows_);
     }
     int indx_l2g_c(int lindx) const{
-        return DDLA::indxl2g(lindx, this->nb_, this->mypcol_, this->icsrc_, this->npcols_);
+        return indxl2g(lindx, this->nb_, this->mypcol_, this->icsrc_, this->npcols_);
     }
     const int& m() const { return m_; }
     const int& n() const { return n_; }

@@ -1,15 +1,21 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla_connector.h>
-#include <ddla_utils.h>
-#include <ddla_stream.h>
-namespace DDLA{
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
+#include <ddla/scal.h>
+#include <ddla/geru.h>
+#include <ddla/ddla_comm.h>
+#include <ddla/iamax.h>
+#include <ddla/swap.h>
+
+namespace ddla{
 
 // now implement only support m=matrix_m, n = nb_real(<=nb), the the column block must belong to one process in a row
-void pzgetf2(
+template <typename T>
+void pgetf2(
     const int& m, const int& nb_real,
-    std::complex<double>* d_A, const int& n_s, const DDLA::DdlaDesc& array_descA,
+    T* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -39,17 +45,15 @@ void pzgetf2(
     
     int max_row;
     int max_prow;
-    std::complex<double> max_value;
+    T max_value;
 
-    std::complex<double> *d_temp;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp, sizeof(std::complex<double>)*n_loc, stream));
+    T *d_temp;
+    DEVICE_CHECK(deviceMallocAsync(&d_temp, sizeof(T)*n_loc, stream));
 
     std::vector<int> h_id_max(nprows,0); // host
 
-    std::complex<double> *d_max;
-    DEVICE_CHECK(deviceMallocAsync(&d_max, sizeof(std::complex<double>)*nprows, stream));
-
-    const std::complex<double> minus_one = {-1.0,0.0};
+    T *d_max;
+    DEVICE_CHECK(deviceMallocAsync(&d_max, sizeof(T)*nprows, stream));
 
     #ifdef ENABLE_DEBUG
     double time_for_max = 0.0;
@@ -67,8 +71,8 @@ void pzgetf2(
     int i_loc = array_descA.indx_g2l_r(n_s);
     int j_loc = array_descA.indx_g2l_c(n_s);
 
-    int owner_row = DDLA::indxg2p(n_s, nb, array_descA.irsrc(), nprows);
-    int owner_col = DDLA::indxg2p(n_s, nb, array_descA.icsrc(), npcols);
+    int owner_row = indxg2p(n_s, nb, array_descA.irsrc(), nprows);
+    int owner_col = indxg2p(n_s, nb, array_descA.icsrc(), npcols);
 
     int mm_row_start = num_loc(n_s, nb, myprow, array_descA.irsrc(), nprows);
     int mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
@@ -82,7 +86,7 @@ void pzgetf2(
         #ifdef ENABLE_DEBUG
         double start_time_tf2 = MPI_Wtime();
         #endif
-        DEVICE_CHECK(deviceMemsetAsync(d_max,0,nprows*sizeof(std::complex<double>),stream));
+        DEVICE_CHECK(deviceMemsetAsync(d_max,0,nprows*sizeof(T),stream));
         memset(h_id_max.data(),0,nprows*sizeof(int));
         
         // find max_rows and value
@@ -100,13 +104,13 @@ void pzgetf2(
             double start_time_local_max = MPI_Wtime();
             #endif
             if(i_panel<m_loc){
-                BLAS_CHECK(deblasIzamax(
+                BLAS_CHECK(deblasIamax(
                     blasH, m_loc-i_panel,
                     d_A + j_panel * lld + i_panel,1,
                     h_id_max.data()+myprow
                 ));
                 DEVICE_CHECK(deviceMemcpyAsync(
-                    d_max+myprow, d_A + (i_panel + (h_id_max[myprow]-1) + j_panel * lld), sizeof(std::complex<double>),
+                    d_max+myprow, d_A + (i_panel + (h_id_max[myprow]-1) + j_panel * lld), sizeof(T),
                     deviceMemcpyDeviceToDevice, stream
                 ));
             }
@@ -126,7 +130,7 @@ void pzgetf2(
             double start_time_global_max = MPI_Wtime();
             #endif
             // printf("before get max after synchronize\n");
-            BLAS_CHECK(deblasIzamax(blasH, nprows, d_max, 1, &max_prow));
+            BLAS_CHECK(deblasIamax(blasH, nprows, d_max, 1, &max_prow));
             
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             // printf("after get max\n");
@@ -145,7 +149,7 @@ void pzgetf2(
             max_row = h_id_max[max_prow];
             
             DEVICE_CHECK(deviceMemcpyAsync(
-                &max_value, d_max+max_prow, sizeof(std::complex<double>),
+                &max_value, d_max+max_prow, sizeof(T),
                 deviceMemcpyDeviceToHost, stream
             ));
         }
@@ -167,7 +171,7 @@ void pzgetf2(
         // exchange rows
         if(owner_row == max_prow){
             if(myprow == owner_row && max_loc_row != i_panel)
-                BLAS_CHECK(deblasZswap(
+                BLAS_CHECK(deblasSwap(
                     blasH, n_loc,
                     d_A + i_panel, lld,
                     d_A + max_loc_row, lld
@@ -175,9 +179,9 @@ void pzgetf2(
         }else{
             if(myprow == owner_row){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_temp, sizeof(std::complex<double>),
-                    d_A + i_panel, lld * sizeof(std::complex<double>),
-                    sizeof(std::complex<double>), n_loc,
+                    d_temp, sizeof(T),
+                    d_A + i_panel, lld * sizeof(T),
+                    sizeof(T), n_loc,
                     deviceMemcpyDeviceToDevice, stream
                 ));
                 // printf("before ccl owner_row send 1\n");
@@ -188,7 +192,7 @@ void pzgetf2(
                 CCL_CHECK(
                     cclRecv(d_temp, n_loc, max_prow, col_nccl_comm, stream)
                 );
-                BLAS_CHECK(deblasZswap(
+                BLAS_CHECK(deblasSwap(
                     blasH, n_loc,
                     d_A + i_panel, lld,
                     d_temp, 1
@@ -199,7 +203,7 @@ void pzgetf2(
                 CCL_CHECK(
                     cclRecv(d_temp, n_loc, owner_row, col_nccl_comm, stream)
                 );
-                BLAS_CHECK(deblasZswap(
+                BLAS_CHECK(deblasSwap(
                     blasH, n_loc,
                     d_A + max_loc_row, lld,
                     d_temp, 1
@@ -218,14 +222,14 @@ void pzgetf2(
         #endif
         // printf("before get max value\n");
         // finish exchange rows
-        MPI_Bcast(&max_value, sizeof(std::complex<double>), MPI_BYTE, owner_col, row_comm);
+        MPI_Bcast(&max_value, sizeof(T), MPI_BYTE, owner_col, row_comm);
         if(std::abs(max_value)<1e-10){
             info = n_s+i_tf2+1;
             return;
         }
         // start reduce columns
         if(j_loc>=0){
-            max_value = 1.0 / max_value; // inverse
+            max_value = (T)1.0 / max_value; // inverse
             int64_t a_off;
             int length_row;
             
@@ -237,9 +241,9 @@ void pzgetf2(
                 length_row = m_loc - mm_row_start;
             }
             if(length_row>0){
-                BLAS_CHECK(deblasZscal(
+                BLAS_CHECK(deblasScal(
                     blasH, length_row,
-                    &max_value,
+                    max_value,
                     d_A + a_off, 1
                 ));
             }
@@ -251,9 +255,9 @@ void pzgetf2(
             int length_col = nb_real - i_tf2 - 1;
             if(myprow == owner_row){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_temp, 1 * sizeof(std::complex<double>),
-                    d_A + i_panel + (j_panel + 1) * lld, lld * sizeof(std::complex<double>),
-                    1*sizeof(std::complex<double>), length_col,
+                    d_temp, 1 * sizeof(T),
+                    d_A + i_panel + (j_panel + 1) * lld, lld * sizeof(T),
+                    1*sizeof(T), length_col,
                     deviceMemcpyDeviceToDevice, stream
                 ));
             }
@@ -263,9 +267,9 @@ void pzgetf2(
             // start update trailing matrix
             
             if(length_row>0&&length_row>0){
-                BLAS_CHECK(deblasZgeru(
+                BLAS_CHECK(deblasGeru(
                     blasH, length_row, length_col,
-                    &minus_one,
+                    -1.0,
                     d_A + a_off, 1,
                     d_temp, 1,
                     d_A + a_off + lld, lld
@@ -290,4 +294,32 @@ void pzgetf2(
     DEVICE_CHECK(deviceFreeAsync(d_max, stream));
 }
 
-}
+template void pgetf2<float>(
+    const int& m, const int& nb_real,
+    float* d_A, const int& n_s, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetf2<double>(
+    const int& m, const int& nb_real,
+    double* d_A, const int& n_s, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetf2<std::complex<float>>(
+    const int& m, const int& nb_real,
+    std::complex<float>* d_A, const int& n_s, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetf2<std::complex<double>>(
+    const int& m, const int& nb_real,
+    std::complex<double>* d_A, const int& n_s, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+} // namespace ddla

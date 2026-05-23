@@ -1,9 +1,9 @@
 #ifndef HERK_H
 #define HERK_H
 
-#include <ddla_connector.h>
+#include "ddla_connector.h"
 
-namespace DDLA{
+namespace ddla{
 
 inline deblasStatus_t deblasHerk(
     deblasHandle_t handle,

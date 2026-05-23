@@ -6,7 +6,7 @@
 #include <iostream>
 #include <cmath>
 
-namespace DDLA{
+namespace ddla{
 
 
 class DdlaStream{

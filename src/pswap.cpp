@@ -1,10 +1,10 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
-#include <ddla_connector.h>
-#include <ddla_utils.h>
-#include <ddla_stream.h>
-#include "swap.h"
-namespace DDLA{
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
+#include <ddla/swap.h>
+#include <ddla/ddla_comm.h>
+namespace ddla{
 
 template <typename T>
 void pswap(

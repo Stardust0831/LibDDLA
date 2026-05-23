@@ -1,9 +1,9 @@
 #ifndef SWAP_H
 #define SWAP_H
 
-#include <ddla_connector.h>
+#include "ddla_connector.h"
 
-namespace DDLA{
+namespace ddla{
     inline deblasStatus_t deblasSwap(deblasHandle_t handle, int n, std::complex<double> *x, int incx, std::complex<double> *y, int incy)
     {
         #if defined(ENABLE_HIP)

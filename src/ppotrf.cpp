@@ -1,17 +1,18 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
-#include <ddla_connector.h>
-#include <ddla_utils.h>
-#include <ddla_stream.h>
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
 #include <vector>
 #include <type_traits>
 #include <cmath>
+#include <ddla/trsm.h>
+#include <ddla/potrf.h>
+#include <ddla/gemmBatched.h>
+#include <ddla/herk.h>
+#include <ddla/gemm.h>
+#include <ddla/ddla_comm.h>
 
-#include "trsm.h"
-#include "potrf.h"
-#include "gemmBatched.h"
-#include "herk.h"
-namespace DDLA{
+namespace ddla{
 
 template<typename T>
 bool ppotrf(

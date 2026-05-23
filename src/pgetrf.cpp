@@ -1,14 +1,18 @@
-#include <ddla.h>
+#include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla_connector.h>
-#include <ddla_utils.h>
-#include <ddla_stream.h>
-namespace DDLA{
+#include <ddla/ddla_connector.h>
+#include <ddla/ddla_stream.h>
+#include <ddla/gemm.h>
+#include <ddla/trsm.h>
+#include <ddla/ddla_comm.h>
 
-void pzgetrf(
+namespace ddla{
+
+template<typename T>
+void pgetrf(
     const int& m, const int& n,
-    std::complex<double>* d_A, const DDLA::DdlaDesc& array_descA,
+    T* d_A, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -43,21 +47,18 @@ void pzgetrf(
     int i_loc,j_loc;
     int owner_row,owner_col;
 
-    std::complex<double> *d_temp_block;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_block, sizeof(std::complex<double>)*nb*nb, stream));
+    T *d_temp_block;
+    DEVICE_CHECK(deviceMallocAsync(&d_temp_block, sizeof(T)*nb*nb, stream));
 
-    std::complex<double> *d_temp_L;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_L, sizeof(std::complex<double>)*m_loc*nb, stream));
+    T *d_temp_L;
+    DEVICE_CHECK(deviceMallocAsync(&d_temp_L, sizeof(T)*m_loc*nb, stream));
 
-    std::complex<double> *d_temp_U;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_U, sizeof(std::complex<double>)*nb*n_loc, stream));
+    T *d_temp_U;
+    DEVICE_CHECK(deviceMallocAsync(&d_temp_U, sizeof(T)*nb*n_loc, stream));
 
     DEVICE_CHECK(deviceStreamSynchronize(stream));
     
     MPI_Barrier(MPI_COMM_WORLD);
-
-    const std::complex<double> minus_one = {-1.0,0.0};
-    const std::complex<double> one = {1.0,0.0};
 
     double time_for_pgetf2 = 0.0;
     double time_for_other = 0.0;
@@ -78,14 +79,14 @@ void pzgetrf(
         i_loc = array_descA.indx_g2l_r(n_s);
         j_loc = array_descA.indx_g2l_c(n_s);
 
-        owner_row = DDLA::indxg2p(n_s, nb, array_descA.irsrc(), nprows);
-        owner_col = DDLA::indxg2p(n_s, nb, array_descA.icsrc(), npcols);
+        owner_row = indxg2p(n_s, nb, array_descA.irsrc(), nprows);
+        owner_col = indxg2p(n_s, nb, array_descA.icsrc(), npcols);
 
         
         // start pgetf2
 
         start_time = MPI_Wtime();
-        pzgetf2(
+        pgetf2(
             m, nb_real,
             d_A, n_s, array_descA,
             ipiv, info
@@ -101,18 +102,18 @@ void pzgetrf(
             mm_col_start+=nb;
             if(i_loc>=0){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_temp_block, nb_real * sizeof(std::complex<double>),
-                    d_A + i_loc + j_loc * lld, lld * sizeof(std::complex<double>),
-                    nb_real * sizeof(std::complex<double>), nb_real,
+                    d_temp_block, nb_real * sizeof(T),
+                    d_A + i_loc + j_loc * lld, lld * sizeof(T),
+                    nb_real * sizeof(T), nb_real,
                     deviceMemcpyDeviceToDevice, stream
                 ));
                 
             }
             if(mm_row_start<m_loc){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_temp_L, (m_loc-mm_row_start) * sizeof(std::complex<double>),
-                    d_A + mm_row_start + j_loc * lld, lld * sizeof(std::complex<double>),
-                    (m_loc - mm_row_start) * sizeof(std::complex<double>), nb_real,
+                    d_temp_L, (m_loc-mm_row_start) * sizeof(T),
+                    d_A + mm_row_start + j_loc * lld, lld * sizeof(T),
+                    (m_loc - mm_row_start) * sizeof(T), nb_real,
                     deviceMemcpyDeviceToDevice, stream
                 ));
             }
@@ -124,16 +125,16 @@ void pzgetrf(
         if(i_loc>=0){
             CCL_CHECK(cclBcast(d_temp_block,nb_real * nb_real,owner_col,row_nccl_comm,stream));
             if(mm_col_start<n_loc){
-                BLAS_CHECK(deblasZtrsm(
+                BLAS_CHECK(deblasTrsm(
                     blasH, DEBLAS_SIDE_LEFT, DEBLAS_FILL_MODE_LOWER, DEBLAS_OP_N, DEBLAS_DIAG_UNIT,
-                    nb_real, n_loc - mm_col_start, &one,
+                    nb_real, n_loc - mm_col_start, 1.0,
                     d_temp_block, nb_real,
                     d_A + i_loc + mm_col_start * lld, lld)
                 );
                 DEVICE_CHECK(deviceMemcpy2DAsync(
-                    d_temp_U, nb_real * sizeof(std::complex<double>),
-                    d_A + i_loc + mm_col_start * lld, lld * sizeof(std::complex<double>),
-                    nb_real * sizeof(std::complex<double>), n_loc - mm_col_start,
+                    d_temp_U, nb_real * sizeof(T),
+                    d_A + i_loc + mm_col_start * lld, lld * sizeof(T),
+                    nb_real * sizeof(T), n_loc - mm_col_start,
                     deviceMemcpyDeviceToDevice, stream
                 ));
             }   
@@ -143,13 +144,13 @@ void pzgetrf(
         }
         // printf("myid:%d, n_s:%d, update trailing matrix mm_row_start:%d, mm_col_start:%d\n",mpi_comm_global_h.myid,n_s,mm_row_start,mm_col_start);
         if(mm_row_start<m_loc&&mm_col_start<n_loc){
-            BLAS_CHECK(deblasZgemm(
+            BLAS_CHECK(deblasGemm(
                 blasH, DEBLAS_OP_N, DEBLAS_OP_N,
                 m_loc - mm_row_start, n_loc - mm_col_start, nb_real,
-                &minus_one,
+                -1.0,
                 d_temp_L, m_loc - mm_row_start,
                 d_temp_U, nb_real,
-                &one,
+                1.0,
                 d_A + mm_row_start + mm_col_start * lld, lld
             ));
         }
@@ -164,5 +165,33 @@ void pzgetrf(
     printf("myid:%d, pzgetrf time_for_pgetf2:%lf, time_for_other:%lf\n",ddla_handle->myid,time_for_pgetf2,time_for_other);
 
 }
+
+template void pgetrf<float>(
+    const int& m, const int& n,
+    float* d_A, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetrf<double>(
+    const int& m, const int& n,
+    double* d_A, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetrf<std::complex<float>>(
+    const int& m, const int& n,
+    std::complex<float>* d_A, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
+
+template void pgetrf<std::complex<double>>(
+    const int& m, const int& n,
+    std::complex<double>* d_A, const DdlaDesc& array_descA,
+    int* ipiv, // host
+    int& info  // host
+);
 
 }

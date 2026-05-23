@@ -1,7 +1,7 @@
-#include <ddla_handle_t.h>
-#include <ddla_stream.h>
+#include <ddla/ddla_handle_t.h>
+#include <ddla/ddla_stream.h>
 
-namespace DDLA {
+namespace ddla{
 void ddla_init(DdlaStream*& ddla_handle){
     ddla_handle = new DdlaStream();
     return;
