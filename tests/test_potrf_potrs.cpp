@@ -162,8 +162,9 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
     }
     DEVICE_CHECK(deviceFreeAsync(d_A_copy, ddla_handle->stream));
     DEVICE_CHECK(deviceFreeAsync(d_A, ddla_handle->stream));
+    DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
 }
-int main(int argc, char* argv[]) {  
+int main(int argc, char* argv[]){  
     MPI_Init(&argc, &argv);
     printf("before stream init\n");
     DdlaHandle_t ddla_handle = nullptr;

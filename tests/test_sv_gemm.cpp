@@ -149,11 +149,11 @@ int main(int argc, char* argv[]) {
     // DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     printf("after stream init\n");
     check_pzgetrf(5000, ddla_handle);
-    for(int i=5000;i<=2*5000;i+=5000){
+    for(int i = 5000; i <= 4 * 5000; i += 5000){
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n",i);
-        check_pzgetrf(i,ddla_handle);
+        check_pzgetrf(i, ddla_handle);
     }
     ddla_destroy(ddla_handle);
     MPI_Finalize();

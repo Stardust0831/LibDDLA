@@ -45,8 +45,8 @@ inline deblasStatus_t deblasHerk(
     #if defined(ENABLE_HIP)
     return hipblasCherk(
         handle, uplo, trans, n, k,
-        &alpha, (hipblasFloatComplex*)A, lda,
-        &beta, (hipblasFloatComplex*)C, ldc
+        &alpha, (hipblasComplex*)A, lda,
+        &beta, (hipblasComplex*)C, ldc
     );
     #elif defined(ENABLE_CUDA)
     return cublasCherk(

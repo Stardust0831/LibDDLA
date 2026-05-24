@@ -57,11 +57,11 @@ inline deblasStatus_t deblasGemmBatched(
     #if defined(ENABLE_HIP)
     return hipblasCgemmBatched(
         handle, transa, transb, m, n, k,
-        (hipblasFloatComplex*)(&alpha),
-        (hipblasFloatComplex**)(Aarray), lda,
-        (hipblasFloatComplex**)(Barray), ldb,
-        (hipblasFloatComplex*)(&beta),
-        (hipblasFloatComplex**)(Carray), ldc,
+        (hipblasComplex*)(&alpha),
+        (hipblasComplex**)(Aarray), lda,
+        (hipblasComplex**)(Barray), ldb,
+        (hipblasComplex*)(&beta),
+        (hipblasComplex**)(Carray), ldc,
         batchCount
     );
     #elif defined(ENABLE_CUDA)

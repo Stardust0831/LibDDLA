@@ -321,6 +321,7 @@ bool ppotrf(
     DEVICE_CHECK(deviceFreeAsync(d_block_row, stream));
     DEVICE_CHECK(deviceFreeAsync(d_block_col, stream));
     DEVICE_CHECK(deviceFreeAsync(d_info, stream));
+    DEVICE_CHECK(deviceStreamSynchronize(stream));
     return is_nega;
 
 }

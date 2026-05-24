@@ -88,14 +88,14 @@ constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
 #ifdef ENABLE_HIP
 using deviceStream_t = hipStream_t;
 using deviceError_t = hipError_t;
-using deviceSuccess = hipError_t::hipSuccess;
+constexpr auto deviceSuccess = hipError_t::hipSuccess;
 #define deviceGetErrorString hipGetErrorString
 using deblasStatus_t = hipblasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::HIPBLAS_STATUS_SUCCESS;
 using deblasHandle_t = hipblasHandle_t;
 using desolverHandle_t = hipsolverHandle_t;
 using desolverStatus_t = hipsolverStatus_t;
-constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::HIPSLVER_STATUS_SUCCESS;
+constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::HIPSOLVER_STATUS_SUCCESS;
 #define desolverGetStream hipsolverGetStream
 #define deviceMemcpyAsync hipMemcpyAsync
 #define deviceMemcpy hipMemcpy
@@ -185,7 +185,7 @@ static inline void MPI_CHECK(int status)
 
 static inline void DEVICE_CHECK(deviceError_t status)
 {
-    if (status != cudaSuccess)
+    if (status != deviceSuccess)
     {
         fprintf(stderr, "device error at %s:%d : %s\n", __builtin_FILE(), __builtin_LINE(), deviceGetErrorString(status));
         exit(EXIT_FAILURE);
