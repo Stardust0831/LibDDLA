@@ -151,12 +151,12 @@ constexpr auto deviceMemcpyDeviceToDevice = deviceMemcpyKind::hipMemcpyDeviceToD
 
 
 #ifdef ENABLE_CUDA
-inline cudaError_t deviceStreamSynchronize(cudaStream_t stream) {
+inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
     return cudaStreamSynchronize(stream);
 }
 #endif
 #ifdef ENABLE_HIP
-inline hipError_t deviceStreamSynchronize(hipStream_t stream) {
+inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
     return hipStreamSynchronize(stream);
 }
 #endif
