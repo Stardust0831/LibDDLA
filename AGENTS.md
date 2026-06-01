@@ -115,3 +115,37 @@ Free functions for index mapping (also in `ddla_desc.h`):
 ## Version
 
 LibDDLA uses semantic versioning. Version numbers are read from `src/version.h` (three `#define` macros: `LIBDDLA_MAJOR_VERSION`, `LIBDDLA_MINOR_VERSION`, `LIBDDLA_MICRO_VERSION`). Bump there, not in CMakeLists.
+
+## Reference libraries (`reference/`)
+
+Three reference implementations are available for algorithm study and comparison.
+The `reference/` directory is git-ignored — clone them on demand.
+
+### ScaLAPACK (`reference/scalapack/`)
+- **What**: Scalable LAPACK — the standard CPU distributed linear algebra library (Fortran + C, MPI-based)
+- **Version**: 2.2.3 (March 2026)
+- **Key source**: `SCALAPACK/SRC/` — ~600 distributed routines (`pdgemm`, `pzgetrf`, `pzpotrf`, `pzheevd`, etc.)
+- **Data model**: 2D block-cyclic distribution over `nprows × npcols` process grid, same as LibDDLA
+- **Use for**: Reference algorithm structure, descriptor convention, API naming, pivot logic, communication patterns. Most LibDDLA routines have a direct ScaLAPACK counterpart.
+
+### ELPA (`reference/elpa/`)
+- **What**: Eigenvalue SoLvers for Petaflop-Applications — high-performance Hermitian eigensolver (Fortran + C, MPI + GPU support)
+- **Version**: 2026.02.001
+- **Key source**: `elpa/src/` — eigendecomposition, Cholesky, QR, tridiagonal reduction, GPU kernels (`src/GPU/`)
+- **Use for**: LibDDLA currently has no eigensolver — ELPA is the primary reference for adding `pheevd` / `phegv` (Hermitian eigenvalue decomposition). Also has GPU-accelerated Cholesky and QR that could inspire improvements to `ppotrf` / `ptrtrs`.
+
+### MAGMA (`reference/magma/`)
+- **What**: Matrix Algebra on GPU and Multicore Architectures — dense linear algebra on GPUs (C/C++ + CUDA/HIP)
+- **Key source**: `magmablas/` (GPU BLAS kernels), `src/` (LAPACK routines ported to GPU)
+- **Architecture**: Hybrid CPU-GPU — panel factorizations on CPU, trailing updates on GPU
+- **Use for**: GPU kernel design patterns, batched BLAS strategies, inter-GPU communication schemes, mixed-precision approaches. Useful when designing GPU-native algorithms rather than porting ScaLAPACK's MPI model as-is.
+
+### How to use references
+
+When asked to implement or optimize a LibDDLA function, the priority order for studying reference implementations is:
+
+1. **ScaLAPACK** first — matches LibDDLA's 2D block-cyclic distribution and API naming. Look for the function with the same name (replace `p` prefix with `p`, `z` with `z`, etc.). Study the Fortran source in `SRC/`.
+2. **ELPA** for eigenvalue problems or GPU-accelerated factorization patterns.
+3. **MAGMA** for GPU kernel optimization, batched operations, and hybrid CPU-GPU algorithm design.
+
+The typical workflow: read the ScaLAPACK reference to understand the algorithm structure and data flow, then adapt it to LibDDLA's C++ template + NCCL + GPU-stream model.
