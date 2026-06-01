@@ -45,29 +45,48 @@ echo "任务运行节点列表: ${SLURM_NODELIST}"
 
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
-which mpicxx
 
-# FILENAME=test_sv_gemm
-# FILENAME=test_aware
-# FILENAME=test_pgeadd
-# FILENAME=test_potrf_solvermp
-FILENAME=test_potrf_potrs
+files=(
+    "test_sv_gemm"
+    # "test_aware"
+    # "test_pgeadd"
+    # "test_potrf_solvermp"
+    "test_potrf_potrs"
+)
 
-# nvidia-smi
+# 遍历数组中的每一个文件
+for FILENAME in "${files[@]}"; do
+    rm ../../${FILENAME}
+    
+    echo "================================================="
+    echo "🚀 Processing: ${FILENAME}"
 
-rm ../../${FILENAME}
-# mpicxx -g -O2 -lcudart -lddla -fopenmp -lnccl -lcublas -lcusolver -lcurand  ${FILENAME}.cpp -o ${FILENAME} -std=c++11 -DENABLE_CUDA -DENABLE_CCL
+    # 2. 编译阶段 (注意源文件路径加了 ./)
+    echo "⏳ Compiling..."
+    mpicxx -g -O2 -lcudart -lddla -fopenmp -lcublas -lcusolver -lcurand -lcal -lcusolverMp ${FILENAME}.cpp -o ../../${FILENAME} -std=c++17 -DENABLE_CUDA -DENABLE_CCL
 
-mpicxx -g -O2 -lcudart -lddla -fopenmp -lcublas -lcusolver -lcurand -lcal -lcusolverMp ${FILENAME}.cpp -o ../../${FILENAME} -std=c++17 -DENABLE_CUDA -DENABLE_CCL
-np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
-echo "np: $np"
-# ldd ./${FILENAME}
-# mpirun -n $np --mca btl ^openib ./${FILENAME} 
-# export OMPI_MCA_btl_vader_single_copy_mechanism=none
-# export OMPI_MCA_bcol_uma_enable=0
-export OMPI_MCA_btl_openib_allow_ib=1
-mpirun -n $np --mca btl_tcp_if_include ib0,ib1 ../../${FILENAME}
-# export OMPI_MCA_btl_vader_single_copy_mechanism=none
-# export OMPI_MCA_bcol_uma_enable=0
-# mpirun -n $np ./${FILENAME}
+    # 检查编译是否成功
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Failed to compile ${FILENAME}"
+        continue # 如果编译失败，跳过本次循环，继续下一个
+    fi
+
+    # 3. 计算进程数 (沿用你原来的逻辑)
+    np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
+    echo "📊 NP: $np"
+
+    # 4. 运行阶段
+    echo "▶️ Running..."
+    # 这里保留了你原来的 mpirun 逻辑
+    export OMPI_MCA_btl_openib_allow_ib=1
+    mpirun -n $np --mca btl_tcp_if_include ib0,ib1 ../../${FILENAME}
+
+    echo "✅ Finished: ${FILENAME}"
+    echo "" # 空一行，方便看日志
+
+done
+
+echo "================================================="
+echo "All tests finished."
+
 echo End Time: `date`
