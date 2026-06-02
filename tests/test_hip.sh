@@ -56,11 +56,9 @@ echo Begin Time: `date`
 
 FILENAME=test_pzgemm
 
-# rm ${FILENAME}
-# mpicxx -gdwarf-4 -g -O2 -lamdhip64 -lgalaxyhip -lddla -fopenmp -lrccl -lhipblas -lhipsolver -lhiprand  ${FILENAME}.cpp -o ${FILENAME} -std=c++11 -DENABLE_HIP -D__HIP_PLATFORM_AMD__ -DENABLE_CCL
 
-mpicxx -gdwarf-4 -g -O2 -lamdhip64 -lgalaxyhip -lddla -fopenmp -lrccl -lhipblas -lhipsolver -lhiprand  ${FILENAME}.cpp -o ${FILENAME} -std=c++11 -DENABLE_HIP -D__HIP_PLATFORM_AMD__ -DENABLE_CCL
-# mpicxx -gdwarf-4 -g -O2 -lamdhip64 -lgalaxyhip -lddla -fopenmp -lrccl -lhipblas -lhipsolver -lhiprand  ${FILENAME}.cpp -o ${FILENAME} -std=c++11 -DENABLE_HIP -D__HIP_PLATFORM_AMD__ 
+
+mpicxx -gdwarf-4 -g -O2 -lamdhip64 -lgalaxyhip -lddla -fopenmp -lrccl -lhipblas -lhipsolver -lhiprand  ${FILENAME}.cpp -o ${FILENAME} -std=c++11 -DDDLA_USE_HIP -D__HIP_PLATFORM_AMD__ -DDDLA_USE_CCL
 np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
 echo "np: $np"
 # ldd ./${FILENAME}
