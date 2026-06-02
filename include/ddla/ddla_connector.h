@@ -150,28 +150,31 @@ constexpr auto deviceMemcpyDeviceToDevice = deviceMemcpyKind::hipMemcpyDeviceToD
 #endif
 
 
-#ifdef ENABLE_CUDA
+
 inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
+#ifdef ENABLE_CUDA
     return cudaStreamSynchronize(stream);
-}
-#endif
-#ifdef ENABLE_HIP
-inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
+#else
     return hipStreamSynchronize(stream);
-}
 #endif
+}
 
-#ifdef ENABLE_CUDA
-inline cudaError_t deviceDeviceSynchronize(){
+
+inline deviceError_t deviceDeviceSynchronize(){
+#ifdef ENABLE_CUDA 
     return cudaDeviceSynchronize();
-}
-#endif
-
-#ifdef ENABLE_HIP
-inline hipError_t deviceDeviceSynchronize(){
+#else
     return hipDeviceSynchronize();
-}
 #endif
+}
+
+inline deviceError_t deviceGetDeviceCount(int* count){
+#ifdef ENABLE_CUDA
+    return cudaGetDeviceCount(count);
+#else
+    return hipGetDeviceCount(count);
+#endif
+}
 
 
 static inline void MPI_CHECK(int status)
@@ -183,11 +186,11 @@ static inline void MPI_CHECK(int status)
     }
 }
 
-static inline void DEVICE_CHECK(deviceError_t status)
+static inline void DEVICE_CHECK(deviceError_t status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
     if (status != deviceSuccess)
     {
-        fprintf(stderr, "device error at %s:%d : %s\n", __builtin_FILE(), __builtin_LINE(), deviceGetErrorString(status));
+        fprintf(stderr, "device error at %s:%d : %s\n", file, line, deviceGetErrorString(status));
         exit(EXIT_FAILURE);
     }
 }

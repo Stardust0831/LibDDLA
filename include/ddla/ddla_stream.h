@@ -21,12 +21,7 @@ private:
         MPI_Comm_free(&localComm);
 
         int deviceCount = 0;
-        #ifdef ENABLE_CUDA
-        DEVICE_CHECK(cudaGetDeviceCount(&deviceCount));
-        #endif
-        #ifdef ENABLE_HIP
-        DEVICE_CHECK(hipGetDeviceCount(&deviceCount));
-        #endif
+        DEVICE_CHECK(deviceGetDeviceCount(&deviceCount));
 
         return localRank % deviceCount;
     }
