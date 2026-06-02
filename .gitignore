@@ -16,3 +16,6 @@ build/
 
 # Reference materials (papers, notes, external docs)
 reference/
+
+# Sync script (contains user-specific paths)
+sync_to_hpc3.sh
