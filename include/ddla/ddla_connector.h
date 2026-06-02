@@ -177,11 +177,11 @@ inline deviceError_t deviceGetDeviceCount(int* count){
 }
 
 
-static inline void MPI_CHECK(int status)
+static inline void MPI_CHECK(int status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
     if (status != MPI_SUCCESS)
     {
-        fprintf(stderr, "mpi error at %s:%d : %d\n", __builtin_FILE(), __builtin_LINE(), status);
+        fprintf(stderr, "mpi error at %s:%d : %d\n", file, line, status);
         exit(EXIT_FAILURE);
     }
 }
@@ -195,46 +195,45 @@ static inline void DEVICE_CHECK(deviceError_t status, const char* file = __built
     }
 }
 
-static inline void BLAS_CHECK(deblasStatus_t err_)
+static inline void BLAS_CHECK(deblasStatus_t err_, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
     if (err_ != DEBLAS_STATUS_SUCCESS)
     {
-        fprintf(stderr, "deblas error %d at %s:%d\n", err_, __builtin_FILE(), __builtin_LINE());
+        fprintf(stderr, "deblas error %d at %s:%d\n", err_, file, line);
         exit(EXIT_FAILURE);
     }
 }
 
-static inline void SOLVER_CHECK(desolverStatus_t err_)
+static inline void SOLVER_CHECK(desolverStatus_t err_, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
     if (err_ != DESOLVER_STATUS_SUCCESS)
     {
-        fprintf(stderr, "cusolver error %d at %s:%d\n", err_, __builtin_FILE(), __builtin_LINE());
+        fprintf(stderr, "cusolver error %d at %s:%d\n", err_, file, line);
         exit(EXIT_FAILURE);
     }
 }
 
 #ifdef DDLA_USE_CCL
-static inline void CCL_CHECK(ncclResult_t status)
+static inline void CCL_CHECK(ncclResult_t status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
-
     if (status != ncclSuccess)
     {
-        fprintf(stderr, "nccl error at %s:%d : %d\n", __builtin_FILE(), __builtin_LINE(), status);
+        fprintf(stderr, "nccl error at %s:%d : %d\n", file, line, status);
         exit(EXIT_FAILURE);
     }
 }
 #else
-static inline void CCL_CHECK(int status)
+static inline void CCL_CHECK(int status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
-    MPI_CHECK(status);
+    MPI_CHECK(status, file, line);
 }
 #endif
 
-static inline void DERAND_CHECK(derandStatus_t status)
+static inline void DERAND_CHECK(derandStatus_t status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {
     if (status != DERAND_STATUS_SUCCESS)
     {
-        fprintf(stderr, "derand error at %s:%d : %d\n", __builtin_FILE(), __builtin_LINE(), status);
+        fprintf(stderr, "derand error at %s:%d : %d\n", file, line, status);
         exit(EXIT_FAILURE);
     }
 }
