@@ -3,8 +3,8 @@
 
 #include <mpi.h>
 #include <iostream>
-#ifdef ENABLE_CUDA
-#ifdef ENABLE_CCL
+#ifdef DDLA_USE_CUDA
+#ifdef DDLA_USE_CCL
 #include <nccl.h>
 #endif
 #include <cuda_runtime.h>
@@ -12,8 +12,8 @@
 #include <cublas_v2.h>
 #include <curand.h>
 #endif
-#ifdef ENABLE_HIP
-#ifdef ENABLE_CCL
+#ifdef DDLA_USE_HIP
+#ifdef DDLA_USE_CCL
 #include <rccl/rccl.h>
 #endif
 #include <hip/hip_runtime.h>
@@ -27,14 +27,14 @@
 
 namespace ddla{
 
-#ifdef ENABLE_CCL
+#ifdef DDLA_USE_CCL
 using cclOp=ncclRedOp_t;
 const auto cclSum=ncclRedOp_t::ncclSum;
 #else
 using cclOp=MPI_Op;
 const auto cclSum=MPI_SUM;
 #endif
-#ifdef ENABLE_CUDA
+#ifdef DDLA_USE_CUDA
 using deviceStream_t = cudaStream_t;
 using deviceError_t = cudaError_t;
 constexpr auto deviceSuccess = deviceError_t::cudaSuccess;
@@ -85,7 +85,7 @@ constexpr auto DEBLAS_OP_T = deblasOperation_t::CUBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
 
 #endif
-#ifdef ENABLE_HIP
+#ifdef DDLA_USE_HIP
 using deviceStream_t = hipStream_t;
 using deviceError_t = hipError_t;
 constexpr auto deviceSuccess = hipError_t::hipSuccess;
@@ -136,13 +136,13 @@ constexpr auto DEBLAS_OP_T = deblasOperation_t::HIPBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::HIPBLAS_OP_C;
 #endif
 
-#ifdef ENABLE_CUDA
+#ifdef DDLA_USE_CUDA
 using deviceMemcpyKind=cudaMemcpyKind;
 constexpr auto deviceMemcpyHostToDevice = deviceMemcpyKind::cudaMemcpyHostToDevice;
 constexpr auto deviceMemcpyDeviceToHost = deviceMemcpyKind::cudaMemcpyDeviceToHost;
 constexpr auto deviceMemcpyDeviceToDevice = deviceMemcpyKind::cudaMemcpyDeviceToDevice;
 #endif
-#ifdef ENABLE_HIP
+#ifdef DDLA_USE_HIP
 using deviceMemcpyKind=hipMemcpyKind;
 constexpr auto deviceMemcpyHostToDevice = deviceMemcpyKind::hipMemcpyHostToDevice;
 constexpr auto deviceMemcpyDeviceToHost = deviceMemcpyKind::hipMemcpyDeviceToHost;
@@ -152,7 +152,7 @@ constexpr auto deviceMemcpyDeviceToDevice = deviceMemcpyKind::hipMemcpyDeviceToD
 
 
 inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
-#ifdef ENABLE_CUDA
+#ifdef DDLA_USE_CUDA
     return cudaStreamSynchronize(stream);
 #else
     return hipStreamSynchronize(stream);
@@ -161,7 +161,7 @@ inline deviceError_t deviceStreamSynchronize(deviceStream_t stream) {
 
 
 inline deviceError_t deviceDeviceSynchronize(){
-#ifdef ENABLE_CUDA 
+#ifdef DDLA_USE_CUDA 
     return cudaDeviceSynchronize();
 #else
     return hipDeviceSynchronize();
@@ -169,7 +169,7 @@ inline deviceError_t deviceDeviceSynchronize(){
 }
 
 inline deviceError_t deviceGetDeviceCount(int* count){
-#ifdef ENABLE_CUDA
+#ifdef DDLA_USE_CUDA
     return cudaGetDeviceCount(count);
 #else
     return hipGetDeviceCount(count);
@@ -213,7 +213,7 @@ static inline void SOLVER_CHECK(desolverStatus_t err_)
     }
 }
 
-#ifdef ENABLE_CCL
+#ifdef DDLA_USE_CCL
 static inline void CCL_CHECK(ncclResult_t status)
 {
 

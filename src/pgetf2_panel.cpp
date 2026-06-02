@@ -20,7 +20,7 @@ void pgetf2_panel(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
 
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else
     MPI_Comm col_nccl_comm = ddla_handle->col_comm;

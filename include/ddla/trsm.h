@@ -14,9 +14,9 @@ inline deblasStatus_t deblasTrsm(
     std::complex<double> *B, int ldb
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasZtrsm(handle, side, uplo, trans, diag, m, n, (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)B, ldb);
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasZtrsm(handle, side, uplo, trans, diag, m, n, (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)B, ldb);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -31,9 +31,9 @@ inline deblasStatus_t deblasTrsm(
     std::complex<float> *B, int ldb
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasCtrsm(handle, side, uplo, trans, diag, m, n, (hipblasComplex*)&alpha, (hipblasComplex*)A, lda, (hipblasComplex*)B, ldb);
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasCtrsm(handle, side, uplo, trans, diag, m, n, (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda, (cuFloatComplex*)B, ldb);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -48,9 +48,9 @@ inline deblasStatus_t deblasTrsm(
     float *B, int ldb
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasStrsm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb);
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasStrsm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -66,9 +66,9 @@ inline deblasStatus_t deblasTrsm(
     double *B, int ldb
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasDtrsm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb);
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasDtrsm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");

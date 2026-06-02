@@ -30,7 +30,7 @@ void pswap(
     const int ib_loc = num_loc(ib, array_descB.mb(), myprow, array_descB.irsrc(), array_descB.nprows());
     const int jb_loc = num_loc(jb, array_descB.nb(), mypcol, array_descB.icsrc(), array_descB.npcols());
     
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else

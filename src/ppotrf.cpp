@@ -50,7 +50,7 @@ bool ppotrf(
     int mypcol = array_descA.mypcol();
 
     // 初始化 NCCL  
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_comm=ddla_handle->nccl_row_comm;
     ncclComm_t col_comm=ddla_handle->nccl_col_comm;
     #else
@@ -73,7 +73,7 @@ bool ppotrf(
     int *d_info;
     DEVICE_CHECK(deviceMallocAsync((void**)&d_info, sizeof(int), stream));
 
-    #ifdef ENABLE_GPU_CPU_TUNNEL
+    #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(nb * std::max(array_descA.n_loc(), array_descA.m_loc()));
     #endif
 
@@ -162,7 +162,7 @@ bool ppotrf(
             mm_row_start += nb_real;
         length_row = array_descA.m_loc() - mm_row_start;
         if(mypcol == owner_col){
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_row, ddla_handle->col_comm, ddla_handle->stream));
             #else
             CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_row, col_comm, stream));
@@ -186,7 +186,7 @@ bool ppotrf(
             mm_col_start += nb_real;
         length_col = array_descA.n_loc() - mm_col_start;
         if(length_row > 0){
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_col, length_row * nb_real, owner_col, ddla_handle->row_comm, ddla_handle->stream));
             #else
             CCL_CHECK(cclBcast(d_block_col, length_row * nb_real, owner_col, row_comm, stream));
@@ -197,7 +197,7 @@ bool ppotrf(
                 DEVICE_CHECK(deviceMemcpyAsync(d_block_row, d_block_col, length_col * nb_real * sizeof(T), deviceMemcpyDeviceToDevice, stream));
         }
         if(length_col > 0){
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_row, nb_real * length_col, mypcol, ddla_handle->col_comm, ddla_handle->stream));
             #else
             CCL_CHECK(cclBcast(d_block_row, nb_real * length_col, mypcol, col_comm, stream));

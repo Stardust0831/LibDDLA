@@ -19,7 +19,7 @@ void pgetrf(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
 
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else

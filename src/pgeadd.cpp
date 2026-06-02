@@ -51,7 +51,7 @@ void pgeadd(
         assert(nbA == nbB && nbA == nbC);
     }
 
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t nccl_comm = ddla_handle->nccl_comm;
     ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;

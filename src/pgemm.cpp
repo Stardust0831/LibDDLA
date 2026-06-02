@@ -53,7 +53,7 @@ void pgemm(
         assert(nbB == nbC);
     }
 
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else
@@ -95,7 +95,7 @@ void pgemm(
     T *d_A_temp[buffer_max],*d_B_temp[buffer_max];
     int count_a = (transa=='N'?m_loc_C:(std::max(n_loc_A, m_loc_C))) * nb;
     int count_b = nb * (transb=='N'?n_loc_C:(std::max(m_loc_B, n_loc_C)));
-    #ifdef ENABLE_GPU_CPU_TUNNEL
+    #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(std::max(count_a, count_b));
     #endif
     for(int i=0;i<buffer_max;i++){
@@ -121,7 +121,7 @@ void pgemm(
         //             deviceMemcpyDeviceToDevice, stream_data
         //         ));
         //         if(myprow != mypcol){
-        //             #ifdef ENABLE_GPU_CPU_TUNNEL
+        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
         //             MPI_CHECK(cclSend(h_temp.data(), d_A_temp[temp_buffer], kb * n_loc_A, mypcol, ddla_handle->col_comm, stream_data));
         //             #else
         //             CCL_CHECK(cclSend(d_A_temp[temp_buffer], kb * n_loc_A, mypcol, col_nccl_comm, stream_data));
@@ -129,7 +129,7 @@ void pgemm(
         //         }
         //     }else{
         //         if(myprow == mypcol){
-        //             #ifdef ENABLE_GPU_CPU_TUNNEL
+        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
         //             MPI_CHECK(cclRecv(h_temp.data(), d_A_temp[temp_buffer], kb * n_loc_A, owner_row_A, ddla_handle->col_comm, stream_data));
         //             #else
         //             CCL_CHECK(cclRecv(d_A_temp[temp_buffer], kb * n_loc_A, owner_row_A, col_nccl_comm, stream_data));
@@ -171,7 +171,7 @@ void pgemm(
         );
         
         // broadcast A block
-        // #ifdef ENABLE_GPU_CPU_TUNNEL
+        // #ifdef DDLA_USE_GPU_CPU_TUNNEL
         // MPI_CHECK(cclBcast(h_temp.data(), d_A_temp[temp_buffer], m_loc_C * kb, src_A, ddla_handle->row_comm, stream_data));
         // #else        
         // CCL_CHECK(cclBcast(d_A_temp[temp_buffer], m_loc_C * kb, src_A, row_nccl_comm, stream_data));
@@ -211,7 +211,7 @@ void pgemm(
         //             deviceMemcpyDeviceToDevice, stream_data
         //         ));
         //         if(myprow != mypcol){
-        //             #ifdef ENABLE_GPU_CPU_TUNNEL
+        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
         //             MPI_CHECK(cclSend(h_temp.data(), d_B_temp[temp_buffer], kb * m_loc_B, myprow, ddla_handle->row_comm, stream_data));
         //             #else
         //             CCL_CHECK(cclSend(d_B_temp[temp_buffer], kb * m_loc_B, myprow, row_nccl_comm, stream_data));
@@ -219,7 +219,7 @@ void pgemm(
         //         }
         //     }else{
         //         if(myprow == mypcol){
-        //             #ifdef ENABLE_GPU_CPU_TUNNEL
+        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
         //             MPI_CHECK(cclRecv(h_temp.data(), d_B_temp[temp_buffer], kb * m_loc_B, owner_col_B, ddla_handle->row_comm, stream_data));
         //             #else
         //             CCL_CHECK(cclRecv(d_B_temp[temp_buffer], kb * m_loc_B, owner_col_B, row_nccl_comm, stream_data));
@@ -240,7 +240,7 @@ void pgemm(
         //     }
         // }
         // // broadcast B block
-        // #ifdef ENABLE_GPU_CPU_TUNNEL
+        // #ifdef DDLA_USE_GPU_CPU_TUNNEL
         // MPI_CHECK(cclBcast(h_temp.data(), d_B_temp[temp_buffer], kb * n_loc_C, src_B, ddla_handle->col_comm, stream_data));
         // #else
         // CCL_CHECK(cclBcast(d_B_temp[temp_buffer], kb * n_loc_C, src_B, col_nccl_comm, stream_data));

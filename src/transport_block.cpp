@@ -4,7 +4,7 @@
 #include <ddla/ddla_stream.h>
 #include <ddla/trsm.h>
 #include <ddla/ddla_comm.h>
-#ifdef ENABLE_GPU_CPU_TUNNEL
+#ifdef DDLA_USE_GPU_CPU_TUNNEL
 #include <vector>
 #endif
 
@@ -24,7 +24,7 @@ void transport_block(
 
     assert(sData == 'C' || sData == 'R');
     assert(trans == 'N' || trans == 'T' || trans == 'C');
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else
@@ -32,7 +32,7 @@ void transport_block(
     MPI_Comm col_nccl_comm = ddla_handle->col_comm;
     #endif
 
-    #ifdef ENABLE_GPU_CPU_TUNNEL
+    #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(array_descA.nb() * (std::max(array_descA.m_loc(), array_descA.n_loc())));
     #endif
 
@@ -55,7 +55,7 @@ void transport_block(
                     deviceMemcpyDeviceToDevice, ddla_handle->stream
                 ));
             }
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_A, m * (n_loc - j_loc), owner_row, ddla_handle->col_comm, ddla_handle->stream));
             #else   
             CCL_CHECK(cclBcast(d_block_A, m * (n_loc - j_loc), owner_row, col_nccl_comm, ddla_handle->stream));
@@ -69,7 +69,7 @@ void transport_block(
                     deviceMemcpyDeviceToDevice, ddla_handle->stream
                 ));
             }
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (m_loc - i_loc) * n, owner_col, ddla_handle->row_comm, ddla_handle->stream));
             #else
             CCL_CHECK(cclBcast(d_block_A, (m_loc - i_loc) * n, owner_col, row_nccl_comm, ddla_handle->stream));
@@ -92,7 +92,7 @@ void transport_block(
                         deviceMemcpyDeviceToDevice, ddla_handle->stream
                     ));
                     if(array_descA.myprow() != array_descA.mypcol()){
-                        #ifdef ENABLE_GPU_CPU_TUNNEL
+                        #ifdef DDLA_USE_GPU_CPU_TUNNEL
                         MPI_CHECK(cclSend(h_temp.data(), d_block_A, m * (n_loc - j_loc), array_descA.mypcol(), ddla_handle->col_comm, ddla_handle->stream));
                         #else
                         CCL_CHECK(cclSend(d_block_A, m * (n_loc - j_loc), array_descA.mypcol(), col_nccl_comm, ddla_handle->stream));
@@ -100,7 +100,7 @@ void transport_block(
                     }
                 }else{
                     if(array_descA.myprow() == array_descA.mypcol()){
-                        #ifdef ENABLE_GPU_CPU_TUNNEL
+                        #ifdef DDLA_USE_GPU_CPU_TUNNEL
                         MPI_CHECK(cclRecv(h_temp.data(), d_block_A, m * (n_loc - j_loc), owner_row, ddla_handle->col_comm, ddla_handle->stream));
                         #else
                         CCL_CHECK(cclRecv(d_block_A, m * (n_loc - j_loc), owner_row, col_nccl_comm, ddla_handle->stream));
@@ -109,7 +109,7 @@ void transport_block(
                 }
             }
             if(trans_n_loc > trans_j_loc){
-                #ifdef ENABLE_GPU_CPU_TUNNEL
+                #ifdef DDLA_USE_GPU_CPU_TUNNEL
                 MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (trans_n_loc - trans_j_loc) * m, array_descA.myprow(), ddla_handle->row_comm, ddla_handle->stream));
                 #else
                 CCL_CHECK(cclBcast(d_block_A, (trans_n_loc - trans_j_loc) * m, array_descA.myprow(), row_nccl_comm, ddla_handle->stream));
@@ -125,7 +125,7 @@ void transport_block(
                         deviceMemcpyDeviceToDevice, ddla_handle->stream
                     ));
                     if(array_descA.myprow() != array_descA.mypcol()){
-                        #ifdef ENABLE_GPU_CPU_TUNNEL
+                        #ifdef DDLA_USE_GPU_CPU_TUNNEL
                         MPI_CHECK(cclSend(h_temp.data(), d_block_A, (m_loc - i_loc) * n, array_descA.myprow(), ddla_handle->row_comm, ddla_handle->stream));
                         #else
                         CCL_CHECK(cclSend(d_block_A, (m_loc - i_loc) * n, array_descA.myprow(), row_nccl_comm, ddla_handle->stream));
@@ -133,7 +133,7 @@ void transport_block(
                     }
                 }else{
                     if(array_descA.myprow() == array_descA.mypcol()){
-                        #ifdef ENABLE_GPU_CPU_TUNNEL
+                        #ifdef DDLA_USE_GPU_CPU_TUNNEL
                         MPI_CHECK(cclRecv(h_temp.data(), d_block_A, (m_loc - i_loc) * n, owner_col, ddla_handle->row_comm, ddla_handle->stream));
                         #else
                         CCL_CHECK(cclRecv(d_block_A, (m_loc - i_loc) * n, owner_col, row_nccl_comm, ddla_handle->stream));
@@ -142,7 +142,7 @@ void transport_block(
                 }
             }
             if(trans_m_loc > trans_i_loc){
-                #ifdef ENABLE_GPU_CPU_TUNNEL
+                #ifdef DDLA_USE_GPU_CPU_TUNNEL
                 MPI_CHECK(cclBcast(h_temp.data(), d_block_A, (trans_m_loc - trans_i_loc) * n, array_descA.mypcol(), ddla_handle->col_comm, ddla_handle->stream));
                 #else   
                 CCL_CHECK(cclBcast(d_block_A, (trans_m_loc - trans_i_loc) * n, array_descA.mypcol(), col_nccl_comm, ddla_handle->stream));

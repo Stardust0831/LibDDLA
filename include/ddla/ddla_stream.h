@@ -32,7 +32,7 @@ public:
     MPI_Comm col_comm = MPI_COMM_NULL;
     int myid,nprocs;
     int myprow_,nprows_,mypcol_,npcols_;
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t nccl_comm = nullptr, nccl_row_comm = nullptr, nccl_col_comm = nullptr;
     #endif
 
@@ -42,7 +42,7 @@ public:
     deblasHandle_t blasH = nullptr;
 
     char major;
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     static inline void nccl_comm_create(ncclComm_t &comm, const MPI_Comm &comm_group){
         int rank,size;
         MPI_Comm_rank(comm_group, &rank);
@@ -63,10 +63,10 @@ public:
     void set_local_device(int local_device){
         DdlaStream::local_device = local_device;
         // printf("myid:%d,local_device:%d\n",myid,local_device);
-        #ifdef ENABLE_CUDA
+        #ifdef DDLA_USE_CUDA
         DEVICE_CHECK(cudaSetDevice(DdlaStream::local_device));
         #endif
-        #ifdef ENABLE_HIP
+        #ifdef DDLA_USE_HIP
         DEVICE_CHECK(hipSetDevice(DdlaStream::local_device));
         #endif
         return;
@@ -109,13 +109,13 @@ public:
         }
         MPI_Comm_split(comm_group, myprow_, myid, &row_comm);
         MPI_Comm_split(comm_group, mypcol_, myid, &col_comm);
-        #ifdef ENABLE_CCL
+        #ifdef DDLA_USE_CCL
         DdlaStream::nccl_comm_create(nccl_comm, comm_group);
         DdlaStream::nccl_comm_create(nccl_row_comm, row_comm);
         DdlaStream::nccl_comm_create(nccl_col_comm, col_comm);
         #endif
         
-        #ifdef ENABLE_CUDA
+        #ifdef DDLA_USE_CUDA
         DEVICE_CHECK(cudaStreamCreate(&stream));
         DEVICE_CHECK(cudaStreamCreate(&stream_data));
         BLAS_CHECK(cublasCreate(&blasH));
@@ -123,7 +123,7 @@ public:
         SOLVER_CHECK(cusolverDnCreate(&solverH));
         SOLVER_CHECK(cusolverDnSetStream(solverH, stream));
         #endif
-        #ifdef ENABLE_HIP
+        #ifdef DDLA_USE_HIP
         DEVICE_CHECK(hipStreamCreate(&stream));
         // printf("after stream create, myid = %d, nprocs = %d\n",myid,nprocs);
         DEVICE_CHECK(hipStreamCreate(&stream_data));
@@ -142,42 +142,42 @@ public:
     }
     void clean(){
         if(stream!=nullptr){
-            #ifdef ENABLE_CUDA
+            #ifdef DDLA_USE_CUDA
             DEVICE_CHECK(cudaStreamDestroy(stream));
             #endif
-            #ifdef ENABLE_HIP
+            #ifdef DDLA_USE_HIP
             DEVICE_CHECK(hipStreamDestroy(stream));
             #endif
             stream=nullptr;
         }
         if(stream_data!=nullptr){
-            #ifdef ENABLE_CUDA
+            #ifdef DDLA_USE_CUDA
             DEVICE_CHECK(cudaStreamDestroy(stream_data));
             #endif
-            #ifdef ENABLE_HIP
+            #ifdef DDLA_USE_HIP
             DEVICE_CHECK(hipStreamDestroy(stream_data));
             #endif
             stream_data=nullptr;
         }
         if(solverH != nullptr){
-            #ifdef ENABLE_CUDA
+            #ifdef DDLA_USE_CUDA
             SOLVER_CHECK(cusolverDnDestroy(solverH));
             #endif
-            #ifdef ENABLE_HIP
+            #ifdef DDLA_USE_HIP
             SOLVER_CHECK(hipsolverDestroy(solverH));
             #endif
             solverH = nullptr;
         }
         if(blasH != nullptr){
-            #ifdef ENABLE_CUDA
+            #ifdef DDLA_USE_CUDA
             BLAS_CHECK(cublasDestroy(blasH));
             #endif
-            #ifdef ENABLE_HIP
+            #ifdef DDLA_USE_HIP
             BLAS_CHECK(hipblasDestroy(blasH));
             #endif
             blasH = nullptr;
         }
-        #ifdef ENABLE_CCL
+        #ifdef DDLA_USE_CCL
         if(nccl_comm != nullptr){
             ncclCommDestroy(nccl_comm);
             nccl_comm = nullptr;

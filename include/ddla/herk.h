@@ -15,13 +15,13 @@ inline deblasStatus_t deblasHerk(
     std::complex<double> *C, int ldc
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasZherk(
         handle, uplo, trans, n, k, 
         &alpha, (hipblasDoubleComplex*)A, lda,
         &beta, (hipblasDoubleComplex*)C, ldc
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasZherk(
         handle, uplo, trans, n, k, 
         &alpha, (cuDoubleComplex*)A, lda, 
@@ -42,13 +42,13 @@ inline deblasStatus_t deblasHerk(
     std::complex<float> *C, int ldc
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasCherk(
         handle, uplo, trans, n, k,
         &alpha, (hipblasComplex*)A, lda,
         &beta, (hipblasComplex*)C, ldc
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasCherk(
         handle, uplo, trans, n, k, 
         &alpha, (cuFloatComplex*)A, lda,

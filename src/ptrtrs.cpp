@@ -6,7 +6,7 @@
 #include <ddla/transport_block.h>
 #include <ddla/ddla_comm.h>
 #include <ddla/gemm.h>
-#ifdef ENABLE_GPU_CPU_TUNNEL
+#ifdef DDLA_USE_GPU_CPU_TUNNEL
 #include <vector>
 #endif
 namespace ddla{
@@ -39,7 +39,7 @@ void ptrtrs(
     // printf("nprows:%d, npcols:%d\n",nprows,npcols);
 
     // 初始化 NCCL  
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t row_comm=ddla_handle->nccl_row_comm;
     ncclComm_t col_comm=ddla_handle->nccl_col_comm;
     #else
@@ -67,7 +67,7 @@ void ptrtrs(
     DEVICE_CHECK(deviceMallocAsync(&d_block_B, nb * array_descB.n_loc() * sizeof(T), stream));
     DEVICE_CHECK(deviceMallocAsync(&d_block_A, std::max(array_descA.m_loc(), array_descA.n_loc()) * nb * sizeof(T), stream));
 
-    #ifdef ENABLE_GPU_CPU_TUNNEL
+    #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(nb * std::max(array_descB.n_loc(), array_descA.m_loc()));
     #endif
 
@@ -117,7 +117,7 @@ void ptrtrs(
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         // 广播当前块行
         if(array_descA.myprow() == owner_row){
-            #ifdef ENABLE_GPU_CPU_TUNNEL
+            #ifdef DDLA_USE_GPU_CPU_TUNNEL
             MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_col, ddla_handle->row_comm, stream));
             #else
             CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_col, row_comm, stream));
@@ -135,7 +135,7 @@ void ptrtrs(
             //     deviceMemcpyDeviceToDevice, stream
             // ));
         }
-        // #ifdef ENABLE_GPU_CPU_TUNNEL
+        // #ifdef DDLA_USE_GPU_CPU_TUNNEL
         // MPI_CHECK(cclBcast(h_temp.data(), d_block_B, nb_real * array_descB.n_loc(), owner_row, ddla_handle->col_comm, stream));
         // #else
         // CCL_CHECK(cclBcast(d_block_B, nb_real * array_descB.n_loc(), owner_row, col_comm, stream));
@@ -218,7 +218,7 @@ void ptrtrs(
         }
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         if(length_block_A > 0){
-            // #ifdef ENABLE_GPU_CPU_TUNNEL
+            // #ifdef DDLA_USE_GPU_CPU_TUNNEL
             // MPI_CHECK(cclBcast(h_temp.data(), d_block_A, length_block_A * nb_real, source_col, ddla_handle->row_comm, stream));
             // #else
             // CCL_CHECK(cclBcast(d_block_A, length_block_A * nb_real, source_col, row_comm, stream));

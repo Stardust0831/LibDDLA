@@ -39,7 +39,7 @@ void plapiv(
 
     // 初始化 NCCL
     MPI_Comm col_comm = ddla_handle->col_comm;
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t col_nccl_comm=ddla_handle->nccl_col_comm;
     #else
     MPI_Comm col_nccl_comm=ddla_handle->col_comm;

@@ -17,7 +17,7 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasZgemmBatched(
         handle, transa, transb, m, n, k,
         (hipblasDoubleComplex*)(&alpha),
@@ -27,7 +27,7 @@ inline deblasStatus_t deblasGemmBatched(
         (hipblasDoubleComplex**)(Carray), ldc,
         batchCount
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasZgemmBatched(
         handle, transa, transb, m, n, k,
         (cuDoubleComplex*)(&alpha),
@@ -54,7 +54,7 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasCgemmBatched(
         handle, transa, transb, m, n, k,
         (hipblasComplex*)(&alpha),
@@ -64,7 +64,7 @@ inline deblasStatus_t deblasGemmBatched(
         (hipblasComplex**)(Carray), ldc,
         batchCount
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasCgemmBatched(
         handle, transa, transb, m, n, k,
         (cuFloatComplex*)(&alpha),
@@ -91,7 +91,7 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasSgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,
@@ -101,7 +101,7 @@ inline deblasStatus_t deblasGemmBatched(
         Carray, ldc,
         batchCount
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasSgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,
@@ -128,7 +128,7 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(ENABLE_HIP)
+    #if defined(DDLA_USE_HIP)
     return hipblasDgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,
@@ -138,7 +138,7 @@ inline deblasStatus_t deblasGemmBatched(
         Carray, ldc,
         batchCount
     );
-    #elif defined(ENABLE_CUDA)
+    #elif defined(DDLA_USE_CUDA)
     return cublasDgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,

@@ -27,7 +27,7 @@ inline int MPI_Allreduce_ddla(const std::complex<double>* sendbuff, std::complex
 }
 
 
-#ifdef ENABLE_CCL
+#ifdef DDLA_USE_CCL
 template<typename T>
 inline ncclResult_t cclSend(const T* sendbuff, size_t count, int peer, ncclComm_t comm, deviceStream_t stream)
 {
@@ -110,7 +110,7 @@ inline int cclBroadcast(const T* sendbuff, T* recvbuff, int count, int root, MPI
 }
 #endif
 
-#ifdef ENABLE_GPU_CPU_TUNNEL
+#ifdef DDLA_USE_GPU_CPU_TUNNEL
 template<typename T>
 inline int cclBcast(T* h_sendbuff, T* d_sendbuff, size_t count, int root, MPI_Comm comm, deviceStream_t stream)
 {

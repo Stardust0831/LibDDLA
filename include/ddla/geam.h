@@ -15,7 +15,7 @@ inline deblasStatus_t deblasGeam(
     float* C, int ldc
     )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasSgeam(
         handle, transA, transB,
         m, n,
@@ -25,7 +25,7 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasSgeam(
         handle, transA, transB,
         m, n,
@@ -50,7 +50,7 @@ inline deblasStatus_t deblasGeam(
     double* C, int ldc
     )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasDgeam(
         handle, transA, transB,
         m, n,
@@ -60,7 +60,7 @@ inline deblasStatus_t deblasGeam(
         B, ldb,
         C, ldc
     );
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasDgeam(
         handle, transA, transB,
         m, n,
@@ -85,7 +85,7 @@ inline deblasStatus_t deblasGeam(
     std::complex<float>* C, int ldc
     )
 {
-    #if defined(ENABLE_CUDA)
+    #if defined(DDLA_USE_CUDA)
     return cublasCgeam(
         handle, transA, transB,
         m, n,
@@ -95,7 +95,7 @@ inline deblasStatus_t deblasGeam(
         (cuFloatComplex*)B, ldb,
         (cuFloatComplex*)C, ldc
     );
-    #elif defined(ENABLE_HIP)
+    #elif defined(DDLA_USE_HIP)
     return hipblasCgeam(
         handle, transA, transB,
         m, n,
@@ -120,7 +120,7 @@ inline deblasStatus_t deblasGeam(
     std::complex<double>* C, int ldc
     )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasZgeam(
         handle, transA, transB,
         m, n,
@@ -130,7 +130,7 @@ inline deblasStatus_t deblasGeam(
         (cuDoubleComplex*)B, ldb,
         (cuDoubleComplex*)C, ldc
     );
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasZgeam(
         handle, transA, transB,
         m, n,

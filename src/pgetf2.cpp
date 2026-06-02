@@ -25,7 +25,7 @@ void pgetf2(
     MPI_Comm row_comm = ddla_handle->row_comm;
     MPI_Comm col_comm = ddla_handle->col_comm;
 
-    #ifdef ENABLE_CCL
+    #ifdef DDLA_USE_CCL
     ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
     #else
     MPI_Comm col_nccl_comm = ddla_handle->col_comm;
@@ -55,7 +55,7 @@ void pgetf2(
     T *d_max;
     DEVICE_CHECK(deviceMallocAsync(&d_max, sizeof(T)*nprows, stream));
 
-    #ifdef ENABLE_DEBUG
+    #ifdef DDLA_USE_DEBUG
     double time_for_max = 0.0;
     double time_for_swap = 0.0;
     double time_for_scal = 0.0;
@@ -78,12 +78,12 @@ void pgetf2(
     int mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
 
     // start pgetf2
-    #ifdef ENABLE_DEBUG
+    #ifdef DDLA_USE_DEBUG
     start_time = MPI_Wtime();
     #endif
     // printf("start tf2, nprows:%d, npcols:%d\n",nprows, npcols);
     for(int i_tf2 = 0; i_tf2 < nb_real; i_tf2++){
-        #ifdef ENABLE_DEBUG
+        #ifdef DDLA_USE_DEBUG
         double start_time_tf2 = MPI_Wtime();
         #endif
         DEVICE_CHECK(deviceMemsetAsync(d_max,0,nprows*sizeof(T),stream));
@@ -100,7 +100,7 @@ void pgetf2(
         else
             j_panel = mm_col_start;
         if(j_loc >= 0){
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             double start_time_local_max = MPI_Wtime();
             #endif
             if(i_panel<m_loc){
@@ -114,7 +114,7 @@ void pgetf2(
                     deviceMemcpyDeviceToDevice, stream
                 ));
             }
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             time_for_local_max += MPI_Wtime() - start_time_local_max;
             double start_time_allreduce = MPI_Wtime();
@@ -124,7 +124,7 @@ void pgetf2(
             CCL_CHECK(cclAllReduce(d_max, d_max, nprows, cclSum, col_nccl_comm, stream));
             // printf("after nccl all reduce\n");
             DEVICE_CHECK(deviceStreamSynchronize(stream));
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             
             time_for_allreduce_device += MPI_Wtime() - start_time_allreduce;
             double start_time_global_max = MPI_Wtime();
@@ -134,7 +134,7 @@ void pgetf2(
             
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             // printf("after get max\n");
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             
             time_for_global_max += MPI_Wtime() - start_time_global_max;
             double start_time_allreduce_host = MPI_Wtime();
@@ -143,7 +143,7 @@ void pgetf2(
             h_id_max[myprow]=array_descA.indx_l2g_r(i_panel+h_id_max[myprow]-1);
             // printf("before mpi all reduce\n");
             MPI_Allreduce(MPI_IN_PLACE,h_id_max.data(),nprows,MPI_INT,MPI_SUM,col_comm);
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             time_for_allreduce_host += MPI_Wtime() - start_time_allreduce_host;
             #endif
             max_row = h_id_max[max_prow];
@@ -153,7 +153,7 @@ void pgetf2(
                 deviceMemcpyDeviceToHost, stream
             ));
         }
-        #ifdef ENABLE_DEBUG
+        #ifdef DDLA_USE_DEBUG
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         time_for_max += MPI_Wtime() - start_time_tf2;
         #endif
@@ -165,7 +165,7 @@ void pgetf2(
         }
         // printf("before mpi bcast 2\n");
         MPI_Bcast(&max_prow, 1, MPI_INT, owner_col, row_comm);
-        #ifdef ENABLE_DEBUG
+        #ifdef DDLA_USE_DEBUG
         start_time_tf2 = MPI_Wtime();
         #endif
         // exchange rows
@@ -215,7 +215,7 @@ void pgetf2(
                 
             }
         }
-        #ifdef ENABLE_DEBUG
+        #ifdef DDLA_USE_DEBUG
         DEVICE_CHECK(deviceStreamSynchronize(stream));
         time_for_swap += MPI_Wtime() - start_time_tf2;
         start_time_tf2 = MPI_Wtime();
@@ -247,7 +247,7 @@ void pgetf2(
                     d_A + a_off, 1
                 ));
             }
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             time_for_scal += MPI_Wtime() - start_time_tf2;
             start_time_tf2 = MPI_Wtime();
@@ -275,7 +275,7 @@ void pgetf2(
                     d_A + a_off + lld, lld
                 ));
             }
-            #ifdef ENABLE_DEBUG
+            #ifdef DDLA_USE_DEBUG
             DEVICE_CHECK(deviceStreamSynchronize(stream));
             time_for_geru += MPI_Wtime() - start_time_tf2;
             #endif
@@ -283,7 +283,7 @@ void pgetf2(
 
         DEVICE_CHECK(deviceStreamSynchronize(stream));
     }
-    // #ifdef ENABLE_DEBUG
+    // #ifdef DDLA_USE_DEBUG
     // printf("myid:%d, max:%f, swap:%f, scal:%f, geru:%f, local max:%f,"
     //         "global max:%f, reduce device:%f, reduce host:%f\n",
     //         ddla_handle->myid, time_for_max, time_for_swap, time_for_geru, time_for_scal,

@@ -15,9 +15,9 @@ inline deblasStatus_t deblasGemm(
     float *C, int ldc
 )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasSgemm(handle, transa, transb, m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasSgemm(handle, transa, transb, m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -35,9 +35,9 @@ inline deblasStatus_t deblasGemm(
     double *C, int ldc
 )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasDgemm(handle, transa, transb, m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasDgemm(handle, transa, transb, m, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -55,9 +55,9 @@ inline deblasStatus_t deblasGemm(
     std::complex<float> *C, int ldc
 )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasCgemm(handle, transa, transb, m, n, k, (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda, (cuFloatComplex*)B, ldb, (cuFloatComplex*)&beta, (cuFloatComplex*)C, ldc);
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasCgemm(handle, transa, transb, m, n, k, (hipblasComplex*)&alpha, (hipblasComplex*)A, lda, (hipblasComplex*)B, ldb, (hipblasComplex*)&beta, (hipblasComplex*)C, ldc);
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
@@ -75,9 +75,9 @@ inline deblasStatus_t deblasGemm(
     std::complex<double> *C, int ldc
 )
 {
-#if defined(ENABLE_CUDA)
+#if defined(DDLA_USE_CUDA)
     return cublasZgemm(handle, transa, transb, m, n, k, (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)B, ldb, (cuDoubleComplex*)&beta, (cuDoubleComplex*)C, ldc);
-#elif defined(ENABLE_HIP)
+#elif defined(DDLA_USE_HIP)
     return hipblasZgemm(handle, transa, transb, m, n, k, (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)B, ldb, (hipblasDoubleComplex*)&beta, (hipblasDoubleComplex*)C, ldc);
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
