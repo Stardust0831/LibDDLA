@@ -96,10 +96,10 @@ int main(int argc, char** argv) {
 mkdir build && cd build
 
 # CUDA backend
-cmake .. -DENABLE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="80"
+cmake .. -DDDLA_USE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="80"
 
 # HIP/ROCm backend
-cmake .. -DENABLE_HIP=ON -DCMAKE_HIP_ARCHITECTURES="gfx90a"
+cmake .. -DDDLA_USE_HIP=ON -DCMAKE_HIP_ARCHITECTURES="gfx90a"
 
 make -j
 ```
@@ -175,7 +175,7 @@ Inter-process GPU data movement uses **NCCL** (NVIDIA) or **RCCL** (AMD):
 - **Row communicator** (`nccl_row_comm`): broadcast / reduce along process rows
 - **Column communicator** (`nccl_col_comm`): broadcast / reduce along process columns
 
-An optional CPU-tunnel fallback (`ENABLE_GPU_CPU_TUNNEL`) routes data through
+An optional CPU-tunnel fallback (`DDLA_USE_GPU_CPU_TUNNEL`) routes data through
 host memory when NCCL is unavailable, using MPI for inter-node communication.
 
 ---
