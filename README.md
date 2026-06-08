@@ -404,7 +404,7 @@ $$S = P_2^{-1} L_2 U_2$$
 
 Absorb $P_2$ into the global permutation and write the final factorization:
 
-$$\begin{pmatrix} P_1^{-1} & 0 \\ 0 & P_2^{-1} \end{pmatrix} \begin{pmatrix} L_1 & 0 \\ P_2 C U_1^{-1} & L_2 \end{pmatrix} \begin{pmatrix} U_1 & L_1^{-1} P_1 B \\ 0 & U_2 \end{pmatrix}$$
+$$\begin{pmatrix} P_1^{-1} & 0 \\ 0 & I \end{pmatrix} \begin{pmatrix} L_1 & 0 \\ C U_1^{-1} & I \end{pmatrix}\begin{pmatrix} I & 0 \\ 0 & P_2^{-1} \end{pmatrix} \begin{pmatrix} I & 0 \\ 0 & L_2\end{pmatrix}\begin{pmatrix} U_1 & L_1^{-1} P_1 B \\ 0 & U_2 \end{pmatrix}$$
 
 **Summary of the right-looking block algorithm (one step).**
 
