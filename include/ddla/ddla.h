@@ -181,16 +181,11 @@ void pgetrf(
  * @param n        Number of columns of A.
  * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
  * @param array_descA  DdlaDesc for A (mb == nb required).
- * @param ipiv     Host pivot array (output, 1-based, length >= m_loc).
- * @param info     0 on success, >0 if singular.
+ * @param ipiv     device pivot array (output, 1-based, length >= m_loc).
+ * @param info     host info 0 on success, >0 if singular. 
  */
 template <typename T>
-void pgetrf_bpiv(
-    const int& m, const int& n,
-    T* d_A, const DdlaDesc& array_descA,
-    int* d_ipiv, // device
-    int& info  // host
-);
+void pgetrf_bpiv(const int& m, const int& n, T* d_A, const DdlaDesc& array_descA, int* d_ipiv, int& info);
 
 /**
  * @brief Distributed LU solve: solve A * X = B using the factors from pgetrf.

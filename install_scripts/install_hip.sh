@@ -7,8 +7,8 @@
 #SBATCH --gres=dcu:0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=7
-#SBATCH --output=../log_hip
-#SBATCH --error=../err_hip
+#SBATCH --output=../../log_hip
+#SBATCH --error=../../err_hip
 
 ulimit -s unlimited
 ulimit -c unlimited
@@ -49,13 +49,14 @@ export OMPI_FC=$FC
 
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
+cd ..
 BUILD_DIR=../build_hip
 INSTALL_DIR="${PWD}_install"
 # cd install_scripts
 echo 'Build Dir:' $BUILD_DIR
 echo 'Install Dir:' $INSTALL_DIR
 echo "任务运行节点列表: ${SLURM_NODELIST}"
-# rm -rf ${BUILD_DIR}
+rm -rf ${BUILD_DIR}
 rm -rf ${INSTALL_DIR}
 cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
         -DROCM_PATH=$ROCM_PATH \
