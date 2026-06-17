@@ -132,7 +132,7 @@ if(DDLA_USE_CUDA)
 endif(DDLA_USE_CUDA)
 # hip setting
 if(DDLA_USE_HIP)
-    set(HIP_LIBRARIES "-lhipblas -lrccl -lhipsolver -lamdhip64 -lhiprand -lgalaxyhip -lmpi")
+    set(HIP_LIBRARIES "-lhipblas -lrccl -lhipsolver -lamdhip64 -lhiprand -lgalaxyhip")
     # -lamdhip64 -lhsa-runtime64
     # find_package(HIP REQUIRED)
     list(APPEND math_libs

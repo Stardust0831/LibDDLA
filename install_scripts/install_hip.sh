@@ -7,8 +7,8 @@
 #SBATCH --gres=dcu:0
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=7
-#SBATCH --output=../../log_hip
-#SBATCH --error=../../err_hip
+#SBATCH --output=../log_hip
+#SBATCH --error=../err_hip
 
 ulimit -s unlimited
 ulimit -c unlimited
@@ -49,7 +49,7 @@ export OMPI_FC=$FC
 
 echo Begin Time: `date`
 ### * * * Running the tasks * * * ###
-cd ..
+
 BUILD_DIR=../build_hip
 INSTALL_DIR="${PWD}_install"
 # cd install_scripts
@@ -62,7 +62,7 @@ cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
         -DROCM_PATH=$ROCM_PATH \
         -DDDLA_USE_HIP=ON \
         -DCMAKE_PREFIX_PATH=$ROCM_PATH \
-        -DCMAKE_CXX_COMPILER=g++ \
+        -DCMAKE_CXX_COMPILER=hipcc \
         -DCMAKE_CXX_FLAGS="-g -O2 -fopenmp -Wno-return-type" \
         -DDDLA_USE_CCL=ON \
         -DDDLA_USE_GPU_CPU_TUNNEL=ON
@@ -75,7 +75,7 @@ cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
         
         # -DBUILD_TESTS=ON \
 
-cmake --build $BUILD_DIR -j `nproc` 
+cmake --build $BUILD_DIR -j 8
 
 cmake --install $BUILD_DIR --prefix $INSTALL_DIR
 
