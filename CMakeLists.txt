@@ -42,6 +42,22 @@ endif()
 if ((NOT DDLA_USE_CUDA) AND (NOT DDLA_USE_HIP))
     message(FATAL_ERROR "Must enable either CUDA or HIP")
 endif()
+if(DDLA_USE_CUDA)
+    add_compile_definitions("DDLA_USE_CUDA")
+endif()
+if(DDLA_USE_HIP)
+    add_compile_definitions("DDLA_USE_HIP")
+    add_compile_definitions("__HIP_PLATFORM_AMD__")
+endif()
+
+enable_language(CXX)
+include_directories(src)
+include_directories(include)
+find_package(MPI REQUIRED)
+list(APPEND math_libs MPI::MPI_CXX)
+
+
+
 if(BUILD_TESTS)
     # enable_testing()
     add_subdirectory(tests)
@@ -55,7 +71,6 @@ if (DDLA_USE_CCL AND DDLA_USE_GPU_CPU_TUNNEL)
 endif()
 message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 
-enable_language(CXX)
 
 if(DDLA_USE_HIP)
     # enable_language(HIP)
@@ -72,14 +87,48 @@ if(DDLA_USE_HIP)
     add_compile_definitions("__HIP_PLATFORM_AMD__")
 endif()
 # cuda setting
-# find_package(CUDA REQUIRED)
-# find_package(CUDAToolkit REQUIRED)
 if(DDLA_USE_CUDA)
     add_compile_definitions("DDLA_USE_CUDA")
-    set(CUDA_LIBRARIES "-lcurand -lcublas -lcudart -lcusolver -lnccl")
+    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "80")
+    endif()
+    set(CMAKE_CUDA_STANDARD 17)
+    set(CMAKE_CUDA_STANDARD_REQUIRED True)
+    enable_language(CUDA)
+    message(STATUS "CMAKE_CUDA_ARCHITECTURES: ${CMAKE_CUDA_ARCHITECTURES}")
+
+    # Use CUDAToolkit for the runtime and to locate the toolkit, then pick up
+    # the math libraries (cublas, curand, cusolver) from the HPC SDK math_libs tree.
+    find_package(CUDAToolkit REQUIRED)
+    get_filename_component(_cuda_lib_parent "${CUDAToolkit_LIBRARY_DIR}" DIRECTORY)
+    get_filename_component(_cuda_version "${_cuda_lib_parent}" NAME)
+    get_filename_component(_cuda_root "${_cuda_lib_parent}" DIRECTORY)
+    get_filename_component(_sdk_root "${_cuda_root}" DIRECTORY)
+    set(_math_lib_dir "${_sdk_root}/math_libs/${_cuda_version}/lib64")
+    message(STATUS "Looking for CUDA math libraries in: ${_math_lib_dir}")
+
+    find_library(CUBLAS_LIBRARY NAMES cublas PATHS ${_math_lib_dir} NO_DEFAULT_PATH REQUIRED)
+    find_library(CURAND_LIBRARY NAMES curand PATHS ${_math_lib_dir} NO_DEFAULT_PATH REQUIRED)
+    find_library(CUSOLVER_LIBRARY NAMES cusolver PATHS ${_math_lib_dir} NO_DEFAULT_PATH REQUIRED)
+
     list(APPEND math_libs
-        ${CUDA_LIBRARIES}
+        ${CUBLAS_LIBRARY}
+        ${CURAND_LIBRARY}
+        ${CUSOLVER_LIBRARY}
+        ${CUDAToolkit_LIBRARY_DIR}/libcudart.so
     )
+
+    if(DDLA_USE_CCL)
+        # NCCL is not shipped with the CUDA toolkit in this HPC SDK layout;
+        # try the CMake config first, otherwise fall back to the plain library.
+        find_package(NCCL QUIET)
+        if(NCCL_FOUND)
+            list(APPEND math_libs NCCL::nccl)
+        else()
+            message(STATUS "NCCL CMake package not found, linking -lnccl directly")
+            list(APPEND math_libs nccl)
+        endif()
+    endif()
 endif(DDLA_USE_CUDA)
 # hip setting
 if(DDLA_USE_HIP)
@@ -90,6 +139,4 @@ if(DDLA_USE_HIP)
         ${HIP_LIBRARIES}
     )
 endif(DDLA_USE_HIP)
-include_directories(src)
-include_directories(include)
 add_subdirectory(src)

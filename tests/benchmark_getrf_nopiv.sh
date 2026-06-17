@@ -17,6 +17,11 @@ module load openmpi/4.1.8-cuda
 module load cmake/3.25.3
 
 source /data/home/renxg/app/nvhpc/setup_nvhpc
+TOOL=~/app/toolchain/260328/toolchain
+INSTALL_DIR=$TOOL/install
+SETUP_DIR=$TOOL/build
+
+source $SETUP_DIR/setup_openblas_extern
 
 cd ..
 LibDDLA_PATH="${PWD}_install"
@@ -25,6 +30,10 @@ export CPATH=$LibDDLA_PATH/include:$CPATH
 export LIBRARY_PATH=$LibDDLA_PATH/lib:$LIBRARY_PATH
 export LD_LIBRARY_PATH=$LibDDLA_PATH/lib:$LD_LIBRARY_PATH
 
+MAGMA_PATH="/data/home/renxg/app/magma/260606/magma_install"
+export CPATH=${MAGMA_PATH}/include:${CPATH}
+export LIBRARY_PATH=${MAGMA_PATH}/lib:${LIBRARY_PATH}
+export LD_LIBRARY_PATH=${MAGMA_PATH}/lib:${LD_LIBRARY_PATH}
 
 echo "========================="
 echo 'LD_LIBRARY_PATH:' $LD_LIBRARY_PATH
@@ -54,7 +63,8 @@ files=(
     # "test_potrf_solvermp"
     # "test_potrf_potrs"
     # test_pgetrf_bpiv
-    test_getrf_nopiv
+    # test_getrf_nopiv
+    benchmark_getrf_nopiv
 )
 
 # 遍历数组中的每一个文件
@@ -66,7 +76,7 @@ for FILENAME in "${files[@]}"; do
 
     # 2. 编译阶段 (注意源文件路径加了 ./)
     echo "⏳ Compiling..."
-    mpicxx -g -O2 -lcudart -lddla -fopenmp -lcublas -lcusolver -lcurand -lcal -lcusolverMp ${FILENAME}.cpp -o ../../${FILENAME} -std=c++17 -DDDLA_USE_CUDA -DDDLA_USE_CCL
+    mpicxx -g -O2 -lcudart -lddla -fopenmp -lcublas -lcusolver -lcurand -lcal -lcusolverMp -lmagma ${FILENAME}.cpp -o ../../${FILENAME} -std=c++17 -DDDLA_USE_CUDA -DDDLA_USE_CCL
 
     # 检查编译是否成功
     if [ $? -ne 0 ]; then

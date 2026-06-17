@@ -18,6 +18,7 @@ list(APPEND lib_sources
     pgetf2_panel.cpp
     pgetrf.cpp
     pgetrf_bpiv.cpp
+    getrf_nopiv.cpp
     plapiv.cpp
     pswap.cpp
     pgetrs.cpp
@@ -31,6 +32,14 @@ list(APPEND lib_sources
     ddla_handle_t.cpp
     ddla_desc.cpp
 )
+
+if(DDLA_USE_CUDA)
+    set_source_files_properties(
+        getrf_nopiv.cpp
+        PROPERTIES
+        LANGUAGE CUDA
+    )
+endif()
 
 target_sources(ddla_lib PRIVATE ${lib_sources})
 target_link_libraries(ddla_lib PUBLIC ${math_libs})

@@ -292,6 +292,14 @@ cmake .. -DDDLA_USE_HIP=ON -DCMAKE_HIP_ARCHITECTURES="gfx90a"
 make -j
 ```
 
+> **Note:** `install_scripts/install_cuda.sh` currently sets `CMAKE_CUDA_ARCHITECTURES=80` by default (A100 / SM80). If you run on V100 (SM70) or other GPUs, make sure the architecture matches the target device, e.g.:
+>
+> ```bash
+> cmake .. -DDDLA_USE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES="70"
+> ```
+>
+> Mismatched architecture (e.g. building SM80 and running on V100) can cause kernel launch failures or silent numerical errors such as `log-determinant mismatch` in the tests.
+
 ---
 
 ## Architecture
@@ -429,6 +437,28 @@ The updated $D$ becomes the new trailing matrix for the next recursive step.
 
 ---
 ---
+
+## Benchmarks
+
+The following table shows single-GPU `zgetrf_nopiv` timings on an NVIDIA V100
+(SM70) using `v100g32fat`.  The test matrix is a random complex matrix with a
+diagonal shift to keep it non-singular.  Timings include device synchronization.
+
+| n     | LibDDLA `getrf_nopiv` (s) | MAGMA `zgetrf_nopiv_gpu` (s) | cuSOLVER `zgetrf` (s) | diff(L/R) | diff(M/R) | diff(L/M) |
+|------:|--------------------------:|-----------------------------:|----------------------:|----------:|----------:|----------:|
+| 100   | 7.18e-03                  | 2.42e-01                     | 1.68e-03              | 1.42e-14  | 0.00e+00  | 1.42e-14  |
+| 500   | 1.88e-03                  | 4.89e-03                     | 5.93e-03              | 5.68e-14  | 0.00e+00  | 5.68e-14  |
+| 1000  | 4.39e-03                  | 1.31e-02                     | 8.77e-03              | 0.00e+00  | 1.14e-13  | 1.14e-13  |
+| 5000  | 9.60e-02                  | 4.24e-01                     | 9.92e-02              | 4.55e-13  | 0.00e+00  | 4.55e-13  |
+| 10000 | 6.02e-01                  | 2.32e+00                     | 5.12e-01              | 1.82e-12  | 1.82e-12  | 0.00e+00  |
+
+Notes:
+- LibDDLA and cuSOLVER stay on the GPU for the whole factorization.
+- MAGMA's `magma_zgetrf_nopiv_gpu` is a **hybrid** routine: it copies each
+  panel to the CPU, factors it with OpenBLAS, and copies it back.  This
+  explains the higher run time, especially for small matrices where the
+  CPU-panel overhead dominates.
+- The `log|det|` values agree to floating-point round-off in all cases.
 
 ## License
 

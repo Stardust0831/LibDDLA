@@ -35,3 +35,5 @@ cache/
 .dirty
 .codegraph/
 
+CLAUDE.md
+CODE_REVIEW.md

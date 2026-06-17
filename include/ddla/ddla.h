@@ -188,6 +188,29 @@ template <typename T>
 void pgetrf_bpiv(const int& m, const int& n, T* d_A, const DdlaDesc& array_descA, int* d_ipiv, int& info);
 
 /**
+ * @brief Local LU factorization without pivoting.
+ *
+ * Factors a local (single-process, single-GPU) m-by-n matrix A in-place:
+ * A = L * U.  L has implicit unit diagonal, stored strictly below diagonal.
+ * U is stored on and above diagonal.
+ *
+ * Uses a right-looking block algorithm with block size nb=32:
+ *   1. Panel factorization via custom getf2_nopiv_kernel.
+ *   2. Solve for U panel via deblasTrsm.
+ *   3. Update trailing submatrix via deblasGemm.
+ *
+ * @tparam T   Scalar type.
+ * @param m        Number of rows of A.
+ * @param n        Number of columns of A.
+ * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
+ * @param lda      Leading dimension of A.
+ * @param d_info      Device pointer to info (0 on success, k > 0 if U(k,k) is exactly zero).
+ * @param ddla_handle DDLA handle (provides stream and BLAS handle).
+ */
+template <typename T>
+void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle);
+
+/**
  * @brief Distributed LU solve: solve A * X = B using the factors from pgetrf.
  *
  * Steps:  apply row pivots (plapiv), forward solve L*Y=B (ptrtrs), backward
