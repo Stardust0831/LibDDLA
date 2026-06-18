@@ -58,7 +58,9 @@ getf2_nopiv_device(int m, int n, T* dA, int ldda, int* info,
 
     // Load one row from global memory (coalesced: adjacent threads
     // access adjacent addresses in the same column)
+#ifdef DDLA_USE_CUDA
     #pragma unroll
+#endif
     for (int i = 0; i < MAX_N; ++i) {
         if (i < n)
             rA[i] = dA[i * ldda + tx];
@@ -70,7 +72,9 @@ getf2_nopiv_device(int m, int n, T* dA, int ldda, int* info,
         // Broadcast pivot column via shared memory:
         // thread col copies its row [col..n-1] to shared mem.
         if (tx == col) {
+#ifdef DDLA_USE_CUDA
             #pragma unroll
+#endif
             for (int j = col; j < MAX_N; ++j) {
                 if (j < n)
                     sx[j - col] = rA[j];
@@ -95,7 +99,9 @@ getf2_nopiv_device(int m, int n, T* dA, int ldda, int* info,
 
             // GER: update trailing part of this row
             //      rA[j] -= factor * sx[j-col]  for j = col+1 .. n-1
+#ifdef DDLA_USE_CUDA
             #pragma unroll
+#endif
             for (int j = col + 1; j < MAX_N; ++j) {
                 if (j < n)
                     rA[j] -= factor * sx[j - col];
@@ -105,7 +111,9 @@ getf2_nopiv_device(int m, int n, T* dA, int ldda, int* info,
     }
 
     // Store result back to global memory (coalesced)
+#ifdef DDLA_USE_CUDA
     #pragma unroll
+#endif
     for (int i = 0; i < MAX_N; ++i) {
         if (i < n)
             dA[i * ldda + tx] = rA[i];

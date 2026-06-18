@@ -73,18 +73,23 @@ message(STATUS "CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
 
 
 if(DDLA_USE_HIP)
-    # enable_language(HIP)
+    enable_language(HIP)
     # if(NOT EXISTS ${ROCM_PATH})
     #     message(FATAL_ERROR "ROCm not found at ${ROCM_PATH}")
     # endif()
     # list(APPEND CMAKE_PREFIX_PATH "${ROCM_PATH}")
     # find_package(hip REQUIRED)
     # find_package(amd_comgr REQUIRED)
-    # enable_language(HIP)
     # set(CMAKE_HIP_STANDARD 17)
     # set(CMAKE_HIP_STANDARD_REQUIRED True)
     add_compile_definitions("DDLA_USE_HIP")
     add_compile_definitions("__HIP_PLATFORM_AMD__")
+    set(HIP_LIBRARIES "-lhipblas -lrccl -lhipsolver -lamdhip64 -lhiprand -lgalaxyhip")
+    # -lamdhip64 -lhsa-runtime64
+    # find_package(HIP REQUIRED)
+    list(APPEND math_libs
+        ${HIP_LIBRARIES}
+    )
 endif()
 # cuda setting
 if(DDLA_USE_CUDA)
@@ -130,13 +135,4 @@ if(DDLA_USE_CUDA)
         endif()
     endif()
 endif(DDLA_USE_CUDA)
-# hip setting
-if(DDLA_USE_HIP)
-    set(HIP_LIBRARIES "-lhipblas -lrccl -lhipsolver -lamdhip64 -lhiprand -lgalaxyhip")
-    # -lamdhip64 -lhsa-runtime64
-    # find_package(HIP REQUIRED)
-    list(APPEND math_libs
-        ${HIP_LIBRARIES}
-    )
-endif(DDLA_USE_HIP)
 add_subdirectory(src)

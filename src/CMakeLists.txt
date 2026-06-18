@@ -43,6 +43,15 @@ if(DDLA_USE_CUDA)
     )
 endif()
 
+if(DDLA_USE_HIP)
+    set_source_files_properties(
+        getrf_nopiv.cpp
+        pdam.cpp
+        PROPERTIES
+        LANGUAGE HIP
+    )
+endif()
+
 target_sources(ddla_lib PRIVATE ${lib_sources})
 target_link_libraries(ddla_lib PUBLIC ${math_libs})
 
