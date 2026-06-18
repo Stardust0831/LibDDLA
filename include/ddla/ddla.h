@@ -330,6 +330,27 @@ void pgeadd(
 );
 
 /**
+ * @brief Add a scalar to the diagonal of a distributed square matrix.
+ *
+ * For every global diagonal element A(i,i) with 0 <= i < n, add alpha.
+ * Only the locally owned portion of the 2D block-cyclic distribution is
+ * updated; no inter-process communication is required.
+ *
+ * Supported combinations match LibRPA's DeviceConnector::pdam:
+ *   (float,float), (double,double),
+ *   (float, complex<float>), (complex<float>, complex<float>),
+ *   (double, complex<double>), (complex<double>, complex<double>).
+ *
+ * @tparam T1  Scalar type of the value to add.
+ * @tparam T2  Element type of the distributed matrix A.
+ * @param alpha  Scalar to add to each diagonal element.
+ * @param d_A    Device pointer to distributed matrix A (input/output).
+ * @param array_descA  DdlaDesc for A (must be square).
+ */
+template <typename T1, typename T2>
+void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA);
+
+/**
  * @brief Distributed Cholesky factorization: A = L * L^H  (uplo='L').
  *
  * Factors a Hermitian positive-definite distributed matrix using GPU solver

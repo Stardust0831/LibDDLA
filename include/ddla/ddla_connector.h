@@ -39,6 +39,7 @@ using deviceStream_t = cudaStream_t;
 using deviceError_t = cudaError_t;
 constexpr auto deviceSuccess = deviceError_t::cudaSuccess;
 #define deviceGetErrorString cudaGetErrorString
+#define deviceGetLastError cudaGetLastError
 using deblasStatus_t = cublasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::CUBLAS_STATUS_SUCCESS;
 using deblasHandle_t = cublasHandle_t;
@@ -90,6 +91,7 @@ using deviceStream_t = hipStream_t;
 using deviceError_t = hipError_t;
 constexpr auto deviceSuccess = hipError_t::hipSuccess;
 #define deviceGetErrorString hipGetErrorString
+#define deviceGetLastError hipGetLastError
 using deblasStatus_t = hipblasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::HIPBLAS_STATUS_SUCCESS;
 using deblasHandle_t = hipblasHandle_t;

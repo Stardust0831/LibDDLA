@@ -25,6 +25,7 @@ list(APPEND lib_sources
     pgesv.cpp
     pgemm.cpp
     pgeadd.cpp
+    pdam.cpp
     ppotrf.cpp
     ppotrs.cpp
     pposv.cpp
@@ -36,6 +37,7 @@ list(APPEND lib_sources
 if(DDLA_USE_CUDA)
     set_source_files_properties(
         getrf_nopiv.cpp
+        pdam.cpp
         PROPERTIES
         LANGUAGE CUDA
     )

@@ -7,4 +7,5 @@ endfunction()
 
 # 调用宏添加测试
 # add_test_executable(test_pzgemm)
+add_test_executable(test_pdam)
 add_test_executable(test_getrf_nopiv)
