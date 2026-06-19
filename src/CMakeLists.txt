@@ -18,11 +18,14 @@ list(APPEND lib_sources
     pgetf2_panel.cpp
     pgetrf.cpp
     pgetrf_bpiv.cpp
+    pgetrf_nopiv.cpp
     getrf_nopiv.cpp
     plapiv.cpp
     pswap.cpp
     pgetrs.cpp
+    pgetrs_nopiv.cpp
     pgesv.cpp
+    pgesv_nopiv.cpp
     pgemm.cpp
     pgeadd.cpp
     pdam.cpp

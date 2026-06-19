@@ -188,6 +188,28 @@ template <typename T>
 void pgetrf_bpiv(const int& m, const int& n, T* d_A, const DdlaDesc& array_descA, int* d_ipiv, int& info);
 
 /**
+ * @brief Distributed LU factorization without pivoting.
+ *
+ * Factors a distributed m-by-n matrix A in-place as A = L * U without
+ * pivoting.  L has implicit unit diagonal and is stored strictly below the
+ * diagonal; U is stored on and above the diagonal.
+ *
+ * Uses a right-looking block algorithm: at each step the nb×nb diagonal
+ * block is factored with the local getrf_nopiv, the right/lower panels are
+ * computed via trsm, and the trailing submatrix is updated via gemm.  The
+ * communication pattern mirrors pgetrf_bpiv, but no row pivots are applied.
+ *
+ * @tparam T   Scalar type.
+ * @param m        Number of rows of A.
+ * @param n        Number of columns of A.
+ * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
+ * @param array_descA  DdlaDesc for A (mb == nb required).
+ * @param info     host info: 0 on success, >0 if U(k,k) is exactly zero.
+ */
+template <typename T>
+void pgetrf_nopiv(const int& m, const int& n, T* d_A, const DdlaDesc& array_descA, int& info);
+
+/**
  * @brief Local LU factorization without pivoting.
  *
  * Factors a local (single-process, single-GPU) m-by-n matrix A in-place:
@@ -235,6 +257,29 @@ void pgetrs(
 );
 
 /**
+ * @brief Distributed LU solve without pivoting.
+ *
+ * Solves A * X = B using the LU factors produced by pgetrf_nopiv.
+ * Because no pivoting is used, the solution is obtained by two triangular
+ * solves: L * Y = B followed by U * X = Y.  Only trans='N' is supported.
+ *
+ * @tparam T   Scalar type.
+ * @param trans   'N' -- no transpose (only 'N' supported).
+ * @param n       Order of matrix A.
+ * @param nrhs    Number of right-hand sides.
+ * @param d_A     Device pointer to LU factors (from pgetrf_nopiv).
+ * @param array_descA  DdlaDesc for A.
+ * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param array_descB  DdlaDesc for B.
+ */
+template <typename T>
+void pgetrs_nopiv(
+    const char& trans, const int& n, const int& nrhs,
+    T* d_A, const DdlaDesc& array_descA,
+    T* d_B, const DdlaDesc& array_descB
+);
+
+/**
  * @brief Distributed linear-system solver (driver): solve A * X = B.
  *
  * Convenience wrapper: pgetrf (LU) + pgetrs (solve).  Corresponds to
@@ -251,6 +296,28 @@ void pgetrs(
  */
 template <typename T>
 void pgesv(
+    const int& n, const int& nrhs,
+    T* d_A, const DdlaDesc& array_descA,
+    T* d_B, const DdlaDesc& array_descB
+);
+
+/**
+ * @brief Distributed linear-system solver without pivoting (driver).
+ *
+ * Convenience wrapper: pgetrf_nopiv (LU) + pgetrs_nopiv (solve).
+ * Solves A * X = B without pivoting.
+ *
+ * @tparam T   Scalar type.
+ * @param n       Order of square matrix A.
+ * @param nrhs    Number of right-hand sides.
+ * @param d_A     Device pointer to A (input: coefficient; output: LU factors).
+ * @param array_descA  DdlaDesc for A.
+ * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param array_descB  DdlaDesc for B.
+ * @throws std::runtime_error if LU factorization fails (info != 0).
+ */
+template <typename T>
+void pgesv_nopiv(
     const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
