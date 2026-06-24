@@ -4,6 +4,7 @@
 #include <ddla/ddla_stream.h>
 #include <vector>
 #include <ddla/transport_block.h>
+#include <ddla/ptran.h>
 #include <ddla/ddla_comm.h>
 #include <ddla/scal.h>
 #include <ddla/gemm.h>
@@ -23,12 +24,6 @@ void pgemm(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
 
-    if(transa != 'N' || transb != 'N')
-    {
-        if(array_descA.nprows() != array_descA.npcols()){
-            throw std::runtime_error("the trans multiplication is now implemented for mxn(m!=n) mpi grid");
-        }
-    }
     {
         int mbA,kbA,kbB,nbB,mbC,nbC;
         mbC = array_descC.mb();
@@ -65,36 +60,68 @@ void pgemm(
     int myprow = array_descC.myprow();
     int mypcol = array_descC.mypcol();
 
-    const int m_loc_A = array_descA.m_loc();
-    const int n_loc_A = array_descA.n_loc();
-    const int m_loc_B = array_descB.m_loc();
-    const int n_loc_B = array_descB.n_loc();
     const int m_loc_C = array_descC.m_loc();
     const int n_loc_C = array_descC.n_loc();
-
-    int nb;
-    if(transa=='N')
-        nb = array_descA.nb();
-    else
-        nb = array_descA.mb();
-    int lldA = array_descA.lld();
-    int lldB = array_descB.lld();
 
     deviceStream_t stream = ddla_handle->stream;
     deviceStream_t stream_data = ddla_handle->stream_data;
     deblasHandle_t blasH = ddla_handle->blasH;
 
-    deblasOperation_t opA = (transa == 'N') ? DEBLAS_OP_N :
-                            (transa == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
-    deblasOperation_t opB = (transb == 'N') ? DEBLAS_OP_N :
-                            (transb == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
+    // Pre-transpose (and conjugate for 'C') operands so that the SUMMA loop
+    // always sees non-transposed data.  This makes rectangular process grids
+    // work because transport_block only has to copy panels.
+    const T* d_A_use = d_A;
+    const T* d_B_use = d_B;
+    const DdlaDesc* descA_use = &array_descA;
+    const DdlaDesc* descB_use = &array_descB;
+
+    T* d_AT = nullptr;
+    T* d_BT = nullptr;
+
+    if(transa != 'N'){
+        bool conjA = (transa == 'C');
+        DdlaDesc* descAT = new DdlaDesc(ddla_handle);
+        descAT->init(array_descA.n(), array_descA.m(),
+                     array_descA.nb(), array_descA.mb(),
+                     array_descA.icsrc(), array_descA.irsrc());
+        DEVICE_CHECK(deviceMalloc(&d_AT,
+            sizeof(T) * descAT->m_loc() * descAT->n_loc()));
+        ptran(d_A, array_descA, d_AT, *descAT, conjA);
+        DEVICE_CHECK(deviceDeviceSynchronize());
+        descA_use = descAT;
+        d_A_use = d_AT;
+    }
+
+    if(transb != 'N'){
+        bool conjB = (transb == 'C');
+        DdlaDesc* descBT = new DdlaDesc(ddla_handle);
+        descBT->init(array_descB.n(), array_descB.m(),
+                     array_descB.nb(), array_descB.mb(),
+                     array_descB.icsrc(), array_descB.irsrc());
+        DEVICE_CHECK(deviceMalloc(&d_BT,
+            sizeof(T) * descBT->m_loc() * descBT->n_loc()));
+        ptran(d_B, array_descB, d_BT, *descBT, conjB);
+        DEVICE_CHECK(deviceDeviceSynchronize());
+        descB_use = descBT;
+        d_B_use = d_BT;
+    }
+
+    // Physical transpose/conjugate means the effective gemm operation is 'N'.
+    deblasOperation_t opA = DEBLAS_OP_N;
+    deblasOperation_t opB = DEBLAS_OP_N;
 
     BLAS_CHECK(deblasScal(blasH, m_loc_C*n_loc_C, beta, d_C, 1));
 
     const int buffer_max = 2;
     T *d_A_temp[buffer_max],*d_B_temp[buffer_max];
-    int count_a = (transa=='N'?m_loc_C:(std::max(n_loc_A, m_loc_C))) * nb;
-    int count_b = nb * (transb=='N'?n_loc_C:(std::max(m_loc_B, n_loc_C)));
+    int nb;
+    if(transa == 'N')
+        nb = array_descA.nb();
+    else
+        nb = array_descA.mb();
+
+    int count_a = m_loc_C * nb;
+    int count_b = nb * n_loc_C;
     #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(std::max(count_a, count_b));
     #endif
@@ -105,146 +132,24 @@ void pgemm(
 
     int temp_buffer = 0;
     int k_s = 0 , kb;
-    auto get_data = [&](int k_s) 
+    auto get_data = [&](int k_s)
     {
         kb = std::min(nb, k - k_s);
         if(kb<=0) return;
-        // int src_A;
-        
-        // if(transa != 'N'){
-        //     int owner_row_A = indxg2p(k_s, nb, array_descA.irsrc(), array_descA.nprows());
-        //     if(myprow == owner_row_A){
-        //         DEVICE_CHECK(deviceMemcpy2DAsync(
-        //             d_A_temp[temp_buffer], kb * sizeof(T),
-        //             d_A + array_descA.indx_g2l_r(k_s), lldA * sizeof(T),
-        //             kb * sizeof(T), n_loc_A,
-        //             deviceMemcpyDeviceToDevice, stream_data
-        //         ));
-        //         if(myprow != mypcol){
-        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        //             MPI_CHECK(cclSend(h_temp.data(), d_A_temp[temp_buffer], kb * n_loc_A, mypcol, ddla_handle->col_comm, stream_data));
-        //             #else
-        //             CCL_CHECK(cclSend(d_A_temp[temp_buffer], kb * n_loc_A, mypcol, col_nccl_comm, stream_data));
-        //             #endif
-        //         }
-        //     }else{
-        //         if(myprow == mypcol){
-        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        //             MPI_CHECK(cclRecv(h_temp.data(), d_A_temp[temp_buffer], kb * n_loc_A, owner_row_A, ddla_handle->col_comm, stream_data));
-        //             #else
-        //             CCL_CHECK(cclRecv(d_A_temp[temp_buffer], kb * n_loc_A, owner_row_A, col_nccl_comm, stream_data));
-        //             #endif
-        //         }
-        //     }
-        //     src_A = myprow;
-        // }else{
-        //     src_A = indxg2p(k_s, nb, array_descA.icsrc(), array_descA.npcols());
-        //     if(mypcol == src_A){
-        //         DEVICE_CHECK(deviceMemcpy2DAsync(
-        //             d_A_temp[temp_buffer], m_loc_A * sizeof(T),
-        //             d_A + array_descA.indx_g2l_c(k_s) * lldA, lldA * sizeof(T),
-        //             m_loc_A * sizeof(T), kb,
-        //             deviceMemcpyDeviceToDevice, stream_data
-        //         ));
-        //     }
-        // }
-        char sData_a;
-        int m_a, n_a, g_ia, g_ja;
-        if(transa != 'N'){
-            sData_a = 'R';
-            m_a = kb;
-            n_a = m;
-            g_ia = k_s;
-            g_ja = 0;
-        }else{
-            sData_a = 'C';
-            m_a = m;
-            n_a = kb;
-            g_ia = 0;
-            g_ja = k_s;
-        }
-        transport_block(
-            sData_a, transa,
-            m_a, n_a,
-            d_A, g_ia, g_ja, array_descA,
-            d_A_temp[temp_buffer] 
-        );
-        
-        // broadcast A block
-        // #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        // MPI_CHECK(cclBcast(h_temp.data(), d_A_temp[temp_buffer], m_loc_C * kb, src_A, ddla_handle->row_comm, stream_data));
-        // #else        
-        // CCL_CHECK(cclBcast(d_A_temp[temp_buffer], m_loc_C * kb, src_A, row_nccl_comm, stream_data));
-        // #endif
-        // // end communicate A
 
-        // int src_B;
-        // start communicate B
-        char sData_b;
-        int m_b, n_b, g_ib, g_jb;
-        if(transb != 'N'){
-            sData_b = 'C';
-            m_b = n;
-            n_b = kb;
-            g_ib = 0;
-            g_jb = k_s;
-        }else{
-            sData_b = 'R';
-            m_b = kb;
-            n_b = n;
-            g_ib = k_s;
-            g_jb = 0;
-        }
+        // A panel: rows [0, m), cols [k_s, k_s+kb)
         transport_block(
-            sData_b, transb,
-            m_b, n_b,
-            d_B, g_ib, g_jb, array_descB,
+            'C', 'N', m, kb,
+            d_A_use, 0, k_s, *descA_use,
+            d_A_temp[temp_buffer]
+        );
+
+        // B panel: rows [k_s, k_s+kb), cols [0, n)
+        transport_block(
+            'R', 'N', kb, n,
+            d_B_use, k_s, 0, *descB_use,
             d_B_temp[temp_buffer]
         );
-        // if(transb != 'N'){
-        //     int owner_col_B = indxg2p(k_s, nb, array_descB.icsrc(), array_descB.npcols());
-        //     if(mypcol == owner_col_B){
-        //         DEVICE_CHECK(deviceMemcpy2DAsync(
-        //             d_B_temp[temp_buffer], m_loc_B * sizeof(T),
-        //             d_B + array_descB.indx_g2l_c(k_s) * lldB, lldB * sizeof(T),
-        //             m_loc_B * sizeof(T), kb,
-        //             deviceMemcpyDeviceToDevice, stream_data
-        //         ));
-        //         if(myprow != mypcol){
-        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        //             MPI_CHECK(cclSend(h_temp.data(), d_B_temp[temp_buffer], kb * m_loc_B, myprow, ddla_handle->row_comm, stream_data));
-        //             #else
-        //             CCL_CHECK(cclSend(d_B_temp[temp_buffer], kb * m_loc_B, myprow, row_nccl_comm, stream_data));
-        //             #endif
-        //         }
-        //     }else{
-        //         if(myprow == mypcol){
-        //             #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        //             MPI_CHECK(cclRecv(h_temp.data(), d_B_temp[temp_buffer], kb * m_loc_B, owner_col_B, ddla_handle->row_comm, stream_data));
-        //             #else
-        //             CCL_CHECK(cclRecv(d_B_temp[temp_buffer], kb * m_loc_B, owner_col_B, row_nccl_comm, stream_data));
-        //             #endif
-        //         }
-        //     }
-        //     src_B = mypcol;
-        // }
-        // else{
-        //     src_B = indxg2p(k_s, nb, array_descB.irsrc(), array_descB.nprows());
-        //     if(myprow == src_B){
-        //         DEVICE_CHECK(deviceMemcpy2DAsync(
-        //             d_B_temp[temp_buffer], kb * sizeof(T),
-        //             d_B + array_descB.indx_g2l_r(k_s), lldB * sizeof(T),
-        //             kb * sizeof(T), n_loc_C,
-        //             deviceMemcpyDeviceToDevice, stream_data
-        //         ));
-        //     }
-        // }
-        // // broadcast B block
-        // #ifdef DDLA_USE_GPU_CPU_TUNNEL
-        // MPI_CHECK(cclBcast(h_temp.data(), d_B_temp[temp_buffer], kb * n_loc_C, src_B, ddla_handle->col_comm, stream_data));
-        // #else
-        // CCL_CHECK(cclBcast(d_B_temp[temp_buffer], kb * n_loc_C, src_B, col_nccl_comm, stream_data));
-        // #endif
     };
     get_data(k_s);
     for(k_s=0; k_s<k; k_s+=nb){
@@ -254,8 +159,8 @@ void pgemm(
             blasH, opA, opB,
             m_loc_C, n_loc_C, kb,
             alpha,
-            d_A_temp[temp_buffer], transa=='N'?m_loc_C:kb,
-            d_B_temp[temp_buffer], transb=='N'?kb:n_loc_C,
+            d_A_temp[temp_buffer], m_loc_C,
+            d_B_temp[temp_buffer], kb,
             1.0,
             d_C, m_loc_C
         ));
@@ -268,6 +173,13 @@ void pgemm(
         DEVICE_CHECK(deviceFreeAsync(d_A_temp[i], stream_data));
         DEVICE_CHECK(deviceFreeAsync(d_B_temp[i], stream_data));
     }
+
+    if(d_AT) DEVICE_CHECK(deviceFree(d_AT));
+    if(d_BT) DEVICE_CHECK(deviceFree(d_BT));
+
+    if(transa != 'N') delete descA_use;
+    if(transb != 'N') delete descB_use;
+
     return;
 }
 
@@ -311,5 +223,4 @@ template void pgemm<std::complex<double>>(
     std::complex<double>* d_C, const DdlaDesc& array_descC
 );
 
-
-}
+} // namespace ddla

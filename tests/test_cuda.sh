@@ -4,8 +4,8 @@
 #SBATCH -J test
 ##SBATCH -A xgren
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:1
-#SBATCH --ntasks-per-node=1
+#SBATCH --gres=gpu:6
+#SBATCH --ntasks-per-node=6
 #SBATCH --cpus-per-task=3
 #SBATCH --output=../../log_cuda
 #SBATCH --error=../../err_cuda
@@ -49,17 +49,19 @@ echo Begin Time: `date`
 
 files=(
     # "test_sv_gemm"
+    "test_sv_gemm_hermitian_positive"
     # "test_aware"
     # "test_pgeadd"
     # "test_potrf_solvermp"
     # "test_potrf_potrs"
     # test_pgetrf_bpiv
-    test_getrf_nopiv
+    # test_pzgemm
+    # test_getrf_nopiv
 )
 
 # 遍历数组中的每一个文件
 for FILENAME in "${files[@]}"; do
-    rm ../../${FILENAME}
+    rm -f ../../${FILENAME}
     
     echo "================================================="
     echo "🚀 Processing: ${FILENAME}"
@@ -74,8 +76,12 @@ for FILENAME in "${files[@]}"; do
         continue # 如果编译失败，跳过本次循环，继续下一个
     fi
 
-    # 3. 计算进程数 (沿用你原来的逻辑)
-    np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
+    # 3. 计算进程数
+    if [ "${FILENAME}" == "test_pzgemm" ]; then
+        np=6
+    else
+        np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
+    fi
     echo "📊 NP: $np"
 
     # 4. 运行阶段

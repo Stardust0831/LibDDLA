@@ -33,6 +33,7 @@ list(APPEND lib_sources
     ppotrs.cpp
     pposv.cpp
     transport_block.cpp
+    ptran.cpp
     ddla_handle_t.cpp
     ddla_desc.cpp
 )

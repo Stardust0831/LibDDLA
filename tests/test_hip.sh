@@ -62,15 +62,24 @@ files=(
     # "test_potrf_solvermp"
     # "test_potrf_potrs"
     # test_pgetrf_bpiv
+    test_pzgemm
     test_getrf_nopiv
 )
 
 # 遍历数组中的每一个文件
 for FILENAME in "${files[@]}"; do
-    rm ../../${FILENAME}
-    
+    rm -f ../../${FILENAME}
+
     echo "================================================="
     echo "🚀 Processing: ${FILENAME}"
+
+    # 计算进程数
+    if [ "${FILENAME}" == "test_pzgemm" ]; then
+        np=6
+    else
+        np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
+    fi
+    echo "📊 NP: $np"
 
     # 2. 编译阶段 (注意源文件路径加了 ./)
     echo "⏳ Compiling..."
@@ -80,10 +89,6 @@ for FILENAME in "${files[@]}"; do
         echo "❌ ERROR: Failed to compile ${FILENAME}"
         continue # 如果编译失败，跳过本次循环，继续下一个
     fi
-
-    # 3. 计算进程数 (沿用你原来的逻辑)
-    np=$((SLURM_NTASKS_PER_NODE * SLURM_NNODES))
-    echo "📊 NP: $np"
 
     # 4. 运行阶段
     echo "▶️ Running..."

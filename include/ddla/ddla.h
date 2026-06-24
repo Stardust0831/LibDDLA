@@ -334,8 +334,9 @@ void pgesv_nopiv(
  *   - 'T': op(X) = X^T
  *   - 'C': op(X) = X^H  (conjugate-transpose)
  *
- * When transa or transb is not 'N', the process grid must be square
- * (nprows == npcols).
+ * When transa or transb is not 'N', the descriptors must be
+ * ScaLAPACK-compatible (e.g. for A^T, mb(C) == nb(A) and irsrc(C) == icsrc(A)).
+ * The process grid may be rectangular.
  *
  * @tparam T    Scalar type.
  * @param transa   Operation applied to A ('N','T','C').
