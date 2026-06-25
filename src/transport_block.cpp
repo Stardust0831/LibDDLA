@@ -89,6 +89,8 @@ void transport_block(
         // and target_desc.irsrc() == array_descA.icsrc()).
         T one = T(1);
         T zero = T(0);
+        // Choose geam operation: OP_T for 'T', OP_C for 'C' (conjugate transpose).
+        deblasOperation_t geam_op = (trans == 'C') ? DEBLAS_OP_C : DEBLAS_OP_T;
         if(sData == 'R'){
             // Requested block: original A columns [ia, ia+m), rows [ja, ja+n).
             // Output: m_target_rows x m buffer, column-major with lda = m.
@@ -103,7 +105,7 @@ void transport_block(
             if(array_descA.mypcol() == owner_col && local_cols > 0 && m_target_rows > 0){
                 // source submatrix is m_target_rows x local_cols in A, transpose to local_cols x m_target_rows
                 BLAS_CHECK(deblasGeam(
-                    ddla_handle->blasH, DEBLAS_OP_T, DEBLAS_OP_N,
+                    ddla_handle->blasH, geam_op, DEBLAS_OP_N,
                     local_cols, m_target_rows,
                     one,
                     d_A + local_col_start * lld, lld,
@@ -133,7 +135,7 @@ void transport_block(
             if(array_descA.myprow() == owner_row && local_rows > 0 && n_target_cols > 0){
                 // source submatrix is local_rows x n_target_cols in A, transpose to n_target_cols x local_rows
                 BLAS_CHECK(deblasGeam(
-                    ddla_handle->blasH, DEBLAS_OP_T, DEBLAS_OP_N,
+                    ddla_handle->blasH, geam_op, DEBLAS_OP_N,
                     n_target_cols, local_rows,
                     one,
                     d_A + local_row_start, lld,
