@@ -42,6 +42,7 @@ if(DDLA_USE_CUDA)
     set_source_files_properties(
         getrf_nopiv.cpp
         pdam.cpp
+        ptran.cpp
         PROPERTIES
         LANGUAGE CUDA
     )
@@ -51,6 +52,7 @@ if(DDLA_USE_HIP)
     set_source_files_properties(
         getrf_nopiv.cpp
         pdam.cpp
+        ptran.cpp
         PROPERTIES
         LANGUAGE HIP
     )

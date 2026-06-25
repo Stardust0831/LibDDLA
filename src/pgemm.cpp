@@ -87,7 +87,6 @@ void pgemm(
         DEVICE_CHECK(deviceMalloc(&d_AT,
             sizeof(T) * descAT->m_loc() * descAT->n_loc()));
         ptran(d_A, array_descA, d_AT, *descAT, conjA);
-        DEVICE_CHECK(deviceDeviceSynchronize());
         descA_use = descAT;
         d_A_use = d_AT;
     }
@@ -101,7 +100,6 @@ void pgemm(
         DEVICE_CHECK(deviceMalloc(&d_BT,
             sizeof(T) * descBT->m_loc() * descBT->n_loc()));
         ptran(d_B, array_descB, d_BT, *descBT, conjB);
-        DEVICE_CHECK(deviceDeviceSynchronize());
         descB_use = descBT;
         d_B_use = d_BT;
     }

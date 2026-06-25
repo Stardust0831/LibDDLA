@@ -55,6 +55,11 @@ constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::CUSOLVER_STATUS_SUCCE
 #define deviceMemsetAsync cudaMemsetAsync
 #define deviceFreeAsync cudaFreeAsync
 #define deviceFree cudaFree
+using deviceEvent_t = cudaEvent_t;
+#define deviceEventCreate cudaEventCreate
+#define deviceEventDestroy cudaEventDestroy
+#define deviceEventRecord cudaEventRecord
+#define deviceStreamWaitEvent cudaStreamWaitEvent
 using deviceDataType_t = cudaDataType_t;
 constexpr auto DEVICE_R_64F = deviceDataType_t::CUDA_R_64F;
 constexpr auto DEVICE_C_64F = deviceDataType_t::CUDA_C_64F;
@@ -107,6 +112,11 @@ constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::HIPSOLVER_STATUS_SUCC
 #define deviceMemsetAsync hipMemsetAsync
 #define deviceFreeAsync hipFreeAsync
 #define deviceFree hipFree
+using deviceEvent_t = hipEvent_t;
+#define deviceEventCreate hipEventCreate
+#define deviceEventDestroy hipEventDestroy
+#define deviceEventRecord hipEventRecord
+#define deviceStreamWaitEvent hipStreamWaitEvent
 using deviceDataType_t = hipDataType;
 constexpr auto DEVICE_R_64F = deviceDataType_t::HIP_R_64F;
 constexpr auto DEVICE_C_64F = deviceDataType_t::HIP_C_64F;
