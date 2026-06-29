@@ -419,20 +419,20 @@ template <typename T1, typename T2>
 void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA);
 
 /**
- * @brief Distributed Cholesky factorization: A = L * L^H  (uplo='L').
+ * @brief Distributed Cholesky factorization.
  *
  * Factors a Hermitian positive-definite distributed matrix using GPU solver
  * libraries (cusolverDn / hipsolver).  Algorithm: factor diagonal block
  * (potrf), broadcast factor, solve off-diagonal (trsm), update trailing
- * submatrix via batched gemm or herk.
+ * submatrix via gemm/herk.  With uplo='L', computes A = L * L^H.
+ * With uplo='U', computes A = U^H * U.
  *
- * @note Only uplo='L' (lower) is supported.  Only complex<float> and
- *       complex<double> are instantiated.
+ * @note Only complex<float> and complex<double> are instantiated.
  *
  * @tparam T   Scalar type (complex<float> or complex<double>).
- * @param uplo     'L' -- lower triangle of A is stored and factored.
+ * @param uplo     'L' or 'U' -- triangle of A to store and factor.
  * @param n        Order of A.
- * @param A        Device pointer to A (input: Hermitian pos-def; output: L).
+ * @param A        Device pointer to A (input: Hermitian pos-def; output: Cholesky factor).
  * @param ia       Global starting row (1-based).
  * @param ja       Global starting col (1-based).
  * @param array_descA  DdlaDesc for A (mb == nb required).
@@ -453,17 +453,18 @@ bool ppotrf(
 /**
  * @brief Distributed solve using Cholesky factorization: A * X = B.
  *
- * Solves a Hermitian positive-definite system using the factor L from
- * ppotrf.  Two triangular solves:  forward (L*Y=B), backward (L^H*X=Y).
+ * Solves a Hermitian positive-definite system using the factor from
+ * ppotrf.  For uplo='L' it applies L then L^H; for uplo='U' it applies
+ * U^H then U.
  * Only side='L' and trans='N' are supported.
  *
  * @tparam T   Scalar type.
  * @param side     'L' (left) -- solve A*X = B.
- * @param uplo     'L' (lower) -- factor is lower triangular.
+ * @param uplo     'L' or 'U' -- triangle containing the Cholesky factor.
  * @param trans    'N' (no transpose).
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
- * @param d_A      Device pointer to Cholesky factor L (from ppotrf).
+ * @param d_A      Device pointer to Cholesky factor (from ppotrf).
  * @param array_descA  DdlaDesc for A.
  * @param d_B      Device pointer to RHS / solution B (input/output).
  * @param array_descB  DdlaDesc for B.
@@ -487,11 +488,11 @@ void ppotrs(
  *
  * @tparam T   Scalar type.
  * @param side     'L' -- solve A*X = B.
- * @param uplo     'L' -- lower triangle of A is stored.
+ * @param uplo     'L' or 'U' -- triangle of A to store and factor.
  * @param trans    'N' -- no transpose.
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
- * @param d_A      Device pointer to A (input: pos-def; output: Cholesky L).
+ * @param d_A      Device pointer to A (input: pos-def; output: Cholesky factor).
  * @param ia       Global starting row of A (1-based).
  * @param ja       Global starting col of A (1-based).
  * @param array_descA  DdlaDesc for A.

@@ -1,11 +1,11 @@
 #include <ddla/ddla.h>
+#include <algorithm>
 #include <cassert>
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_stream.h>
 #include <vector>
 #include <ddla/transport_block.h>
 #include <ddla/ddla_comm.h>
-#include <ddla/scal.h>
 #include <ddla/gemm.h>
 
 namespace ddla{
@@ -22,13 +22,19 @@ void pgemm(
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    assert(transa == 'N' || transa == 'T' || transa == 'C');
+    assert(transb == 'N' || transb == 'T' || transb == 'C');
+    assert(m > 0 && n > 0 && k > 0);
 
-    if(transa != 'N' || transb != 'N')
-    {
-        if(array_descA.nprows() != array_descA.npcols()){
-            throw std::runtime_error("the trans multiplication is now implemented for mxn(m!=n) mpi grid");
-        }
-    }
+    const int opA_m = (transa == 'N') ? array_descA.m() : array_descA.n();
+    const int opA_n = (transa == 'N') ? array_descA.n() : array_descA.m();
+    const int opB_m = (transb == 'N') ? array_descB.m() : array_descB.n();
+    const int opB_n = (transb == 'N') ? array_descB.n() : array_descB.m();
+    assert(m <= opA_m);
+    assert(k <= opA_n);
+    assert(k <= opB_m);
+    assert(n <= opB_n);
+    assert(m <= array_descC.m() && n <= array_descC.n());
     {
         int mbA,kbA,kbB,nbB,mbC,nbC;
         mbC = array_descC.mb();
@@ -65,12 +71,12 @@ void pgemm(
     int myprow = array_descC.myprow();
     int mypcol = array_descC.mypcol();
 
-    const int m_loc_A = array_descA.m_loc();
-    const int n_loc_A = array_descA.n_loc();
-    const int m_loc_B = array_descB.m_loc();
-    const int n_loc_B = array_descB.n_loc();
-    const int m_loc_C = array_descC.m_loc();
-    const int n_loc_C = array_descC.n_loc();
+    const int m_loc_A = num_loc((transa == 'N') ? m : k, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
+    const int n_loc_A = num_loc((transa == 'N') ? k : m, array_descA.nb(), array_descA.mypcol(), array_descA.icsrc(), array_descA.npcols());
+    const int m_loc_B = num_loc((transb == 'N') ? k : n, array_descB.mb(), array_descB.myprow(), array_descB.irsrc(), array_descB.nprows());
+    const int n_loc_B = num_loc((transb == 'N') ? n : k, array_descB.nb(), array_descB.mypcol(), array_descB.icsrc(), array_descB.npcols());
+    const int m_loc_C = num_loc(m, array_descC.mb(), array_descC.myprow(), array_descC.irsrc(), array_descC.nprows());
+    const int n_loc_C = num_loc(n, array_descC.nb(), array_descC.mypcol(), array_descC.icsrc(), array_descC.npcols());
 
     int nb;
     if(transa=='N')
@@ -79,6 +85,7 @@ void pgemm(
         nb = array_descA.mb();
     int lldA = array_descA.lld();
     int lldB = array_descB.lld();
+    int lldC = array_descC.lld();
 
     deviceStream_t stream = ddla_handle->stream;
     deviceStream_t stream_data = ddla_handle->stream_data;
@@ -86,15 +93,13 @@ void pgemm(
 
     deblasOperation_t opA = (transa == 'N') ? DEBLAS_OP_N :
                             (transa == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
-    deblasOperation_t opB = (transb == 'N') ? DEBLAS_OP_N :
-                            (transb == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
-
-    BLAS_CHECK(deblasScal(blasH, m_loc_C*n_loc_C, beta, d_C, 1));
 
     const int buffer_max = 2;
     T *d_A_temp[buffer_max],*d_B_temp[buffer_max];
-    int count_a = (transa=='N'?m_loc_C:(std::max(n_loc_A, m_loc_C))) * nb;
-    int count_b = nb * (transb=='N'?n_loc_C:(std::max(m_loc_B, n_loc_C)));
+    int count_a = ((transa == 'N') ? std::max(m_loc_A, m_loc_C) : std::max(n_loc_A, m_loc_C)) * nb;
+    int count_b = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
+    count_a = std::max(1, count_a);
+    count_b = std::max(1, count_b);
     #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(std::max(count_a, count_b));
     #endif
@@ -157,18 +162,23 @@ void pgemm(
         );
     };
     get_data(k_s);
+    bool first_gemm = true;
     for(k_s=0; k_s<k; k_s+=nb){
         DEVICE_CHECK(deviceStreamSynchronize(stream_data));
         DEVICE_CHECK(deviceStreamSynchronize(stream));
-        BLAS_CHECK(deblasGemm(
-            blasH, opA, opB,
-            m_loc_C, n_loc_C, kb,
-            alpha,
-            d_A_temp[temp_buffer], transa=='N'?m_loc_C:kb,
-            d_B_temp[temp_buffer], transb=='N'?kb:n_loc_C,
-            1.0,
-            d_C, m_loc_C
-        ));
+        if(m_loc_C > 0 && n_loc_C > 0){
+            const T gemm_beta = first_gemm ? beta : (T)1.0;
+            BLAS_CHECK(deblasGemm(
+                blasH, opA, DEBLAS_OP_N,
+                m_loc_C, n_loc_C, kb,
+                alpha,
+                d_A_temp[temp_buffer], transa=='N'?m_loc_C:kb,
+                d_B_temp[temp_buffer], kb,
+                gemm_beta,
+                d_C, lldC
+            ));
+            first_gemm = false;
+        }
         temp_buffer = (temp_buffer + 1) % buffer_max;
         get_data(k_s + nb);
     }
