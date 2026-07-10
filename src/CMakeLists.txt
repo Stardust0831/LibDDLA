@@ -15,6 +15,7 @@ list(APPEND lib_sources
     ddla_utils.cpp
     ptrtrs.cpp
     pgetf2.cpp
+    pgetf2_kernels.cpp
     pgetf2_panel.cpp
     pgetrf.cpp
     pgetrf_bpiv.cpp
@@ -42,6 +43,7 @@ if(DDLA_USE_CUDA)
     set_source_files_properties(
         getrf_nopiv.cpp
         pdam.cpp
+        pgetf2_kernels.cpp
         ptran.cpp
         PROPERTIES
         LANGUAGE CUDA
@@ -52,6 +54,7 @@ if(DDLA_USE_HIP)
     set_source_files_properties(
         getrf_nopiv.cpp
         pdam.cpp
+        pgetf2_kernels.cpp
         ptran.cpp
         PROPERTIES
         LANGUAGE HIP

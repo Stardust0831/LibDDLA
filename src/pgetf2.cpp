@@ -1,29 +1,15 @@
 #include <ddla/ddla.h>
-#include <cassert>
 #include <complex>
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_stream.h>
-#include <ddla/scal.h>
-#include <ddla/geru.h>
 #include <ddla/ddla_comm.h>
-#include <ddla/iamax.h>
 #include <ddla/swap.h>
+
+#include "pgetf2_kernels.h"
 
 namespace ddla{
 
 namespace {
-
-template <typename T>
-double iamax_metric(const T& value)
-{
-    return std::abs(value);
-}
-
-template <typename T>
-double iamax_metric(const std::complex<T>& value)
-{
-    return std::abs(value.real()) + std::abs(value.imag());
-}
 
 struct MaxLoc {
     double value;
@@ -48,6 +34,7 @@ void pgetf2(
     int& info  // host
 )
 {
+    (void)m;
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
 
     MPI_Comm row_comm = ddla_handle->row_comm;
@@ -83,6 +70,10 @@ void pgetf2(
     #ifdef DDLA_USE_CCL
     DEVICE_CHECK(deviceMallocAsync(&d_temp_peer, sizeof(T)*row_buffer_elems, stream));
     #endif
+
+    void* d_pivot_workspace = nullptr;
+    DEVICE_CHECK(deviceMallocAsync(
+        &d_pivot_workspace, detail::pgetf2_pivot_workspace_size<T>(), stream));
     
 
     int i_loc = array_descA.indx_g2l_r(n_s);
@@ -94,8 +85,7 @@ void pgetf2(
     int mm_row_start = num_loc(n_s, nb, myprow, array_descA.irsrc(), nprows);
     int mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
 
-    // start pgetf2
-    // printf("start tf2, nprows:%d, npcols:%d\n",nprows, npcols);
+    info = 0;
     for(int i_tf2 = 0; i_tf2 < nb_real; i_tf2++){
         // find max_rows and value
         int i_panel, j_panel;
@@ -113,19 +103,11 @@ void pgetf2(
             T local_max_value{};
             if(i_panel<m_loc){
                 int local_max_index = 0;
-                BLAS_CHECK(deblasIamax(
-                    blasH, m_loc-i_panel,
-                    d_A + j_panel * lld + i_panel,1,
-                    &local_max_index
-                ));
-                DEVICE_CHECK(deviceStreamSynchronize(stream));
-                const int local_row = i_panel + local_max_index - 1;
-                DEVICE_CHECK(deviceMemcpyAsync(
-                    &local_max_value, d_A + local_row + j_panel * lld, sizeof(T),
-                    deviceMemcpyDeviceToHost, stream
-                ));
-                DEVICE_CHECK(deviceStreamSynchronize(stream));
-                local_max.value = iamax_metric(local_max_value);
+                detail::pgetf2_find_local_pivot(
+                    d_A + j_panel * lld + i_panel, m_loc - i_panel,
+                    d_pivot_workspace, stream,
+                    local_max.value, local_max_index, local_max_value);
+                const int local_row = i_panel + local_max_index;
                 local_max.index = array_descA.indx_l2g_r(local_row);
             }
             MPI_CHECK(MPI_Allreduce(&local_max, &global_max, 1,
@@ -170,7 +152,6 @@ void pgetf2(
                     sizeof(T), n_loc,
                     deviceMemcpyDeviceToDevice, stream
                 ));
-                // printf("before ccl owner_row send 1\n");
                 #ifdef DDLA_USE_CCL
                 CCL_CHECK(ncclGroupStart());
                 CCL_CHECK(
@@ -190,7 +171,6 @@ void pgetf2(
                 CCL_CHECK(
                     cclSend(d_temp, n_loc, max_prow, col_nccl_comm, stream)
                 );
-                // printf("before ccl owner_row recv 1\n");
                 CCL_CHECK(
                     cclRecv(d_temp, n_loc, max_prow, col_nccl_comm, stream)
                 );
@@ -202,7 +182,6 @@ void pgetf2(
                 #endif
                 
             }else if(myprow == max_prow){
-                // printf("before ccl max_prow send 1\n");
                 #ifdef DDLA_USE_CCL
                 DEVICE_CHECK(deviceMemcpy2DAsync(
                     d_temp, sizeof(T),
@@ -233,7 +212,6 @@ void pgetf2(
                     d_A + max_loc_row, lld,
                     d_temp, 1
                 ));
-                // printf("before ccl max_prow recv 1\n");
                 CCL_CHECK(
                     cclSend(d_temp, n_loc, owner_row, col_nccl_comm, stream)
                 );
@@ -241,20 +219,12 @@ void pgetf2(
                 
             }
         }
-        // printf("before get max value\n");
-        // finish exchange rows
         if(std::abs(max_value) == 0.0){
             info = n_s+i_tf2+1;
-            DEVICE_CHECK(deviceFreeAsync(d_temp, stream));
-            #ifdef DDLA_USE_CCL
-            DEVICE_CHECK(deviceFreeAsync(d_temp_peer, stream));
-            #endif
-            DEVICE_CHECK(deviceStreamSynchronize(stream));
-            return;
+            break;
         }
-        // start reduce columns
         if(j_loc>=0){
-            max_value = (T)1.0 / max_value; // inverse
+            const T inverse_pivot = T(1.0) / max_value;
             int64_t a_off;
             int length_row;
             
@@ -264,13 +234,6 @@ void pgetf2(
             }else{
                 a_off = mm_row_start + j_panel * lld;
                 length_row = m_loc - mm_row_start;
-            }
-            if(length_row>0){
-                BLAS_CHECK(deblasScal(
-                    blasH, length_row,
-                    max_value,
-                    d_A + a_off, 1
-                ));
             }
             int length_col = nb_real - i_tf2 - 1;
             if(myprow == owner_row && length_col>0){
@@ -283,26 +246,20 @@ void pgetf2(
             }
             if(length_col>0)
                 CCL_CHECK(cclBcast(d_temp, length_col, owner_row, col_nccl_comm, stream));
-            // finish reduce columns
-            // start update trailing matrix
-            
-            if(length_row>0&&length_col>0){
-                BLAS_CHECK(deblasGeru(
-                    blasH, length_row, length_col,
-                    -1.0,
-                    d_A + a_off, 1,
-                    d_temp, 1,
-                    d_A + a_off + lld, lld
-                ));
-            }
+            T* d_trailing = length_col > 0 ? d_A + a_off + lld : d_A + a_off;
+            detail::pgetf2_scale_update(
+                length_row, length_col, inverse_pivot,
+                d_A + a_off, d_temp, d_trailing, lld, stream);
         }
     }
-    info = 0;
-    // finish pgetf2
     DEVICE_CHECK(deviceFreeAsync(d_temp, stream));
     #ifdef DDLA_USE_CCL
     DEVICE_CHECK(deviceFreeAsync(d_temp_peer, stream));
     #endif
+    DEVICE_CHECK(deviceFreeAsync(d_pivot_workspace, stream));
+    if(info != 0){
+        DEVICE_CHECK(deviceStreamSynchronize(stream));
+    }
 }
 
 template void pgetf2<float>(
