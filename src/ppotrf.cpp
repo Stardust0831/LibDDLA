@@ -1,5 +1,6 @@
 #include <ddla/ddla.h>
 #include <cassert>
+#include <cstddef>
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_stream.h>
 #include <vector>
@@ -67,12 +68,32 @@ bool ppotrf(
     deblasOperation_t trans_device = DEBLAS_OP_C;
     deblasSideMode_t side_device = (uplo == 'U') ?DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
 
-    T* d_block_diag, *d_block_row, *d_block_col;
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_diag, nb * nb * sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_row, nb * array_descA.n_loc() * sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_block_col, nb * array_descA.m_loc() * sizeof(T), stream));
-    int *d_info;
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_info, sizeof(int), stream));
+    auto device_malloc_if_nonzero = [&](void** ptr, const std::size_t bytes)
+    {
+        if(bytes == 0){
+            *ptr = nullptr;
+            return;
+        }
+        DEVICE_CHECK(deviceMallocAsync(ptr, bytes, stream));
+    };
+    auto device_free_if_nonnull = [&](void* ptr)
+    {
+        if(ptr != nullptr){
+            DEVICE_CHECK(deviceFreeAsync(ptr, stream));
+        }
+    };
+
+    T* d_block_diag = nullptr;
+    T* d_block_row = nullptr;
+    T* d_block_col = nullptr;
+    device_malloc_if_nonzero((void**)&d_block_diag,
+                             static_cast<std::size_t>(nb) * nb * sizeof(T));
+    device_malloc_if_nonzero((void**)&d_block_row,
+                             static_cast<std::size_t>(nb) * array_descA.n_loc() * sizeof(T));
+    device_malloc_if_nonzero((void**)&d_block_col,
+                             static_cast<std::size_t>(nb) * array_descA.m_loc() * sizeof(T));
+    int *d_info = nullptr;
+    device_malloc_if_nonzero((void**)&d_info, sizeof(int));
 
     #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(nb * std::max(array_descA.n_loc(), array_descA.m_loc()));
@@ -86,12 +107,26 @@ bool ppotrf(
     int num_col_block = array_descA.n_loc() / nb;
     int batchCount = num_row_block * num_col_block;
 
-    T** d_A_array, ** d_B_array, ** d_C_array;
+    T** d_A_array = nullptr;
+    T** d_B_array = nullptr;
+    T** d_C_array = nullptr;
     std::vector<T*> h_A_array(batchCount), h_B_array(batchCount), h_C_array(batchCount);
 
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_A_array, batchCount * sizeof(T*), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_B_array, batchCount * sizeof(T*), stream));
-    DEVICE_CHECK(deviceMallocAsync((void**)&d_C_array, batchCount * sizeof(T*), stream));
+    const std::size_t pointer_buffer_bytes = static_cast<std::size_t>(batchCount) * sizeof(T*);
+    device_malloc_if_nonzero((void**)&d_A_array, pointer_buffer_bytes);
+    device_malloc_if_nonzero((void**)&d_B_array, pointer_buffer_bytes);
+    device_malloc_if_nonzero((void**)&d_C_array, pointer_buffer_bytes);
+    auto cleanup_device_buffers = [&]()
+    {
+        device_free_if_nonnull(d_A_array);
+        device_free_if_nonnull(d_B_array);
+        device_free_if_nonnull(d_C_array);
+        device_free_if_nonnull(d_block_diag);
+        device_free_if_nonnull(d_block_row);
+        device_free_if_nonnull(d_block_col);
+        device_free_if_nonnull(d_info);
+        DEVICE_CHECK(deviceStreamSynchronize(stream));
+    };
     int h_info;
     int i_batch_count, row_s, col_s, row_remain, col_remain, length_row, length_col;
     for(int n_s = 0; n_s < array_descA.m(); n_s += nb)
@@ -172,6 +207,7 @@ bool ppotrf(
         if(info != 0){
             info = info + n_s;
             printf("the matrix is not positive definite myid:%d, info:%d\n", ddla_handle->myid, info);
+            cleanup_device_buffers();
             return false;
         }
         if(uplo == 'L'){
@@ -467,14 +503,7 @@ bool ppotrf(
         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     }
     // printf("myid:%d, end\n", ddla_handle->myid);
-    DEVICE_CHECK(deviceFreeAsync(d_A_array, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_B_array, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_C_array, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_block_diag, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_block_row, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_block_col, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_info, stream));
-    DEVICE_CHECK(deviceStreamSynchronize(stream));
+    cleanup_device_buffers();
     return is_nega;
 
 }

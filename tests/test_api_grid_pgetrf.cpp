@@ -11,6 +11,23 @@ void check_pgetrf(const ddla::DdlaHandle_t& handle, const Shape& base)
     descA.init(n, n, nb, nb, 0, 0);
     descB.init(n, nrhs, nb, nb, 0, 0);
 
+    {
+        const int singular_index = std::min(nb + 1, n - 1);
+        auto h_singular = make_local<Complex>(descA, [=](int i, int j){
+            if(i != j) return Complex(0.0, 0.0);
+            return Complex(i == singular_index ? 0.0 : 1.0, 0.0);
+        });
+        DeviceBuffer<Complex> d_singular(handle, h_singular.size());
+        upload(handle, d_singular.ptr, h_singular);
+        DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+
+        std::vector<int> singular_ipiv(descA.m_loc(), -1);
+        int singular_info = -1;
+        ddla::pgetrf(n, n, d_singular.ptr, descA, singular_ipiv.data(), singular_info);
+        require_close(handle, "pgetrf(singular info)",
+                      std::abs(singular_info - (singular_index + 1)), 0.0);
+    }
+
     auto h_A = make_local<Complex>(descA, [=](int i, int j){ return dominant_value(i, j, n); });
     auto h_B = build_rhs(descB, n, dominant_value, n);
 

@@ -3,10 +3,10 @@
 ##SBATCH --nodelist j14r3n06
 #SBATCH -J test
 ##SBATCH -A xgren
-#SBATCH --nodes=1
-#SBATCH --gres=dcu:1
-#SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=7
+#SBATCH --nodes=2
+#SBATCH --gres=dcu:4
+#SBATCH --ntasks-per-node=2
+#SBATCH --cpus-per-task=15
 #SBATCH --output=../../log_hip
 #SBATCH --error=../../err_hip
 
@@ -105,4 +105,3 @@ echo "================================================="
 echo "All tests finished."
 
 echo End Time: `date`
-
