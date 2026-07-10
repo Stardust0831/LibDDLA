@@ -56,8 +56,7 @@ echo Begin Time: `date`
 
 legacy_np=${LEGACY_NP:-4}
 api_grid_default_np=${API_GRID_DEFAULT_NP:-4}
-api_grid_external_np=${API_GRID_EXTERNAL_NP:-6}
-api_grid_external_grid=${API_GRID_EXTERNAL_GRID:-2x3}
+api_grid_external_specs=("2:1x2" "4:2x2" "6:2x3")
 export OMPI_MCA_mpi_warn_on_fork=${OMPI_MCA_mpi_warn_on_fork:-0}
 
 mpi_extra_args=()
@@ -136,7 +135,7 @@ for FILENAME in "${files[@]}"; do
 done
 
 echo "================================================="
-echo "Running API grid tests with default grid sweep and ${api_grid_external_grid}"
+echo "Running API grid tests with default grid sweep and explicit grids: ${api_grid_external_specs[*]}"
 
 for FILENAME in "${api_grid_files[@]}"; do
     echo "================================================="
@@ -145,8 +144,12 @@ for FILENAME in "${api_grid_files[@]}"; do
     echo "▶️ Default grid sweep: ${FILENAME}"
     run_cuda_test "${api_grid_default_np}" "${FILENAME}"
 
-    echo "▶️ External grid: ${FILENAME} --grid ${api_grid_external_grid}"
-    run_cuda_test "${api_grid_external_np}" "${FILENAME}" --grid "${api_grid_external_grid}"
+    for grid_spec in "${api_grid_external_specs[@]}"; do
+        api_grid_external_np="${grid_spec%%:*}"
+        api_grid_external_grid="${grid_spec#*:}"
+        echo "▶️ External grid: ${FILENAME} --grid ${api_grid_external_grid}"
+        run_cuda_test "${api_grid_external_np}" "${FILENAME}" --grid "${api_grid_external_grid}"
+    done
 
     echo "✅ Finished: ${FILENAME}"
     echo "" # 空一行，方便看日志
