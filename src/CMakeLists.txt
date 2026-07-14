@@ -31,6 +31,9 @@ list(APPEND lib_sources
     pgeadd.cpp
     pdam.cpp
     ppotrf.cpp
+    potrf_bottom_right.cpp
+    potrf_bottom_right_transform.cpp
+    ppotrf_bottom_right.cpp
     ppotrs.cpp
     pposv.cpp
     transport_block.cpp
@@ -44,6 +47,7 @@ if(DDLA_USE_CUDA)
         getrf_nopiv.cpp
         pdam.cpp
         pgetf2_kernels.cpp
+        potrf_bottom_right_transform.cpp
         ptran.cpp
         PROPERTIES
         LANGUAGE CUDA
@@ -55,6 +59,7 @@ if(DDLA_USE_HIP)
         getrf_nopiv.cpp
         pdam.cpp
         pgetf2_kernels.cpp
+        potrf_bottom_right_transform.cpp
         ptran.cpp
         PROPERTIES
         LANGUAGE HIP

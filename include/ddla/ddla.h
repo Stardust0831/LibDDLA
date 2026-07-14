@@ -451,6 +451,51 @@ bool ppotrf(
 );
 
 /**
+ * @brief Single-GPU Cholesky factorization from the bottom-right corner.
+ *
+ * With uplo='U', computes A = U * U^H and overwrites the upper triangle with
+ * U.  With uplo='L', computes A = L^H * L and overwrites the lower triangle
+ * with L.  In either mode the opposite triangle is not referenced or written.
+ * These are bottom-right factorizations and therefore reverse the product
+ * order used by the corresponding standard LAPACK POTRF convention.
+ *
+ * @tparam T      Scalar type (float, double, complex<float>, complex<double>).
+ * @param uplo    'U' for A = U * U^H or 'L' for A = L^H * L.
+ * @param n       Order of A.
+ * @param d_A     Device pointer to A.
+ * @param lda     Leading dimension of A.
+ * @param info    0 on success; i > 0 identifies the failed reverse pivot.
+ * @param handle  DDLA handle providing the GPU stream and BLAS handle.
+ */
+template <typename T>
+void potrf_bottom_right(
+    const char& uplo, const int& n, T* d_A, const int& lda,
+    int& info, const DdlaHandle_t& handle
+);
+
+/**
+ * @brief Distributed Cholesky factorization from the bottom-right corner.
+ *
+ * With uplo='U', computes A = U * U^H and overwrites the upper triangle with
+ * U.  With uplo='L', computes A = L^H * L and overwrites the lower triangle
+ * with L.  The matrix descriptor must use square blocks on a square process
+ * grid; row and column source processes may differ.
+ *
+ * @tparam T            Scalar type (float, double, complex<float>,
+ *                      complex<double>).
+ * @param uplo          'U' for A = U * U^H or 'L' for A = L^H * L.
+ * @param n             Order of A.
+ * @param d_A           Device pointer to the local block-cyclic storage of A.
+ * @param array_descA   Descriptor for the distributed matrix A.
+ * @param info          0 on success; i > 0 identifies the failed global pivot.
+ */
+template <typename T>
+void ppotrf_bottom_right(
+    const char& uplo, const int& n, T* d_A,
+    const DdlaDesc& array_descA, int& info
+);
+
+/**
  * @brief Distributed solve using Cholesky factorization: A * X = B.
  *
  * Solves a Hermitian positive-definite system using the factor from
