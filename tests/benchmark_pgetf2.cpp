@@ -7,6 +7,8 @@
 
 #include <mpi.h>
 
+#include "benchmark_grid_options.h"
+
 #include <ddla/ddla.h>
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_stream.h>
@@ -19,7 +21,7 @@ using Complex = std::complex<double>;
 
 constexpr int kBlockSize = 128;
 constexpr int kPanelWidth = 32;
-constexpr int kRepeats = 7;
+constexpr int kDefaultRepeats = 7;
 
 void initialize_panel_matrix(int n, const ddla::DdlaDesc& desc, Complex* d_A,
                              const ddla::DdlaHandle_t& handle)
@@ -106,48 +108,45 @@ int main(int argc, char** argv)
     int rank = 0;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if(nprocs != 4){
+    benchmark_cli::Options options;
+    std::string option_error;
+    if(!benchmark_cli::parse(argc, argv, true, kDefaultRepeats,
+                             options, option_error)){
         if(rank == 0){
-            std::cerr << "benchmark_pgetf2 requires exactly 4 MPI ranks for a 2x2 grid"
-                      << std::endl;
+            std::cerr << "Error: " << option_error << std::endl;
+            std::cerr << benchmark_cli::usage(argv[0], true) << std::endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if(nprocs != options.nprows * options.npcols){
+        if(rank == 0){
+            std::cerr << "--grid " << benchmark_cli::grid_name(options)
+                      << " requires " << options.nprows * options.npcols
+                      << " MPI ranks, but this run has " << nprocs << std::endl;
         }
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    std::vector<int> sizes = {500, 5000, 10000, 15000};
-    if(argc > 1){
-        sizes.clear();
-        for(int i = 1; i < argc; ++i){
-            const int n = std::atoi(argv[i]);
-            if(n <= 0){
-                if(rank == 0){
-                    std::cerr << "matrix sizes must be positive integers" << std::endl;
-                }
-                MPI_Abort(MPI_COMM_WORLD, 1);
-            }
-            sizes.push_back(n);
-        }
-    }
-
     ddla::DdlaHandle_t handle = nullptr;
     ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD, 2, 2);
+    ddla::ddla_set(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
 
     if(handle->myid == 0){
-        std::cout << "=== pgetf2 benchmark: complex<double>, 4 MPI ranks, 2x2 grid ==="
-                  << std::endl;
+        std::cout << "=== pgetf2 benchmark: complex<double>, " << nprocs
+                  << " MPI ranks, " << benchmark_cli::grid_name(options)
+                  << " grid ===" << std::endl;
     }
 
-    for(size_t i = 0; i < sizes.size(); ++i){
-        const bool warmup = i == 0 && sizes[i] == 500;
-        const int repeats = warmup ? 1 : kRepeats;
-        const double median = benchmark_size(sizes[i], repeats, handle);
+    for(size_t i = 0; i < options.sizes.size(); ++i){
+        const bool warmup = i == 0 && options.sizes[i] == 500;
+        const int repeats = warmup ? 1 : options.repeats;
+        const double median = benchmark_size(options.sizes[i], repeats, handle);
         if(handle->myid == 0){
             std::cout << (warmup ? "WARMUP" : "RESULT")
-                      << " n=" << sizes[i]
+                      << " n=" << options.sizes[i]
                       << " type=complex<double>"
-                      << " grid=2x2"
-                      << " ranks=4"
+                      << " grid=" << benchmark_cli::grid_name(options)
+                      << " ranks=" << nprocs
                       << " nb=" << kBlockSize
                       << " panel=" << kPanelWidth
                       << " repeats=" << repeats

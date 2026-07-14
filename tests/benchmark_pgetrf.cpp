@@ -7,6 +7,8 @@
 
 #include <mpi.h>
 
+#include "benchmark_grid_options.h"
+
 #include <ddla/ddla.h>
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_stream.h>
@@ -16,10 +18,18 @@ using namespace ddla;
 
 using Complex = std::complex<double>;
 
+constexpr unsigned long long kRandomSeed = 20260710ULL;
+
 void fill_matrix(int n, const DdlaDesc& desc, Complex* d_A, const DdlaHandle_t& handle)
 {
     const size_t nelem = static_cast<size_t>(desc.m_loc()) * desc.n_loc();
-    random_generator(d_A, nelem, DEVICE_C_64F);
+    derandGenerator_t generator;
+    DERAND_CHECK(derandCreateGenerator(&generator, DERAND_RNG_PSEUDO_DEFAULT));
+    DERAND_CHECK(derandSetPseudoRandomGeneratorSeed(
+        generator, kRandomSeed + static_cast<unsigned long long>(handle->myid)));
+    DERAND_CHECK(derandGenerateUniformDouble(
+        generator, reinterpret_cast<double*>(d_A), nelem * 2));
+    DERAND_CHECK(derandDestroyGenerator(generator));
     BLAS_CHECK(deblasScal(handle->blasH, nelem, Complex(1.0e-4, 0.0), d_A, 1));
 
     const Complex diag(2.0, 0.0);
@@ -35,7 +45,8 @@ void fill_matrix(int n, const DdlaDesc& desc, Complex* d_A, const DdlaHandle_t& 
     DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
 }
 
-double benchmark_pgetrf(int n, const DdlaHandle_t& handle)
+double benchmark_pgetrf(int n, const DdlaHandle_t& handle,
+                        const benchmark_cli::Options& options, bool warmup)
 {
     const int nb = std::min(128, n);
     DdlaDesc desc(handle);
@@ -73,11 +84,12 @@ double benchmark_pgetrf(int n, const DdlaHandle_t& handle)
     DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
 
     if(handle->myid == 0){
-        std::cout << "RESULT n=" << n
+        std::cout << (warmup ? "WARMUP" : "RESULT") << " n=" << n
                   << " type=complex<double>"
-                  << " grid=2x2"
-                  << " ranks=4"
+                  << " grid=" << benchmark_cli::grid_name(options)
+                  << " ranks=" << handle->nprocs
                   << " nb=" << nb
+                  << " seed=" << kRandomSeed
                   << " time_s=" << std::fixed << std::setprecision(6)
                   << max_elapsed
                   << std::endl;
@@ -93,33 +105,37 @@ int main(int argc, char** argv)
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     int rank = 0;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    if(nprocs != 4){
+    benchmark_cli::Options options;
+    std::string option_error;
+    if(!benchmark_cli::parse(argc, argv, false, 1, options, option_error)){
         if(rank == 0){
-            std::cerr << "benchmark_pgetrf requires exactly 4 MPI ranks for a 2x2 grid"
-                      << std::endl;
+            std::cerr << "Error: " << option_error << std::endl;
+            std::cerr << benchmark_cli::usage(argv[0], false) << std::endl;
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+    if(nprocs != options.nprows * options.npcols){
+        if(rank == 0){
+            std::cerr << "--grid " << benchmark_cli::grid_name(options)
+                      << " requires " << options.nprows * options.npcols
+                      << " MPI ranks, but this run has " << nprocs << std::endl;
         }
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
     DdlaHandle_t handle = nullptr;
     ddla_init(handle);
-    ddla_set(handle, MPI_COMM_WORLD, 2, 2);
-
-    std::vector<int> sizes = {500, 5000, 10000, 15000};
-    if(argc > 1){
-        sizes.clear();
-        for(int i = 1; i < argc; ++i){
-            sizes.push_back(std::atoi(argv[i]));
-        }
-    }
+    ddla_set(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
 
     if(handle->myid == 0){
-        std::cout << "=== pgetrf benchmark: complex<double>, 4 MPI ranks, 2x2 grid ==="
-                  << std::endl;
+        std::cout << "=== pgetrf benchmark: complex<double>, " << nprocs
+                  << " MPI ranks, " << benchmark_cli::grid_name(options)
+                  << " grid, seed=" << kRandomSeed << " ===" << std::endl;
     }
 
-    for(int n : sizes){
-        benchmark_pgetrf(n, handle);
+    for(size_t i = 0; i < options.sizes.size(); ++i){
+        const bool warmup = i == 0 && options.sizes[i] == 500;
+        benchmark_pgetrf(options.sizes[i], handle, options, warmup);
     }
 
     ddla_destroy(handle);
