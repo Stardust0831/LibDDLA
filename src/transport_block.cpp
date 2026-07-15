@@ -33,10 +33,6 @@ void transport_block(
     MPI_Comm col_nccl_comm = ddla_handle->col_comm;
     #endif
 
-    #ifdef DDLA_USE_GPU_CPU_TUNNEL
-    std::vector<T> h_temp(array_descA.nb() * (std::max(array_descA.m_loc(), array_descA.n_loc())));
-    #endif
-
     int i_loc = num_loc(ia, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
     int j_loc = num_loc(ja, array_descA.nb(), array_descA.mypcol(), array_descA.icsrc(), array_descA.npcols());
 
@@ -47,6 +43,12 @@ void transport_block(
     int owner_col = indxg2p(ja, array_descA.nb(), array_descA.icsrc(), array_descA.npcols());
 
     if(trans == 'N'){
+        #ifdef DDLA_USE_GPU_CPU_TUNNEL
+        const size_t host_count = sData == 'R'
+                                ? static_cast<size_t>(m) * std::max(0, n_loc - j_loc)
+                                : static_cast<size_t>(std::max(0, m_loc - i_loc)) * n;
+        std::vector<T> h_temp(std::max<size_t>(1, host_count));
+        #endif
         if(sData == 'R' && n_loc > j_loc){
             if(array_descA.myprow() == owner_row){
                 DEVICE_CHECK(deviceMemcpy2DAsync(
@@ -77,11 +79,20 @@ void transport_block(
             #endif
         }
     }else if(array_descA.nprows() == array_descA.npcols()){
-        int trans_j_loc = num_loc(ja, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
-        int trans_n_loc = num_loc(ja + n, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
+        int trans_j_loc = num_loc(ja, array_descA.nb(), array_descA.myprow(), array_descA.icsrc(), array_descA.nprows());
+        int trans_n_loc = num_loc(ja + n, array_descA.nb(), array_descA.myprow(), array_descA.icsrc(), array_descA.nprows());
 
-        int trans_i_loc = num_loc(ia ,array_descA.nb(), array_descA.mypcol(), array_descA.icsrc(), array_descA.npcols());
-        int trans_m_loc = num_loc(ia + m, array_descA.nb(), array_descA.mypcol(), array_descA.icsrc(), array_descA.npcols());
+        int trans_i_loc = num_loc(ia ,array_descA.mb(), array_descA.mypcol(), array_descA.irsrc(), array_descA.npcols());
+        int trans_m_loc = num_loc(ia + m, array_descA.mb(), array_descA.mypcol(), array_descA.irsrc(), array_descA.npcols());
+        #ifdef DDLA_USE_GPU_CPU_TUNNEL
+        const size_t source_count = sData == 'R'
+                                  ? static_cast<size_t>(m) * std::max(0, n_loc - j_loc)
+                                  : static_cast<size_t>(std::max(0, m_loc - i_loc)) * n;
+        const size_t target_count = sData == 'R'
+                                  ? static_cast<size_t>(m) * std::max(0, trans_n_loc - trans_j_loc)
+                                  : static_cast<size_t>(std::max(0, trans_m_loc - trans_i_loc)) * n;
+        std::vector<T> h_temp(std::max<size_t>({1, source_count, target_count}));
+        #endif
         // printf("myid:%d, owner_row:%d, trans_n_loc:%d, trans_j_loc:%d, n_loc:%d, j_loc:%d\n", ddla_handle->myid, owner_row, trans_n_loc, trans_j_loc, n_loc, j_loc);
         if(sData == 'R'){
             if(n_loc > j_loc){
