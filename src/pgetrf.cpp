@@ -56,10 +56,6 @@ void pgetrf(
     T *d_temp_U;
     DEVICE_CHECK(deviceMallocAsync(&d_temp_U, sizeof(T)*nb*n_loc, stream));
 
-    DEVICE_CHECK(deviceStreamSynchronize(stream));
-    
-    MPI_Barrier(MPI_COMM_WORLD);
-
     info = 0;
 
     for(int n_s=0;n_s<std::min(m,n);n_s+=nb){
