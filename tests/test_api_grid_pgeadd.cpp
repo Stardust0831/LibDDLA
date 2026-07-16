@@ -5,6 +5,8 @@ using namespace api_grid_test;
 void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
+    const Complex alpha(2.0, -0.5);
+    const Complex beta(-0.75, 1.25);
     auto run_case = [&](char transa, char transb, int m, int n){
         const int a_rows = transa == 'N' ? m : n;
         const int a_cols = transa == 'N' ? n : m;
@@ -28,13 +30,13 @@ void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
         upload(handle, d_C.ptr, h_C);
         DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
 
-        ddla::pgeadd(transa, transb, m, n, Complex(1.0, 0.0), d_A.ptr, descA,
-                     Complex(1.0, 0.0), d_B.ptr, descB, d_C.ptr, descC);
+        ddla::pgeadd(transa, transb, m, n, alpha, d_A.ptr, descA,
+                     beta, d_B.ptr, descB, d_C.ptr, descC);
         auto out = download(handle, d_C.ptr, h_C.size());
 
         const double err = local_max_error<Complex>(descC, out, [&](int i, int j){
-            return op_value(transa, a_rows, a_cols, i, j, general_value, 4)
-                 + op_value(transb, b_rows, b_cols, i, j, general_value, 5);
+            return alpha * op_value(transa, a_rows, a_cols, i, j, general_value, 4)
+                 + beta * op_value(transb, b_rows, b_cols, i, j, general_value, 5);
         });
         std::string name = std::string("pgeadd(") + transa + "," + transb + ")";
         require_close(handle, name, err, 2e-10);
@@ -47,6 +49,8 @@ void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
     if(handle->nprows_ == handle->npcols_){
         const int n_square = round_up_for_grid(std::max(base.m, base.n), nb, handle->nprows_);
         run_case('C', 'N', n_square, n_square);
+        run_case('N', 'C', n_square, n_square);
+        run_case('N', 'T', n_square, n_square);
         run_case('T', 'C', n_square, n_square);
     }
 }

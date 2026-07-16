@@ -141,6 +141,8 @@ void pgeadd(
             DEVICE_CHECK(deviceMallocAsync((void**)&d_temp, m_loc_C * n_loc_C * sizeof(T), stream));
             const T* d_comm = transa != 'N' ? d_A : d_B;
             const T* d_nt = transa == 'N' ? d_A : d_B;
+            const T& trans_scale = transa != 'N' ? alpha : beta;
+            const T& nontrans_scale = transa == 'N' ? alpha : beta;
             deblasOperation_t op_trans = transa != 'N' ? opA : opB;
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             #ifdef DDLA_USE_CCL
@@ -159,9 +161,9 @@ void pgeadd(
             BLAS_CHECK(deblasGeam(
                 ddla_handle->blasH, op_trans, DEBLAS_OP_N,
                 m_loc_C, n_loc_C,
-                alpha,
+                trans_scale,
                 d_temp, n_loc_C,
-                beta,
+                nontrans_scale,
                 d_nt, m_loc_C,
                 d_C, m_loc_C
             ));
