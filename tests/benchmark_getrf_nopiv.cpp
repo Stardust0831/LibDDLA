@@ -43,7 +43,7 @@ void benchmark_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceMallocAsync((void**)&d_ipiv,       n * sizeof(int), ddla_handle->stream));
 
     // Generate a non-singular random matrix.
-    random_generator(d_A_lib, nelem, DEVICE_C_64F);
+    random_generate(d_A_lib, nelem);
     std::complex<double> scale(0.01, 0.0);
     BLAS_CHECK(deblasScal(ddla_handle->blasH, n * n, scale, d_A_lib, 1));
     std::complex<double> diag_shift(2.0, 0.0);

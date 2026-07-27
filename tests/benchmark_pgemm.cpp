@@ -45,9 +45,9 @@ void benchmark_pgemm(int n, char transa, char transb,
     DEVICE_CHECK(deviceMalloc(&d_B, size));
     DEVICE_CHECK(deviceMalloc(&d_C, size));
 
-    random_generator(d_A, nelem, DEVICE_C_64F);
-    random_generator(d_B, nelem, DEVICE_C_64F);
-    random_generator(d_C, nelem, DEVICE_C_64F);
+    random_generate(d_A, nelem);
+    random_generate(d_B, nelem);
+    random_generate(d_C, nelem);
 
     std::complex<double> alpha(1.0, 0.0);
     std::complex<double> beta(0.0, 0.0);

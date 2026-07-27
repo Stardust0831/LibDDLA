@@ -42,7 +42,7 @@ void check_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceMallocAsync((void**)&d_ipiv, n * sizeof(int), ddla_handle->stream));
 
     // Fill with random values on device, then copy to the reference buffer.
-    random_generator(d_A, nelem, DEVICE_C_64F);
+    random_generate(d_A, nelem);
     BLAS_CHECK(deblasScal(ddla_handle->blasH, n * n, 0.01, d_A, 1));
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < n; i++){

@@ -24,6 +24,7 @@
 
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <complex>
 
 namespace ddla{
@@ -305,7 +306,8 @@ static inline void DERAND_CHECK(derandStatus_t status, const char* file = __buil
     }
 }
 
-void random_generator(void* c_data, const int64_t& lengthOfData, const deviceDataType_t& compute_type);
+template <typename T>
+void random_generate(T* data, const int64_t& lengthOfData);
 // col major
 void write_matrix(std::complex<double>* A, const int& m,const int& n, const char* filename);
 

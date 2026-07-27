@@ -46,7 +46,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
+    random_generate(d_A, matrix_desc.m_loc()*matrix_desc.n_loc());
     std::complex<double> ten = 1000.0;
     for(int i=0;i<matrix_desc.m();i++){
         int i_loc = matrix_desc.indx_g2l_r(i);

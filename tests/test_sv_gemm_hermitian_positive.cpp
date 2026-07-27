@@ -49,7 +49,7 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceMallocAsync((void**)&d_R,   size, ddla_handle->stream));
 
     // ---- 1. 生成随机矩阵 B，缩小幅度以控制 A 的条件数 ----
-    random_generator(d_B, nelem, DEVICE_C_64F);
+    random_generate(d_B, nelem);
     BLAS_CHECK(deblasScal(ddla_handle->blasH, nelem, 0.01, d_B, 1));
     DEVICE_CHECK(deviceMemcpyAsync(d_Bcp, d_B, size, deviceMemcpyDeviceToDevice, ddla_handle->stream));
 

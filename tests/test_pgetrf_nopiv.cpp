@@ -35,7 +35,7 @@ void check_pgetrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceMallocAsync((void**)&d_A_bpiv, size, ddla_handle->stream));
     DEVICE_CHECK(deviceMallocAsync((void**)&d_ipiv_bpiv, matrix_desc.m_loc() * sizeof(int), ddla_handle->stream));
 
-    random_generator(d_A, nelem, DEVICE_C_64F);
+    random_generate(d_A, nelem);
     BLAS_CHECK(deblasScal(ddla_handle->blasH, nelem, 0.01, d_A, 1));
     std::complex<double> cons_i = 2.0;
     for (int i = 0; i < matrix_desc.m(); i++) {

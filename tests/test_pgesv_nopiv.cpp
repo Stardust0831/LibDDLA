@@ -47,7 +47,7 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
     }
 
     // Generate distributed random matrix A.
-    random_generator(d_A, nelem, DEVICE_C_64F);
+    random_generate(d_A, nelem);
     BLAS_CHECK(deblasScal(ddla_handle->blasH, nelem, 0.01, d_A, 1));
     std::complex<double> diag_shift(2.0, 0.0);
     for (int i = 0; i < matrix_desc.m(); i++) {

@@ -1,29 +1,30 @@
 #include <ddla/ddla_connector.h>
 #include <chrono>
 #include <fstream>
+#include <type_traits>
 
 namespace ddla{
 
-void random_generator(void* c_data, const int64_t& lengthOfData, const deviceDataType_t& compute_type)
+template <typename T>
+void random_generate(T* data, const int64_t& lengthOfData)
 {
+    if (lengthOfData <= 0) return;
     auto seed = std::chrono::system_clock::now().time_since_epoch().count();
     derandGenerator_t gen;
     DERAND_CHECK(derandCreateGenerator(&gen, DERAND_RNG_PSEUDO_DEFAULT));
     DERAND_CHECK(derandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)));
-    if(compute_type == DEVICE_C_64F)
-        DERAND_CHECK(derandGenerateUniformDouble(gen,(double*) c_data, lengthOfData*2));
-    else if(compute_type == DEVICE_C_32F)
-        DERAND_CHECK(derandGenerateUniform(gen, (float*)c_data, lengthOfData*2));
-    else if(compute_type == DEVICE_R_64F)
-        DERAND_CHECK(derandGenerateUniformDouble(gen,(double*) c_data, lengthOfData));
-    else if(compute_type == DEVICE_R_32F)
-        DERAND_CHECK(derandGenerateUniform(gen, (float*)c_data, lengthOfData));
-    else {
-        std::cerr << "Unsupported compute type!" << std::endl;
-        return;
+    if constexpr (std::is_same_v<T, float>) {
+        DERAND_CHECK(derandGenerateUniform(gen, data, lengthOfData));
+    } else if constexpr (std::is_same_v<T, double>) {
+        DERAND_CHECK(derandGenerateUniformDouble(gen, data, lengthOfData));
+    } else if constexpr (std::is_same_v<T, std::complex<float>>) {
+        DERAND_CHECK(derandGenerateUniform(gen, reinterpret_cast<float*>(data), lengthOfData * 2));
+    } else if constexpr (std::is_same_v<T, std::complex<double>>) {
+        DERAND_CHECK(derandGenerateUniformDouble(gen, reinterpret_cast<double*>(data), lengthOfData * 2));
+    } else {
+        static_assert(sizeof(T) == 0, "random_generate supports only float, double, std::complex<float>, std::complex<double>");
     }
     DERAND_CHECK(derandDestroyGenerator(gen));
-    return;
 }
 
 void write_matrix(std::complex<double>* A, const int& m,const int& n, const char* filename)
@@ -51,5 +52,10 @@ void write_matrix(std::complex<double>* A, const int& m,const int& n, const char
     return;
 }
 
+
+template void random_generate<float>(float*, const int64_t&);
+template void random_generate<double>(double*, const int64_t&);
+template void random_generate<std::complex<float>>(std::complex<float>*, const int64_t&);
+template void random_generate<std::complex<double>>(std::complex<double>*, const int64_t&);
 
 } // namespace ddla

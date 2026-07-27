@@ -44,7 +44,7 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generator(d_A, matrix_desc.m_loc()*matrix_desc.n_loc(),DEVICE_C_64F);
+    random_generate(d_A, matrix_desc.m_loc()*matrix_desc.n_loc());
     BLAS_CHECK(deblasScal(ddla_handle->blasH, matrix_desc.m_loc()*matrix_desc.n_loc(), 0.01, d_A, 1));
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < matrix_desc.m(); i++){
