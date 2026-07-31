@@ -20,12 +20,12 @@ void check_pposv(const ddla::DdlaHandle_t& handle, const Shape& base)
     DeviceBuffer<Complex> d_B(handle, h_B.size());
     upload(handle, d_A.ptr, h_A);
     upload(handle, d_B.ptr, h_B);
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    check_ddla_sync(handle);
 
     int info = -1;
     ddla::pposv('L', 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA,
                 d_B.ptr, 1, 1, descB, info);
-    if(info != 0) MPI_Abort(handle->comm, 1);
+    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
     check_solution(handle, descB, d_B.ptr, h_B.size(), "pposv", 5e-9);
 }
 

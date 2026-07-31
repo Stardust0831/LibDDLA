@@ -266,7 +266,7 @@ void gemm_template_vbatched_nn(
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -293,7 +293,7 @@ void gemm_template_vbatched_nt(
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -320,7 +320,7 @@ void gemm_template_vbatched_tn(
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -348,7 +348,7 @@ void gemm_template_vbatched_tt(
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -376,7 +376,7 @@ void gemm_template_vbatched(
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
     const int DIM_X, const int DIM_Y,
     const int BLK_M, const int BLK_N, const int BLK_K,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     int max_batchCount = ddlaVbatchedMaxBatchCount;
     size_t shmem = 0;
@@ -415,7 +415,7 @@ void gemm_template_vbatched_2s(
     const int DIM_X_1, const int DIM_Y_1,
     const int BLK_M_1, const int BLK_N_1, const int BLK_K_1,
     bool C0_left,
-    int batchCount, const int* segment_sizes, ddla::deviceStream_t stream)
+    int batchCount, const int* segment_sizes, ddla::runtimeStream_t stream)
 {
     size_t shmem_0 = 0;
     shmem_0 += (BLK_M_0+1) * BLK_K_0 * sizeof(T);  // sA

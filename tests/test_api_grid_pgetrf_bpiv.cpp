@@ -13,11 +13,11 @@ void check_pgetrf_bpiv(const ddla::DdlaHandle_t& handle, const Shape& base)
     DeviceBuffer<Complex> d_A(handle, h_A.size());
     DeviceBuffer<int> d_ipiv(handle, std::max(1, descA.m_loc()));
     upload(handle, d_A.ptr, h_A);
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    check_ddla_sync(handle);
 
     int info = -1;
     ddla::pgetrf_bpiv(n, n, d_A.ptr, descA, d_ipiv.ptr, info);
-    if(info != 0) MPI_Abort(handle->comm, 1);
+    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
     require_close(handle, "pgetrf_bpiv(info)", 0.0, 0.0);
 }
 

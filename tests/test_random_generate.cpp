@@ -13,7 +13,7 @@
 
 #include <ddla/ddla.h>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
 
 using namespace ddla;
 
@@ -93,20 +93,20 @@ bool test_type(int64_t count, const DdlaHandle_t& handle, const char* type_name)
 
     // Allocate device memory
     T* d_data = nullptr;
-    DEVICE_CHECK(deviceMalloc(&d_data, bytes));
+    RUNTIME_CHECK(runtimeMalloc(&d_data, bytes));
 
     // Call the template
     random_generate(d_data, count);
 
     // Copy back to host
     std::vector<T> h_data(count);
-    DEVICE_CHECK(deviceMemcpy(h_data.data(), d_data, bytes, deviceMemcpyDeviceToHost));
+    RUNTIME_CHECK(runtimeMemcpy(h_data.data(), d_data, bytes, runtimeMemcpyDeviceToHost));
 
     // Validate
     bool ok = validate_uniform_range(h_data, count, myid, type_name);
 
     // Cleanup
-    DEVICE_CHECK(deviceFree(d_data));
+    RUNTIME_CHECK(runtimeFree(d_data));
 
     return ok;
 }

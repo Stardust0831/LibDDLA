@@ -10,37 +10,65 @@ message(STATUS "Building ddla library version ${CMAKE_PROJECT_VERSION}")
 
 
 
-list(APPEND lib_sources
-    ddla_stream.cpp
-    ddla_utils.cpp
-    ptrtrs.cpp
-    pgetf2.cpp
-    pgetf2_kernels.cpp
-    pgetf2_panel.cpp
-    pgetrf.cpp
-    pgetrf_bpiv.cpp
-    pgetrf_nopiv.cpp
-    getrf_nopiv.cpp
-    plapiv.cpp
-    pswap.cpp
-    pgetrs.cpp
-    pgetrs_nopiv.cpp
-    pgesv.cpp
-    pgesv_nopiv.cpp
-    pgemm.cpp
-    pgeadd.cpp
-    pdam.cpp
-    ppotrf.cpp
-    potrf_bottom_right.cpp
-    potrf_bottom_right_transform.cpp
-    ppotrf_bottom_right.cpp
-    ppotrs.cpp
-    pposv.cpp
-    transport_block.cpp
-    ptran.cpp
-    ddla_handle_t.cpp
-    ddla_desc.cpp
-)
+if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
+    # CPU-only build: minimal source set supporting pgemm. transport_block.cpp
+    # is included here (unlike before the CommTraits<Backend>/comm_traits.h
+    # unification) because CpuOps::transport_panel now calls the unified
+    # transport_block<DdlaBackend::CPU,T> directly instead of a separate,
+    # hand-duplicated CPU-only implementation.
+    list(APPEND lib_sources
+        gemm.cpp
+        scal.cpp
+        omatcopy.cpp
+        axpy.cpp
+        iamax.cpp
+        geru.cpp
+        write_matrix.cpp
+        pgemm.cpp
+        transport_block.cpp
+        ddla_handle_t.cpp
+        ddla_desc.cpp
+    )
+else()
+    # GPU-only or dual build: full accelerator source set.
+    list(APPEND lib_sources
+        gemm.cpp
+        scal.cpp
+        omatcopy.cpp
+        axpy.cpp
+        iamax.cpp
+        geru.cpp
+        write_matrix.cpp
+        ddla_utils.cpp
+        ptrtrs.cpp
+        pgetf2.cpp
+        pgetf2_kernels.cpp
+        pgetf2_panel.cpp
+        pgetrf.cpp
+        pgetrf_bpiv.cpp
+        pgetrf_nopiv.cpp
+        getrf_nopiv.cpp
+        plapiv.cpp
+        pswap.cpp
+        pgetrs.cpp
+        pgetrs_nopiv.cpp
+        pgesv.cpp
+        pgesv_nopiv.cpp
+        pgemm.cpp
+        pgeadd.cpp
+        pdam.cpp
+        ppotrf.cpp
+        potrf_bottom_right.cpp
+        potrf_bottom_right_transform.cpp
+        ppotrf_bottom_right.cpp
+        ppotrs.cpp
+        pposv.cpp
+        transport_block.cpp
+        ptran.cpp
+        ddla_handle_t.cpp
+        ddla_desc.cpp
+    )
+endif()
 
 if(DDLA_USE_CUDA)
     list(APPEND lib_sources
@@ -91,6 +119,29 @@ if(DDLA_USE_HIP)
 endif()
 
 target_sources(ddla_lib PRIVATE ${lib_sources})
+
+# ---------------------------------------------------------------------------
+# Per-target compile definitions (moved from directory-global)
+# ---------------------------------------------------------------------------
+if(DDLA_USE_CUDA)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_CUDA)
+endif()
+if(DDLA_USE_HIP)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_HIP __HIP_PLATFORM_AMD__)
+endif()
+if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_CPU)
+endif()
+if(DDLA_USE_CCL)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_CCL)
+endif()
+if(DDLA_USE_GPU_CPU_TUNNEL)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_GPU_CPU_TUNNEL)
+endif()
+if(DDLA_USE_DEBUG)
+    target_compile_definitions(ddla_lib PRIVATE DDLA_USE_DEBUG)
+endif()
+
 if(DDLA_USE_HIP)
     target_link_directories(ddla_lib PUBLIC
         "${ROCM_PATH}/lib"
@@ -110,4 +161,5 @@ install(TARGETS ddla_lib
 )
 install(DIRECTORY ${PROJECT_SOURCE_DIR}/include/
     DESTINATION ${CMAKE_INSTALL_PREFIX}/include
+    PATTERN "*.h.in" EXCLUDE
 )

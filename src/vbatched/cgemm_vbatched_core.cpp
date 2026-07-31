@@ -434,7 +434,7 @@ ddla_internal_cgemm_vbatched_core(
     DdlaFloatComplex const *const *dB_array, int Bi, int Bj, int *lddb,
     DdlaFloatComplex beta,
     DdlaFloatComplex **dC_array, int Ci, int Cj, int *lddc,
-    int batchCount, ddla::deviceStream_t stream)
+    int batchCount, ddla::runtimeStream_t stream)
 {
     if (max_m <= 0 || max_n <= 0 || max_k < 0)
         return;
@@ -467,7 +467,7 @@ ddla_internal_cgemm_vbatched_core_2s(
     DdlaFloatComplex beta_1,
     DdlaFloatComplex              ** dC_array_1, int Ci_1, int Cj_1, int* lddc_1,
     bool C0_left,
-    int batchCount, int const * segment_sizes, ddla::deviceStream_t stream )
+    int batchCount, int const * segment_sizes, ddla::runtimeStream_t stream )
 {
     if (max_m_0 <= 0 || max_n_0 <= 0 || max_k_0 < 0) return;
 

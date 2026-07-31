@@ -2,7 +2,8 @@
 #include <cassert>
 #include <vector>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 
 namespace ddla{
 
@@ -13,6 +14,8 @@ void pgesv(
     T* d_B, const DdlaDesc& array_descB
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pgesv");
     std::vector<int> ipiv(array_descA.m_loc());
     int info = 0;
     pgetrf(

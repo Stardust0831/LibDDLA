@@ -32,7 +32,7 @@
         hipLaunchKernelGGL(                                                     \
             HIP_KERNEL_NAME(DDLA_UNPAREN_KERNEL kernel_tuple),                 \
             grid, block, shmem, stream, __VA_ARGS__);                          \
-        ddla::DEVICE_CHECK(deviceGetLastError());                              \
+        ddla::RUNTIME_CHECK(ddla::runtimeGetLastError());                              \
     } while (false)
 
 #else // DDLA_USE_CUDA
@@ -41,7 +41,7 @@
     do {                                                                        \
         DDLA_UNPAREN_KERNEL kernel_tuple<<<grid, block, shmem, stream>>>(       \
             __VA_ARGS__);                                                       \
-        ddla::DEVICE_CHECK(deviceGetLastError());                              \
+        ddla::RUNTIME_CHECK(ddla::runtimeGetLastError());                              \
     } while (false)
 
 #endif
@@ -148,7 +148,7 @@ using DdlaVbatchedKernelPtr = void (*)(
 template <typename T>
 inline void ddlaLaunchKernelByPtr(
     DdlaVbatchedKernelPtr<T> func,
-    dim3 grid, dim3 block, size_t shmem, ddla::deviceStream_t stream,
+    dim3 grid, dim3 block, size_t shmem, ddla::runtimeStream_t stream,
     int* m, int* n, int* k,
     T const* const* A, int Ai, int Aj, int* lda,
     T const* const* B, int Bi, int Bj, int* ldb,
@@ -168,9 +168,9 @@ inline void ddlaLaunchKernelByPtr(
         (void*)&C, &Ci, &Cj, &ldc,
         &alpha, &beta,
         &max_M, &max_N, &max_K};
-    ddla::DEVICE_CHECK(cudaLaunchKernel(
+    ddla::RUNTIME_CHECK(cudaLaunchKernel(
         reinterpret_cast<const void*>(func),
         grid, block, args, shmem, stream));
 #endif
-    ddla::DEVICE_CHECK(deviceGetLastError());
+    ddla::RUNTIME_CHECK(ddla::runtimeGetLastError());
 }

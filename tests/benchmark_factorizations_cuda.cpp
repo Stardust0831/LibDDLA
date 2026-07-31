@@ -29,7 +29,7 @@
 #include <ddla/ddla_connector.h>
 #include <ddla/ddla_desc.h>
 #include <ddla/ddla_handle_t.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
 
 namespace {
 
@@ -868,12 +868,12 @@ int main(int argc, char** argv)
     cal_params.data = &cal_mpi_comm;
     cal_params.nranks = nranks;
     cal_params.rank = rank;
-    cal_params.local_device = ddla::DdlaStream::local_device;
+    cal_params.local_device = handle->local_device;
 
     VendorContext vendor_context;
     BENCH_CAL_CHECK(cal_comm_create(cal_params, &vendor_context.cal_comm));
     BENCH_CUSOLVERMP_CHECK(cusolverMpCreate(
-        &vendor_context.handle, ddla::DdlaStream::local_device, handle->stream));
+        &vendor_context.handle, handle->local_device, handle->stream));
     BENCH_CUSOLVERMP_CHECK(cusolverMpCreateDeviceGrid(
         vendor_context.handle, &vendor_context.grid, vendor_context.cal_comm,
         kProcessRows, kProcessCols, CUSOLVERMP_GRID_MAPPING_ROW_MAJOR));

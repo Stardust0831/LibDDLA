@@ -1,4 +1,5 @@
 #include <ddla/ddla.h>
+#include "require_gpu.h"
 
 namespace ddla{
 
@@ -12,6 +13,8 @@ void pposv(
     bool is_head, int location
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pposv");
     bool is_nega = ppotrf(uplo, n, d_A, ia, ja, array_descA, info, is_head, location);
     if(info == 0 && !is_nega)
         ppotrs(side, uplo, trans, n, nrhs, d_A, array_descA, d_B, array_descB, is_nega, location);

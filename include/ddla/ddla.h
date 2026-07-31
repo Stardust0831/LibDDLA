@@ -1,13 +1,17 @@
 #ifndef DDLA_H
 #define DDLA_H
 
+#include <ddla/ddla_config.h>
 #include "ddla_desc.h"
+#include "write_matrix.h"
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 #include "gemmVbatched.h"
 #endif
 #include <complex>
 
 namespace ddla{
+
+#if DDLA_HAS_GPU
 
 /**
  * @brief Distributed triangular solve: B := op(A)^{-1} * B    (side='L')
@@ -72,7 +76,9 @@ void plapiv(
  * Communication occurs only when the source and target rows/columns reside on
  * different processes.
  *
- * @tparam T    Scalar type.
+ * @tparam Backend  Compile-time execution backend. The build default is CPU
+ *                  for CPU-only builds and GPU otherwise.
+ * @tparam T        Scalar type.
  * @param N     Length of the segment to swap.
  * @param A     Device pointer to distributed matrix A.
  * @param ia    Starting global row index in A (1-based).
@@ -326,6 +332,8 @@ void pgesv_nopiv(
     T* d_B, const DdlaDesc& array_descB
 );
 
+#endif // DDLA_HAS_GPU
+
 /**
  * @brief Distributed matrix-matrix multiplication:
  *        C := alpha * op(A) * op(B) + beta * C.
@@ -341,6 +349,12 @@ void pgesv_nopiv(
  * ScaLAPACK-compatible (e.g. for A^T, mb(C) == nb(A) and irsrc(C) == icsrc(A)).
  * The process grid may be rectangular.
  *
+ * All three descriptors (@p array_descA, @p array_descB, @p array_descC)
+ * must share the same DdlaHandle_t (same backend and process grid).
+ * CPU handles require host pointers; GPU handles require device pointers
+ * allocated in the selected-accelerator memory space.  No implicit
+ * migration between address spaces is performed.
+ *
  * @tparam T    Scalar type.
  * @param transa   Operation applied to A ('N','T','C').
  * @param transb   Operation applied to B ('N','T','C').
@@ -348,15 +362,15 @@ void pgesv_nopiv(
  * @param n        Cols of op(B) and C.
  * @param k        Cols of op(A) / rows of op(B).
  * @param alpha    Scalar multiplier for A*B.
- * @param d_A      Device pointer to distributed A.
+ * @param d_A      Pointer to distributed A (host for CPU, device for GPU).
  * @param array_descA  DdlaDesc for A.
- * @param d_B      Device pointer to distributed B.
+ * @param d_B      Pointer to distributed B (host for CPU, device for GPU).
  * @param array_descB  DdlaDesc for B.
  * @param beta     Scalar multiplier for C.
- * @param d_C      Device pointer to distributed C (input/output).
+ * @param d_C      Pointer to distributed C (input/output; host for CPU, device for GPU).
  * @param array_descC  DdlaDesc for C.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgemm(
     const char& transa, const char& transb,
     const int& m, const int& n, const int& k,
@@ -366,6 +380,8 @@ void pgemm(
     const T& beta,
     T* d_C, const DdlaDesc& array_descC
 );
+
+#if DDLA_HAS_GPU
 
 /**
  * @brief Distributed matrix addition: C := alpha * op(A) + beta * op(B).
@@ -562,6 +578,7 @@ void pposv(
     bool is_head = false, int location = -1
 );
 
+#endif // DDLA_HAS_GPU
 
 } // namespace ddla
 

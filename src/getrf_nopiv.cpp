@@ -1,6 +1,7 @@
 #include <ddla/ddla.h>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 #include <ddla/gemm.h>
 #include <ddla/trsm.h>
 #include <thrust/complex.h>
@@ -168,7 +169,8 @@ getf2_nopiv_kernel(int m, int n, T* dA, int ldda, int* info, int gbstep)
 template <typename T>
 void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle)
 {
-    deviceStream_t stream = ddla_handle->stream;
+    detail::require_gpu_backend(ddla_handle, "getrf_nopiv");
+    runtimeStream_t stream = ddla_handle->stream;
     deblasHandle_t blas_handle = ddla_handle->blasH;
 
     // Block size for the blocked algorithm.  Must be <= GETF2_MAX_N
@@ -178,7 +180,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
     const int nb = GETF2_MAX_N;
 
     // Initialize d_info to 0 on device (caller owns d_info memory)
-    DEVICE_CHECK(deviceMemsetAsync(d_info, 0, sizeof(int), stream));
+    RUNTIME_CHECK(runtimeMemsetAsync(d_info, 0, sizeof(int), stream));
 
     for (int j = 0; j < std::min(m, n); j += nb)
     {

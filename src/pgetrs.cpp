@@ -1,7 +1,8 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 namespace ddla{
 
 template<typename T>
@@ -12,6 +13,8 @@ void pgetrs(
     T* d_B, const DdlaDesc& array_descB
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pgetrs");
     assert(trans == 'N');
     char direc = 'F';
     char rowcol = 'R';

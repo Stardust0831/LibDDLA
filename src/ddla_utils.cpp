@@ -27,30 +27,6 @@ void random_generate(T* data, const int64_t& lengthOfData)
     DERAND_CHECK(derandDestroyGenerator(gen));
 }
 
-void write_matrix(std::complex<double>* A, const int& m,const int& n, const char* filename)
-{
-
-    std::ofstream outfile;
-    outfile.open(filename, std::ios::out | std::ios::trunc);
-    for (int i = 0; i < m; i++) {
-        for (int j = 0; j < n; j++) {
-            outfile<<"(";
-            if(std::abs(A[i+j*m].real())<1e-10)
-                outfile<<"0";
-            else
-                outfile<<A[i+j*m].real();
-            outfile<<",";
-            if(std::abs(A[i+j*m].imag())<1e-10)
-                outfile<<"0";
-            else
-                outfile<<A[i+j*m].imag();
-            outfile<<") ";
-        }
-        outfile<<"\n";
-    }
-    outfile.close();
-    return;
-}
 
 
 template void random_generate<float>(float*, const int64_t&);

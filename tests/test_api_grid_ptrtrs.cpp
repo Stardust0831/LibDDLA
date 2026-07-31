@@ -24,7 +24,7 @@ void check_ptrtrs(const ddla::DdlaHandle_t& handle, const Shape& base)
     DeviceBuffer<Complex> d_B(handle, h_B.size());
     upload(handle, d_A.ptr, h_A);
     upload(handle, d_B.ptr, h_B);
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    check_ddla_sync(handle);
 
     ddla::ptrtrs('L', 'L', 'N', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB);
     check_solution(handle, descB, d_B.ptr, h_B.size(), "ptrtrs(L,L,N,N)", 2e-10);

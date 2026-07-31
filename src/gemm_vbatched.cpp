@@ -1,5 +1,5 @@
 #include <ddla/gemmVbatched.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
 
 #include "vbatched/gemm_vbatched_compat.h"
 
@@ -36,7 +36,7 @@ extern "C" void ddla_internal_##prefix##gemm_vbatched_core(                    \
     const scalar_type* const*, int, int, int*,                                  \
     const scalar_type* const*, int, int, int*,                                  \
     scalar_type, scalar_type**, int, int, int*,                                 \
-    int, ddla::deviceStream_t);                                                \
+    int, ddla::runtimeStream_t);                                                \
 extern "C" void ddla_internal_##prefix##gemm_vbatched_core_2s(                 \
     ddla::deblasOperation_t, ddla::deblasOperation_t, int, int, int,           \
     int*, int*, int*, scalar_type,                                              \
@@ -48,7 +48,7 @@ extern "C" void ddla_internal_##prefix##gemm_vbatched_core_2s(                 \
     const scalar_type* const*, int, int, int*,                                  \
     int, int, int*, scalar_type, scalar_type**,                                 \
     int, int, int*, bool, int,                                                  \
-    const int*, ddla::deviceStream_t)
+    const int*, ddla::runtimeStream_t)
 
 DECLARE_VBATCHED_CORE(s, float);
 DECLARE_VBATCHED_CORE(d, double);
@@ -115,7 +115,7 @@ MaxDimensions validate_dimensions(
     ddla::deblasOperation_t transA, ddla::deblasOperation_t transB,
     int* d_m, int* d_n, int* d_k,
     int* d_lda, int* d_ldb, int* d_ldc,
-    int batch_count, ddla::deviceStream_t stream)
+    int batch_count, ddla::runtimeStream_t stream)
 {
     if (!valid_operation(transA) || !valid_operation(transB))
         throw std::invalid_argument("gemmVbatched: invalid transpose operation");
@@ -124,10 +124,10 @@ MaxDimensions validate_dimensions(
         throw std::invalid_argument("gemmVbatched: null dimension array");
 
     int* d_summary = nullptr;
-    ddla::DEVICE_CHECK(
-        ddla::deviceMallocAsync(&d_summary, 4 * sizeof(int), stream));
-    ddla::DEVICE_CHECK(
-        deviceMemsetAsync(d_summary, 0, 4 * sizeof(int), stream));
+    ddla::RUNTIME_CHECK(
+        ddla::runtimeMallocAsync(&d_summary, 4 * sizeof(int), stream));
+    ddla::RUNTIME_CHECK(
+        ddla::runtimeMemsetAsync(d_summary, 0, 4 * sizeof(int), stream));
 
     constexpr int block_size = 256;
     const int grid_size = (batch_count + block_size - 1) / block_size;
@@ -137,11 +137,11 @@ MaxDimensions validate_dimensions(
         batch_count, d_summary);
 
     std::array<int, 4> summary{};
-    ddla::DEVICE_CHECK(deviceMemcpyAsync(
+    ddla::RUNTIME_CHECK(ddla::runtimeMemcpyAsync(
         summary.data(), d_summary, 4 * sizeof(int),
-        ddla::deviceMemcpyDeviceToHost, stream));
-    ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(stream));
-    ddla::DEVICE_CHECK(ddla::deviceFreeAsync(d_summary, stream));
+        ddla::runtimeMemcpyDeviceToHost, stream));
+    ddla::RUNTIME_CHECK(ddla::runtimeStreamSynchronize(stream));
+    ddla::RUNTIME_CHECK(ddla::runtimeFreeAsync(d_summary, stream));
 
     if (summary[3] != 0)
         throw std::invalid_argument(
@@ -158,7 +158,7 @@ void launch_core(
     T alpha, const T* const* d_A_array, int* d_lda,
     const T* const* d_B_array, int* d_ldb,
     T beta, T** d_C_array, int* d_ldc,
-    int batch_count, ddla::deviceStream_t stream)
+    int batch_count, ddla::runtimeStream_t stream)
 {
     if constexpr (std::is_same_v<T, float>)
     {
@@ -225,7 +225,7 @@ void launch_core_2s(
     int* d_lda_1, int* d_ldb_1,
     T beta_1, T** d_C_array_1, int* d_ldc_1,
     bool C0_left, int batch_count, const int* segment_sizes,
-    ddla::deviceStream_t stream)
+    ddla::runtimeStream_t stream)
 {
     if constexpr (std::is_same_v<T, float>)
     {
@@ -335,7 +335,7 @@ void gemmVbatched(
         transA, transB, maximum, d_m, d_n, d_k,
         alpha, d_A_array, d_lda, d_B_array, d_ldb,
         beta, d_C_array, d_ldc, batch_count, handle->stream);
-    DEVICE_CHECK(deviceGetLastError());
+    RUNTIME_CHECK(runtimeGetLastError());
 }
 
 template <typename T>
@@ -398,7 +398,7 @@ void gemmVbatched2s(
         d_AB_array_1, d_lda_1, d_ldb_1,
         beta_1, d_C_array_1, d_ldc_1,
         C0_left, batch_count, segment_sizes, handle->stream);
-    DEVICE_CHECK(deviceGetLastError());
+    RUNTIME_CHECK(runtimeGetLastError());
 }
 
 #define INSTANTIATE_VBATCHED(type)                                              \

@@ -3,12 +3,13 @@
 #include <vector>
 #include <algorithm>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 #include <ddla/gemm.h>
 #include <ddla/trsm.h>
 #include <ddla/getrf.h>
 #include <ddla/laswp.h>
-#include <ddla/ddla_comm.h>
+#include "comm_traits.h"
 
 namespace ddla {
 
@@ -37,14 +38,8 @@ void pgetrf_bpiv(
 {
     assert(m <= array_descA.m()&& n <= array_descA.n());
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pgetrf_bpiv");
 
-    #ifdef DDLA_USE_CCL
-    ncclComm_t row_nccl_comm = ddla_handle->nccl_row_comm;
-    ncclComm_t col_nccl_comm = ddla_handle->nccl_col_comm;
-    #else
-    MPI_Comm row_nccl_comm = ddla_handle->row_comm;
-    MPI_Comm col_nccl_comm = ddla_handle->col_comm;
-    #endif
 
     int nprows = array_descA.nprows();
     int npcols = array_descA.npcols();
@@ -58,7 +53,7 @@ void pgetrf_bpiv(
     int m_loc = num_loc(m, array_descA.mb(), myprow, array_descA.irsrc(), nprows);
     int n_loc = num_loc(n, array_descA.nb(), mypcol, array_descA.icsrc(), npcols);
 
-    deviceStream_t stream = ddla_handle->stream;
+    runtimeStream_t stream = ddla_handle->stream;
     deblasHandle_t blasH = ddla_handle->blasH;
     desolverHandle_t solverH = ddla_handle->solverH;
 
@@ -68,14 +63,14 @@ void pgetrf_bpiv(
 
     // Temp buffers
     T* d_temp_block;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_block, sizeof(T) * nb * nb, stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_block, sizeof(T) * nb * nb, stream));
     T* d_temp_L;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_L, sizeof(T) * m_loc * nb, stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_L, sizeof(T) * m_loc * nb, stream));
     T* d_temp_U;
-    DEVICE_CHECK(deviceMallocAsync(&d_temp_U, sizeof(T) * nb * n_loc, stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_U, sizeof(T) * nb * n_loc, stream));
 
     int* d_info = nullptr;
-    DEVICE_CHECK(deviceMallocAsync(&d_info, sizeof(int), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_info, sizeof(int), stream));
 
     info = 0;
 
@@ -97,8 +92,8 @@ void pgetrf_bpiv(
 
         if (myprow == owner_row && mypcol == owner_col) {
             SOLVER_CHECK(desolverGetrf(solverH, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info));
-            DEVICE_CHECK(deviceMemcpyAsync(&info, d_info, sizeof(int), deviceMemcpyDeviceToHost, stream));
-            DEVICE_CHECK(deviceStreamSynchronize(stream));
+            RUNTIME_CHECK(runtimeMemcpyAsync(&info, d_info, sizeof(int), runtimeMemcpyDeviceToHost, stream));
+            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
         }
 
         MPI_CHECK(MPI_Bcast(&info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
@@ -123,17 +118,17 @@ void pgetrf_bpiv(
         // Step 3: Extract/broadcast the factored diagonal block (L1+U1)
         // ================================================================
         if (myprow == owner_row && mypcol == owner_col) {
-            DEVICE_CHECK(deviceMemcpy2DAsync(
+            RUNTIME_CHECK(runtimeMemcpy2DAsync(
                 d_temp_block, nb_real * sizeof(T),
                 d_A + i_loc + j_loc * lld, lld * sizeof(T),
                 nb_real * sizeof(T), nb_real,
-                deviceMemcpyDeviceToDevice, stream
+                runtimeMemcpyDeviceToDevice, stream
             ));
         }
         int right_panel_col_start = (j_loc >= 0) ? (j_loc + nb_real) : mm_col_start;
         if (myprow == owner_row) {
-            CCL_CHECK(cclBcast(d_temp_block, nb_real * nb_real, owner_col, row_nccl_comm, stream));
-            CCL_CHECK(cclBcast(d_ipiv + mm_row_start, nb_real, owner_col, row_nccl_comm, stream));
+            commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
+            commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
             // Apply row swaps to the local right panel columns [n_s+nb_real, n).
             // The pivoted rows in the local matrix start at i_loc.
             // Number of local columns in the right panel: those from n_s+nb_real to n-1.
@@ -171,11 +166,11 @@ void pgetrf_bpiv(
                     d_temp_block, nb_real,
                     d_right_panel, lld
                 ));
-                DEVICE_CHECK(deviceMemcpy2DAsync(
+                RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_U, nb_real * sizeof(T),
                     d_right_panel, lld * sizeof(T),
                     nb_real * sizeof(T), n_loc - right_panel_col_start,
-                    deviceMemcpyDeviceToDevice, stream
+                    runtimeMemcpyDeviceToDevice, stream
                 ));
             }
             
@@ -185,7 +180,7 @@ void pgetrf_bpiv(
         // ================================================================
         int left_panel_row_start = (i_loc >= 0) ? (i_loc + nb_real) : mm_row_start;
         if(mypcol == owner_col){
-            CCL_CHECK(cclBcast(d_temp_block, nb_real * nb_real, owner_row, col_nccl_comm, stream));
+            commBcast(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
             if(m_loc > left_panel_row_start){
                 T* d_left_panel = d_A + mm_col_start * lld + left_panel_row_start;
                 BLAS_CHECK(deblasTrsm(
@@ -196,19 +191,19 @@ void pgetrf_bpiv(
                     d_temp_block, nb_real,
                     d_left_panel, lld
                 ));
-                DEVICE_CHECK(deviceMemcpy2DAsync(
+                RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
                     d_left_panel, lld * sizeof(T),
                     (m_loc - left_panel_row_start) * sizeof(T), nb_real,
-                    deviceMemcpyDeviceToDevice, stream
+                    runtimeMemcpyDeviceToDevice, stream
                 ));
             }
         }
         if(n_loc > right_panel_col_start) {
-            CCL_CHECK(cclBcast(d_temp_U, nb_real * (n_loc - right_panel_col_start), owner_row, col_nccl_comm, stream));
+            commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
         }
         if(m_loc > left_panel_row_start){
-            CCL_CHECK(cclBcast(d_temp_L, (m_loc - left_panel_row_start) * nb_real, owner_col, row_nccl_comm, stream));
+            commBcast(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
         }
 
         // ================================================================
@@ -229,7 +224,7 @@ void pgetrf_bpiv(
             ));
         }
 
-        DEVICE_CHECK(deviceStreamSynchronize(stream));
+        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
 
         // Advance local pointers for next panel
         if (i_loc >= 0)
@@ -238,11 +233,11 @@ void pgetrf_bpiv(
             mm_col_start += nb;
     }
 
-    DEVICE_CHECK(deviceFreeAsync(d_temp_block, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_temp_L, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_temp_U, stream));
-    DEVICE_CHECK(deviceFreeAsync(d_info, stream));
-    DEVICE_CHECK(deviceStreamSynchronize(stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_temp_block, stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_temp_L, stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
+    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
 }
 
 // Explicit instantiations

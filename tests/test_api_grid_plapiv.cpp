@@ -5,8 +5,10 @@ using namespace api_grid_test;
 void check_plapiv(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
-    const int m = round_up_for_grid(base.m, nb, handle->nprows_);
-    const int n = round_up_for_grid(base.n, nb, handle->npcols_);
+    int nprows = 0, npcols = 0;
+    ddla_get_grid_dims(handle, nprows, npcols);
+    const int m = round_up_for_grid(base.m, nb, nprows);
+    const int n = round_up_for_grid(base.n, nb, npcols);
     ddla::DdlaDesc desc(handle);
     desc.init(m, n, nb, nb, 0, 0);
     auto base_value = [](int i, int j){ return Complex(10.0 * i + j, -0.5 * i + 0.25 * j); };
@@ -22,7 +24,7 @@ void check_plapiv(const ddla::DdlaHandle_t& handle, const Shape& base)
     if(row0_loc >= 0){
         ipiv[row0_loc] = m;
     }
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    check_ddla_sync(handle);
     ddla::plapiv('F', 'R', 'C', m, n, d_A.ptr, desc, ipiv.data(), desc, nullptr);
     auto out = download(handle, d_A.ptr, h_A.size());
     const double err = local_max_error<Complex>(desc, out, [&](int i, int j){

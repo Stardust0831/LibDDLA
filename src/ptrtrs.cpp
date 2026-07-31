@@ -1,7 +1,8 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 #include <ddla/trsm.h>
 #include <ddla/transport_block.h>
 #include <ddla/ddla_comm.h>
@@ -21,6 +22,7 @@ void ptrtrs(
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "ptrtrs");
     
     assert(array_descA.m() == array_descA.n());
     assert(array_descA.mb()==array_descA.nb());
@@ -46,7 +48,7 @@ void ptrtrs(
     MPI_Comm row_comm=ddla_handle->row_comm;
     MPI_Comm col_comm=ddla_handle->col_comm;
     #endif
-    deviceStream_t stream=ddla_handle->stream;
+    runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
 
     deblasFillMode_t uplo_device = (uplo == 'U') ? DEBLAS_FILL_MODE_UPPER : DEBLAS_FILL_MODE_LOWER;
@@ -65,9 +67,9 @@ void ptrtrs(
     
     // double start_time = MPI_Wtime();
     T* d_block_diag,*d_block_A,*d_block_B;
-    DEVICE_CHECK(deviceMallocAsync(&d_block_diag, nb * nb * sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync(&d_block_B, nb * array_descB.n_loc() * sizeof(T), stream));
-    DEVICE_CHECK(deviceMallocAsync(&d_block_A, std::max(array_descA.m_loc(), array_descA.n_loc()) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_block_diag, nb * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_block_B, nb * array_descB.n_loc() * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_block_A, std::max(array_descA.m_loc(), array_descA.n_loc()) * nb * sizeof(T), stream));
 
     #ifdef DDLA_USE_GPU_CPU_TUNNEL
     std::vector<T> h_temp(nb * std::max(array_descB.n_loc(), array_descA.m_loc()));
@@ -109,14 +111,14 @@ void ptrtrs(
         // printf("owner_row:%d,owner_col:%d\n",owner_row,owner_col);
 
         if(array_descA.myprow() == owner_row && array_descA.mypcol() == owner_col){
-            DEVICE_CHECK(deviceMemcpy2DAsync(
+            RUNTIME_CHECK(runtimeMemcpy2DAsync(
                 d_block_diag, nb_real * sizeof(T),
                 d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
                 nb_real * sizeof(T), nb_real,
-                deviceMemcpyDeviceToDevice, stream
+                runtimeMemcpyDeviceToDevice, stream
             ));
         }
-        DEVICE_CHECK(deviceStreamSynchronize(stream));
+        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
         // 广播当前块行
         if(array_descA.myprow() == owner_row){
             #ifdef DDLA_USE_GPU_CPU_TUNNEL
@@ -185,7 +187,7 @@ void ptrtrs(
             length_block_A = array_descA.m_loc() - mm_row_start - mm_row_step;
             B_offset = mm_row_start + mm_row_step;
         }
-        DEVICE_CHECK(deviceStreamSynchronize(stream));
+        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
         if(length_block_A > 0){
             BLAS_CHECK(deblasGemm(
                 blasH, trans_device, DEBLAS_OP_N, 
@@ -197,11 +199,11 @@ void ptrtrs(
                 d_B + B_offset, lldB
             ));
         }
-        DEVICE_CHECK(deviceStreamSynchronize(stream));
+        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
     }
-    DEVICE_CHECK(deviceFreeAsync(d_block_A,stream));
-    DEVICE_CHECK(deviceFreeAsync(d_block_B,stream));
-    DEVICE_CHECK(deviceFreeAsync(d_block_diag,stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_block_A,stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_block_B,stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_block_diag,stream));
 }
 
 

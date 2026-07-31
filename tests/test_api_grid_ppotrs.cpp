@@ -20,11 +20,11 @@ void check_ppotrs(const ddla::DdlaHandle_t& handle, const Shape& base)
     DeviceBuffer<Complex> d_B(handle, h_B.size());
     upload(handle, d_A.ptr, h_A);
     upload(handle, d_B.ptr, h_B);
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    check_ddla_sync(handle);
 
     int info = -1;
     const bool is_nega = ddla::ppotrf('L', n, d_A.ptr, 1, 1, descA, info);
-    if(info != 0 || is_nega) MPI_Abort(handle->comm, 1);
+    if(info != 0 || is_nega) MPI_Abort(ddla_get_communicator(handle), 1);
     ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega, -1);
     check_solution(handle, descB, d_B.ptr, h_B.size(), "ppotrs", 5e-9);
 }

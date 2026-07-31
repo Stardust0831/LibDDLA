@@ -1,14 +1,26 @@
-# LibDDLA — Distributed Dense Linear Algebra on GPUs
+# LibDDLA — Distributed Dense Linear Algebra
 
-LibDDLA 0.0.4 is a C++17 template library for **distributed dense linear algebra on
-GPU devices**. It provides ScaLAPACK-style APIs with 2D block-cyclic data
-distribution over an MPI process grid, with a unified CUDA or HIP backend
-selected at build time. All functions live in the `ddla` namespace.
+LibDDLA 0.0.4 is a C++17 template library for **distributed dense linear algebra**.
+It provides ScaLAPACK-style APIs with 2D block-cyclic data distribution over an
+MPI process grid, with a CPU (OpenBLAS/vendor BLAS), CUDA, or HIP backend
+selected at build time, including an optional dual CPU+GPU build that compiles
+both backends into one library and selects between them per handle at
+runtime. All functions live in the `ddla` namespace.
 
 ## Key facts and caveats
 
-- **One backend only.** Exactly one of `DDLA_USE_CUDA` or `DDLA_USE_HIP` must be
-  enabled. There is no CPU-only backend.
+- **Backend selection.** Enable `DDLA_USE_CPU`, `DDLA_USE_CUDA`, or
+  `DDLA_USE_HIP` (at least one is required; `DDLA_USE_CUDA` and `DDLA_USE_HIP`
+  are mutually exclusive). Combining `DDLA_USE_CPU` with `DDLA_USE_CUDA` or
+  `DDLA_USE_HIP` builds a **dual** library containing both backends,
+  selectable per `DdlaHandle_t` at runtime.
+- **The CPU-only backend has a reduced surface.** It currently covers the
+  BLAS-1/2/3 wrappers (`gemm`, `scal`, `omatcopy`, `axpy`, `iamax`, `geru`) and
+  `pgemm`. The distributed factorization/solve routines (`pgetrf`, `pgesv`,
+  `ppotrf`, `pposv`, `ptran`, batched GEMM, etc.) are GPU-only and require
+  `DDLA_USE_CUDA` or `DDLA_USE_HIP` (alone or in a dual build).
+  `DDLA_USE_CCL` and `DDLA_USE_GPU_CPU_TUNNEL` are not supported with a
+  CPU-only build, since there is no GPU backend to communicate with.
 - **Supported scalar types** are `float`, `double`, `std::complex<float>`, and
   `std::complex<double>`. Not every routine is instantiated for all four types;
   notably the standard distributed Cholesky family (`ppotrf` / `ppotrs` /
@@ -25,6 +37,11 @@ selected at build time. All functions live in the `ddla` namespace.
 - **CMake** ≥ 3.13
 - **C++17** compiler
 - **MPI** (Open MPI or MPICH)
+- **CPU backend:** a BLAS library (e.g. OpenBLAS) providing the standard
+  Fortran `?gemm`/`?scal`/`?axpy`/`i?amax`/`?ger`/`?geru` symbols and
+  `cblas_?omatcopy`. Point CMake at it with
+  `-DDDLA_CPU_BLAS_LIBRARY=/path/to/libopenblas.so`, or leave it unset to fall
+  back to `find_package(BLAS REQUIRED)`.
 - **CUDA backend:** CUDA Toolkit with cuBLAS, cuSOLVER, cuRAND
 - **HIP backend:** ROCm / DTK with hipBLAS, hipSOLVER, hipRAND, and a CMake
   version with first-class HIP language support
@@ -45,6 +62,18 @@ Architecture values (`CMAKE_CUDA_ARCHITECTURES`, `CMAKE_HIP_ARCHITECTURES`)
 are hardware-specific — use the SM number for your NVIDIA GPU (e.g. `"80"` for
 A100, `"70"` for V100) or the gfx target for your AMD GPU (e.g. `"gfx90a"` for
 MI200 series).
+
+### CPU-only
+
+```bash
+cmake -S . -B build-cpu                                 \
+  -DDDLA_USE_CPU=ON                                      \
+  -DDDLA_CPU_BLAS_LIBRARY=/path/to/libopenblas.so         \
+  -DBUILD_TESTS=ON                                        \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install"
+cmake --build build-cpu -j
+cmake --build build-cpu --target install
+```
 
 ### CUDA
 
@@ -72,23 +101,44 @@ cmake --build build-hip -j
 cmake --build build-hip --target install
 ```
 
+### Dual CPU + GPU
+
+Combine `DDLA_USE_CPU` with `DDLA_USE_CUDA` (or `DDLA_USE_HIP`) to build both
+backends into one library, selectable per `DdlaHandle_t` at runtime:
+
+```bash
+cmake -S . -B build-dual                                \
+  -DDDLA_USE_CPU=ON                                      \
+  -DDDLA_USE_CUDA=ON                                      \
+  -DDDLA_CPU_BLAS_LIBRARY=/path/to/libopenblas.so         \
+  -DCMAKE_CUDA_ARCHITECTURES="80"                         \
+  -DBUILD_TESTS=ON                                        \
+  -DDDLA_USE_CCL=ON                                       \
+  -DCMAKE_INSTALL_PREFIX="$PWD/install"
+cmake --build build-dual -j
+cmake --build build-dual --target install
+```
+
 The installed layout uses `include/ddla/*.h` and the platform library directory
 (normally `lib/libddla.so` on Linux). There is no
 CMake package config installed, so downstream builds must add the install
 prefix to their header and library search paths manually, or locate the library
 with CMake's `find_library`. Downstream translation units must also define the
-same backend macro used to build LibDDLA (`DDLA_USE_CUDA` or `DDLA_USE_HIP`).
+same backend macro(s) used to build LibDDLA (`DDLA_USE_CPU`, `DDLA_USE_CUDA`,
+and/or `DDLA_USE_HIP`, matching the build).
 
 ## CMake options
 
 | Option                     | Default | Description |
 |---------------------------|---------|-------------|
 | `BUILD_TESTS`             | OFF     | Build test executables |
+| `DDLA_USE_CPU`            | OFF     | Build with the CPU backend (OpenBLAS/vendor BLAS); combine with `DDLA_USE_CUDA`/`DDLA_USE_HIP` for a dual CPU+GPU build |
 | `DDLA_USE_CUDA`           | OFF     | Build for NVIDIA CUDA GPUs |
 | `DDLA_USE_HIP`            | OFF     | Build for AMD HIP/ROCm GPUs |
+| `DDLA_CPU_BLAS_LIBRARY`   | (empty) | Path to a BLAS library for the CPU backend; falls back to `find_package(BLAS REQUIRED)` if unset |
 | `DDLA_USE_DEBUG`          | OFF     | Enable `DDLA_USE_DEBUG` preprocessor macro |
-| `DDLA_USE_CCL`            | OFF     | Use NCCL (CUDA) or RCCL (HIP) for device collectives |
-| `DDLA_USE_GPU_CPU_TUNNEL` | OFF     | Route communication through host staging buffers (D2H → MPI → H2D) |
+| `DDLA_USE_CCL`            | OFF     | Use NCCL (CUDA) or RCCL (HIP) for device collectives (GPU backend required) |
+| `DDLA_USE_GPU_CPU_TUNNEL` | OFF     | Route communication through host staging buffers (D2H → MPI → H2D) (GPU backend required) |
 
 When both `DDLA_USE_CCL` and `DDLA_USE_GPU_CPU_TUNNEL` are enabled, the
 GPU-CPU tunnel path takes precedence for communication.  NCCL/RCCL libraries

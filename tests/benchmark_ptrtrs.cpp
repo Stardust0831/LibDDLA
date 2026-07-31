@@ -9,7 +9,7 @@
 
 #include <ddla/ddla.h>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
 
 using namespace ddla;
 
@@ -44,9 +44,9 @@ void fill_local(int rows, int cols, const DdlaDesc& desc, Complex* d_A,
             local[iloc + jloc * desc.lld()] = value(i, j);
         }
     }
-    DEVICE_CHECK(deviceMemcpyAsync(d_A, local.data(), local.size() * sizeof(Complex),
-                                  deviceMemcpyHostToDevice, handle->stream));
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    RUNTIME_CHECK(runtimeMemcpyAsync(d_A, local.data(), local.size() * sizeof(Complex),
+                                  runtimeMemcpyHostToDevice, handle->stream));
+    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
 }
 
 double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
@@ -60,10 +60,10 @@ double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
     const size_t b_nelem = static_cast<size_t>(descB.lld()) * descB.n_loc();
     Complex* d_A = nullptr;
     Complex* d_B = nullptr;
-    DEVICE_CHECK(deviceMallocAsync(reinterpret_cast<void**>(&d_A),
+    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A),
                                   std::max<size_t>(1, a_nelem) * sizeof(Complex),
                                   handle->stream));
-    DEVICE_CHECK(deviceMallocAsync(reinterpret_cast<void**>(&d_B),
+    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_B),
                                   std::max<size_t>(1, b_nelem) * sizeof(Complex),
                                   handle->stream));
     fill_local(n, n, descA, d_A, handle, [&](int i, int j){ return lower_value(i, j, n); });
@@ -72,16 +72,16 @@ double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
     ptrtrs('L', 'L', 'N', 'N', n, nrhs, d_A, descA, d_B, descB);
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
 
     double max_elapsed = 0.0;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, handle->comm);
 
-    DEVICE_CHECK(deviceFreeAsync(d_A, handle->stream));
-    DEVICE_CHECK(deviceFreeAsync(d_B, handle->stream));
-    DEVICE_CHECK(deviceStreamSynchronize(handle->stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
+    RUNTIME_CHECK(runtimeFreeAsync(d_B, handle->stream));
+    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
 
     if(handle->myid == 0){
         std::cout << "RESULT n=" << n

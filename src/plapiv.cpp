@@ -1,9 +1,10 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 #include <ddla/swap.h>
-#include <ddla/ddla_comm.h>
+#include "comm_traits.h"
 
 namespace ddla{
 
@@ -17,6 +18,7 @@ void plapiv(
 )
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "plapiv");
     
     assert(direc=='F');
     assert(rowcol=='R');
@@ -31,19 +33,14 @@ void plapiv(
     int lldA = array_descA.lld();
 
     T*temp_A_target;
-    DEVICE_CHECK(deviceMallocAsync(&temp_A_target, sizeof(T)*array_descA.n_loc(), ddla_handle->stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&temp_A_target, sizeof(T)*array_descA.n_loc(), ddla_handle->stream));
 
-    deviceStream_t stream = ddla_handle->stream;
+    runtimeStream_t stream = ddla_handle->stream;
     deblasHandle_t blasH = ddla_handle->blasH;
     
 
     // 初始化 NCCL
     MPI_Comm col_comm = ddla_handle->col_comm;
-    #ifdef DDLA_USE_CCL
-    ncclComm_t col_nccl_comm=ddla_handle->nccl_col_comm;
-    #else
-    MPI_Comm col_nccl_comm=ddla_handle->col_comm;
-    #endif
     int i_loc;
     int owner_row;
     int target_row;
@@ -68,19 +65,19 @@ void plapiv(
                 BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + i_loc, lldA, d_A + target_i_loc, lldA));
         }else{
             if(myprow==target_row){
-                DEVICE_CHECK(deviceMemcpy2DAsync(
+                RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     temp_A_target, 1 * sizeof(T),
                     d_A + target_i_loc, lldA * sizeof(T),
                     1 * sizeof(T), array_descA.n_loc(),
-                    deviceMemcpyDeviceToDevice, stream
+                    runtimeMemcpyDeviceToDevice, stream
                 ));
-                CCL_CHECK(cclSend(temp_A_target, array_descA.n_loc(), owner_row, col_nccl_comm, stream));
-                CCL_CHECK(cclRecv(temp_A_target, array_descA.n_loc(), owner_row, col_nccl_comm, stream));
+                commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), owner_row);
+                commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), owner_row);
                 BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + target_i_loc, lldA, temp_A_target, 1));
             }else if(myprow==owner_row){
-                CCL_CHECK(cclRecv(temp_A_target, array_descA.n_loc(), target_row, col_nccl_comm, stream));
+                commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), target_row);
                 BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + i_loc, lldA, temp_A_target, 1));
-                CCL_CHECK(cclSend(temp_A_target, array_descA.n_loc(), target_row, col_nccl_comm, stream));
+                commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), target_row);
             }
         }
         // pswap(
@@ -90,8 +87,8 @@ void plapiv(
         // );
     }
 
-    DEVICE_CHECK(deviceFreeAsync(temp_A_target, stream));
-    DEVICE_CHECK(deviceStreamSynchronize(stream));
+    RUNTIME_CHECK(runtimeFreeAsync(temp_A_target, stream));
+    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
 
 }
 

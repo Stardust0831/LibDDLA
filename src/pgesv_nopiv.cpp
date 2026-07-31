@@ -1,6 +1,7 @@
 #include <ddla/ddla.h>
 #include <cassert>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 
 namespace ddla {
 
@@ -26,6 +27,8 @@ void pgesv_nopiv(
     T* d_B, const DdlaDesc& array_descB
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pgesv_nopiv");
     int info = 1;
     pgetrf_nopiv(n, n, d_A, array_descA, info);
     if (info != 0) {

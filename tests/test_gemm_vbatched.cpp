@@ -100,10 +100,10 @@ class DeviceArray
     {
         if (host.empty())
             return;
-        ddla::DEVICE_CHECK(ddla::deviceMalloc(&pointer_, host.size() * sizeof(T)));
-        ddla::DEVICE_CHECK(deviceMemcpy(
+        ddla::RUNTIME_CHECK(ddla::runtimeMalloc(&pointer_, host.size() * sizeof(T)));
+        ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
             pointer_, host.data(), host.size() * sizeof(T),
-            ddla::deviceMemcpyHostToDevice));
+            ddla::runtimeMemcpyHostToDevice));
     }
 
     DeviceArray(std::size_t count, const T& initial)
@@ -123,7 +123,7 @@ class DeviceArray
     {
         if (this != &other)
         {
-            ddla::DEVICE_CHECK(ddla::deviceFree(pointer_));
+            ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer_));
             pointer_ = std::exchange(other.pointer_, nullptr);
         }
         return *this;
@@ -131,7 +131,7 @@ class DeviceArray
 
     ~DeviceArray()
     {
-        ddla::DEVICE_CHECK(ddla::deviceFree(pointer_));
+        ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer_));
     }
 
     T* data() const
@@ -144,9 +144,9 @@ class DeviceArray
         std::vector<T> host(count);
         if (count != 0)
         {
-            ddla::DEVICE_CHECK(deviceMemcpy(
+            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
                 host.data(), pointer_, count * sizeof(T),
-                ddla::deviceMemcpyDeviceToHost));
+                ddla::runtimeMemcpyDeviceToHost));
         }
         return host;
     }
@@ -164,21 +164,21 @@ class DeviceMatrixBatch
         pointers_.resize(matrices.size(), nullptr);
         for (std::size_t i = 0; i < matrices.size(); ++i)
         {
-            ddla::DEVICE_CHECK(ddla::deviceMalloc(
+            ddla::RUNTIME_CHECK(ddla::runtimeMalloc(
                 &pointers_[i], matrices[i].size() * sizeof(T)));
-            ddla::DEVICE_CHECK(deviceMemcpy(
+            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
                 pointers_[i], matrices[i].data(),
                 matrices[i].size() * sizeof(T),
-                ddla::deviceMemcpyHostToDevice));
+                ddla::runtimeMemcpyHostToDevice));
         }
         if (!pointers_.empty())
         {
-            ddla::DEVICE_CHECK(ddla::deviceMalloc(
+            ddla::RUNTIME_CHECK(ddla::runtimeMalloc(
                 &device_pointers_, pointers_.size() * sizeof(T*)));
-            ddla::DEVICE_CHECK(deviceMemcpy(
+            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
                 device_pointers_, pointers_.data(),
                 pointers_.size() * sizeof(T*),
-                ddla::deviceMemcpyHostToDevice));
+                ddla::runtimeMemcpyHostToDevice));
         }
     }
 
@@ -187,9 +187,9 @@ class DeviceMatrixBatch
 
     ~DeviceMatrixBatch()
     {
-        ddla::DEVICE_CHECK(ddla::deviceFree(device_pointers_));
+        ddla::RUNTIME_CHECK(ddla::runtimeFree(device_pointers_));
         for (T* pointer : pointers_)
-            ddla::DEVICE_CHECK(ddla::deviceFree(pointer));
+            ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer));
     }
 
     T** data() const
@@ -204,9 +204,9 @@ class DeviceMatrixBatch
         for (std::size_t i = 0; i < sizes.size(); ++i)
         {
             result[i].resize(sizes[i]);
-            ddla::DEVICE_CHECK(deviceMemcpy(
+            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
                 result[i].data(), pointers_[i], sizes[i] * sizeof(T),
-                ddla::deviceMemcpyDeviceToHost));
+                ddla::runtimeMemcpyDeviceToHost));
         }
         return result;
     }
@@ -286,8 +286,8 @@ double run_standard_case(
             alpha, const_cast<const T* const*>(d_A.data()), d_lda.data(),
             const_cast<const T* const*>(d_B.data()), d_ldb.data(),
             beta, d_C.data(), d_ldc.data(), 3, handle);
-        ddla::DEVICE_CHECK(ddla::deviceStreamSynchronize(
-            static_cast<ddla::deviceStream_t>(
+        ddla::RUNTIME_CHECK(ddla::runtimeStreamSynchronize(
+            static_cast<ddla::runtimeStream_t>(
                 ddla::ddla_get_stream(handle))));
 
         const auto actual = d_C.download(c_sizes);
@@ -417,9 +417,9 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
     };
 
     invoke(T{}, segments);
-    ddla::DEVICE_CHECK(
-        ddla::deviceStreamSynchronize(
-            static_cast<ddla::deviceStream_t>(ddla::ddla_get_stream(handle))));
+    ddla::RUNTIME_CHECK(
+        ddla::runtimeStreamSynchronize(
+            static_cast<ddla::runtimeStream_t>(ddla::ddla_get_stream(handle))));
 
     if constexpr (std::is_same_v<T, double>)
     {

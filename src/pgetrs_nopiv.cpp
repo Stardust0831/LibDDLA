@@ -1,6 +1,7 @@
 #include <ddla/ddla.h>
 #include <cassert>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 
 namespace ddla {
 
@@ -30,6 +31,8 @@ void pgetrs_nopiv(
     T* d_B, const DdlaDesc& array_descB
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "pgetrs_nopiv");
     assert(trans == 'N');
 
     // Forward solve: L * Y = B (L lower, unit diagonal)

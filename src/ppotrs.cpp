@@ -1,7 +1,8 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla/ddla_stream.h>
+#include "ddla_stream_impl.h"
+#include "require_gpu.h"
 namespace ddla{
 
 template <typename T>
@@ -13,6 +14,8 @@ void ppotrs(
     bool is_nega, int location
 )
 {
+    DdlaHandle_t ddla_handle = array_descA.ddla_handle();
+    detail::require_gpu_backend(ddla_handle, "ppotrs");
     assert(location == -1);
     assert(trans == 'N');
     assert(side == 'L');
@@ -25,11 +28,11 @@ void ppotrs(
     //     int j_loc = array_descA.indx_g2l_c(n - 1);
     //     if(i_loc >= 0 && j_loc >= 0){
     //         DdlaHandle_t ddla_handle = array_descA.ddla_handle();
-    //         DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
+    //         RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     //         T correction;
-    //         DEVICE_CHECK(deviceMemcpy(&correction, d_A + i_loc + j_loc * array_descA.lld(), sizeof(T), deviceMemcpyDeviceToHost));
+    //         RUNTIME_CHECK(runtimeMemcpy(&correction, d_A + i_loc + j_loc * array_descA.lld(), sizeof(T), runtimeMemcpyDeviceToHost));
     //         correction = -correction;
-    //         DEVICE_CHECK(deviceMemcpy(d_A + i_loc + j_loc * array_descA.lld(), &correction, sizeof(T), deviceMemcpyHostToDevice));
+    //         RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * array_descA.lld(), &correction, sizeof(T), runtimeMemcpyHostToDevice));
     //     }
     // }
     ptrtrs(
@@ -41,12 +44,11 @@ void ppotrs(
         int i_loc = array_descA.indx_g2l_r(n - 1);
         int j_loc = array_descA.indx_g2l_c(n - 1);
         if(i_loc >= 0 && j_loc >= 0){
-            DdlaHandle_t ddla_handle = array_descA.ddla_handle();
-            DEVICE_CHECK(deviceStreamSynchronize(ddla_handle->stream));
+            RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
             T correction;
-            DEVICE_CHECK(deviceMemcpy(&correction, d_A + i_loc + j_loc * array_descA.lld(), sizeof(T), deviceMemcpyDeviceToHost));
+            RUNTIME_CHECK(runtimeMemcpy(&correction, d_A + i_loc + j_loc * array_descA.lld(), sizeof(T), runtimeMemcpyDeviceToHost));
             correction = -correction;
-            DEVICE_CHECK(deviceMemcpy(d_A + i_loc + j_loc * array_descA.lld(), &correction, sizeof(T), deviceMemcpyHostToDevice));
+            RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * array_descA.lld(), &correction, sizeof(T), runtimeMemcpyHostToDevice));
         }
     }
     ptrtrs(
