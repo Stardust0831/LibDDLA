@@ -142,35 +142,26 @@ void pgemm(
     const int m_loc_B = num_loc((transb == 'N') ? k : n, descB.mb(), descB.myprow(), descB.irsrc(), descB.nprows());
     const int n_loc_B = num_loc((transb == 'N') ? n : k, descB.nb(), descB.mypcol(), descB.icsrc(), descB.npcols());
 
-    // ---- RAII scratch-buffer guard (F3) -------------------------------------
-    // Owns one stream-scratch (GPU) or heap (CPU) buffer and frees it via
-    // runtimeFree on scope exit -- including when unwinding through an
-    // exception thrown by a later runtimeMalloc, transport_block, gemm, or
-    // scal call. runtimeFree itself never throws (the GPU path calls
-    // RUNTIME_CHECK, which exits the process rather than throwing), so this
-    // destructor is safe to run during unwinding.
-    struct TempBuf {
-        T* ptr = nullptr;
-        const DdlaHandle_t& handle;
-        explicit TempBuf(const DdlaHandle_t& hh) : handle(hh) {}
-        ~TempBuf() { if (ptr) RUNTIME_CHECK<Backend>(runtimeFree<Backend>(ptr)); }
-        TempBuf(const TempBuf&) = delete;
-        TempBuf& operator=(const TempBuf&) = delete;
-        T* get() const { return ptr; }
-    };
-
+    // Scratch buffers (GPU stream-scratch or CPU heap) for the SUMMA panel
+    // pipeline, freed explicitly below. runtimeMalloc/runtimeFree never throw
+    // -- RUNTIME_CHECK calls exit(EXIT_FAILURE) on failure instead -- and the
+    // transport_block/gemm/scal calls below only throw for a null handle or a
+    // backend mismatch, neither of which can occur here since `h` and
+    // `Backend` are already validated above and passed through unchanged. So
+    // there is no exception path between these allocations and the frees at
+    // the end of this function.
     const int buffer_max = 2;
-    TempBuf d_A_temp[buffer_max] = { TempBuf(h), TempBuf(h) };
-    TempBuf d_B_temp[buffer_max] = { TempBuf(h), TempBuf(h) };
+    T* d_A_temp[buffer_max] = {nullptr, nullptr};
+    T* d_B_temp[buffer_max] = {nullptr, nullptr};
     int count_a = ((transa == 'N') ? std::max(m_loc_A, m_loc_C) : std::max(n_loc_A, m_loc_C)) * nb;
     int count_b = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
     count_a = std::max(1, count_a);
     count_b = std::max(1, count_b);
     for (int i = 0; i < buffer_max; i++) {
         RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-            reinterpret_cast<void**>(&d_A_temp[i].ptr), count_a * sizeof(T)));
+            reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T)));
         RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-            reinterpret_cast<void**>(&d_B_temp[i].ptr), count_b * sizeof(T)));
+            reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T)));
     }
 
     int temp_buffer = 0;
@@ -197,7 +188,7 @@ void pgemm(
             sData_a, transa,
             m_a, n_a,
             A, g_ia, g_ja, descA,
-            d_A_temp[temp_buffer].get());
+            d_A_temp[temp_buffer]);
 
         char sData_b;
         int m_b, n_b, g_ib, g_jb;
@@ -218,7 +209,7 @@ void pgemm(
             sData_b, transb,
             m_b, n_b,
             B, g_ib, g_jb, descB,
-            d_B_temp[temp_buffer].get());
+            d_B_temp[temp_buffer]);
     };
 
     get_data(k_s);
@@ -238,8 +229,8 @@ void pgemm(
                 h, transa, 'N',
                 m_loc_C, n_loc_C, kb,
                 alpha,
-                d_A_temp[temp_buffer].get(), transa == 'N' ? static_cast<int>(m_loc_C) : kb,
-                d_B_temp[temp_buffer].get(), kb,
+                d_A_temp[temp_buffer], transa == 'N' ? static_cast<int>(m_loc_C) : kb,
+                d_B_temp[temp_buffer], kb,
                 gemm_beta,
                 C, lldC);
             first_gemm = false;
@@ -255,7 +246,10 @@ void pgemm(
         RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream));
         RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream_data));
     }
-    // d_A_temp / d_B_temp free themselves here via TempBuf's destructor.
+    for (int i = 0; i < buffer_max; i++) {
+        RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_A_temp[i]));
+        RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_B_temp[i]));
+    }
 }
 
 // ---------------------------------------------------------------------------
