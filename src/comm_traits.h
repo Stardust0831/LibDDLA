@@ -27,6 +27,13 @@ namespace ddla {
 // Each comm* wrapper is synchronous (blocking MPI plus a stream sync where
 // an async host<->device copy follows), so a buffer is never live across two
 // wrappers and reuse is safe.
+//
+// Caveats:
+//  - The buffers grow to the largest size seen and never shrink (a
+//    high-water mark), which is the intended allocation-amortization tradeoff.
+//  - The buffers are owned per DdlaHandle_t and are therefore NOT safe for
+//    concurrent host-side use of the same handle from multiple threads;
+//    LibDDLA handles are single-threaded per rank today.
 // ---------------------------------------------------------------------------
 namespace detail {
 

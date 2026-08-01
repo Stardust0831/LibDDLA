@@ -372,7 +372,7 @@ inline double local_max_error(const ddla::DdlaDesc& desc, const std::vector<T>& 
         for(int iloc = 0; iloc < desc.m_loc(); ++iloc){
             const int i = desc.indx_l2g_r(iloc);
             if(i >= desc.m()) continue;
-            err = std::max(err, std::abs(local[iloc + jloc * desc.lld()] - expected(i, j)));
+            err = std::max(err, static_cast<double>(std::abs(local[iloc + jloc * desc.lld()] - expected(i, j))));
         }
     }
     return err;

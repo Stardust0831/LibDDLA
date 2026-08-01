@@ -33,16 +33,23 @@ set(DDLA_TEST_NP 4 CACHE STRING "MPI ranks used by ctest-registered tests")
 # GPU tests get the "gpu" label, everything else "cpu", so CI can select
 # with `ctest -L cpu`.
 function(add_test_executable test_name)
+    # Optional second argument overrides the MPI rank count for tests with a
+    # fixed rank requirement (e.g. test_ptran needs 6, test_potrf_bottom_right
+    # needs 1).  Defaults to DDLA_TEST_NP.
+    set(_np "${DDLA_TEST_NP}")
+    if(ARGC GREATER 1)
+        set(_np "${ARGV1}")
+    endif()
     set(test_source "${CMAKE_CURRENT_SOURCE_DIR}/${test_name}.cpp")
     if(EXISTS "${test_source}")
         add_executable(${test_name} ${test_name}.cpp)
         target_link_libraries(${test_name} PRIVATE ddla_lib)
         apply_test_connector_defs(${test_name})
         add_test(NAME ${test_name}_mpi
-            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${DDLA_TEST_NP}
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${_np}
                     ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
                     ${MPIEXEC_POSTFLAGS})
-        set_tests_properties(${test_name}_mpi PROPERTIES PROCESSORS ${DDLA_TEST_NP})
+        set_tests_properties(${test_name}_mpi PROPERTIES PROCESSORS ${_np})
         if(DDLA_USE_CUDA OR DDLA_USE_HIP)
             set_tests_properties(${test_name}_mpi PROPERTIES LABELS gpu)
         else()
@@ -75,7 +82,7 @@ add_test_executable(test_random_generate)
 
 if(DDLA_USE_CUDA OR DDLA_USE_HIP)
     add_test_executable(test_pzgemm)
-    add_test_executable(test_ptran)
+    add_test_executable(test_ptran 6)
     add_test_executable(test_pdam)
     add_test_executable(test_getrf_nopiv)
     add_test_executable(test_pgetrf_nopiv)
@@ -105,8 +112,8 @@ if(DDLA_USE_CUDA OR DDLA_USE_HIP)
     add_test_executable(test_api_grid_ppotrf)
     add_test_executable(test_api_grid_ppotrs)
     add_test_executable(test_api_grid_pposv)
-    add_test_executable(test_potrf_bottom_right_block)
-    add_test_executable(test_potrf_bottom_right)
+    add_test_executable(test_potrf_bottom_right_block 1)
+    add_test_executable(test_potrf_bottom_right 1)
     add_test_executable(test_api_grid_ppotrf_bottom_right)
     add_test_executable(test_ppotrf_real)
     add_test_executable(test_pgemm_debug)
@@ -126,7 +133,7 @@ add_test(NAME test_backend_handle_mpi4
     COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:test_backend_handle>
             ${MPIEXEC_POSTFLAGS})
-set_tests_properties(test_backend_handle_mpi4 PROPERTIES PROCESSORS 4)
+set_tests_properties(test_backend_handle_mpi4 PROPERTIES PROCESSORS 4 LABELS cpu)
 
 if(DDLA_USE_CPU OR DDLA_DUAL_BUILD)
     add_executable(test_cpu_pgemm test_cpu_pgemm.cpp)
@@ -140,7 +147,7 @@ if(DDLA_USE_CPU OR DDLA_DUAL_BUILD)
         COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
                 ${MPIEXEC_PREFLAGS} $<TARGET_FILE:test_cpu_pgemm> 2 2
                 ${MPIEXEC_POSTFLAGS})
-    set_tests_properties(test_cpu_pgemm_mpi4 PROPERTIES PROCESSORS 4)
+    set_tests_properties(test_cpu_pgemm_mpi4 PROPERTIES PROCESSORS 4 LABELS cpu)
 
     set(DDLA_SCALAPACK_LIBRARY "" CACHE FILEPATH "Path to ScaLAPACK library for CPU benchmark")
     if(DDLA_SCALAPACK_LIBRARY)

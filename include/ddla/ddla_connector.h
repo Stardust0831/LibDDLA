@@ -626,8 +626,14 @@ static inline void MPI_CHECK(int status, const char* file = __builtin_FILE(), in
     {
         fprintf(stderr, "mpi error at %s:%d : %d\n", file, line, status);
         int mpi_initialized = 0;
+        int mpi_finalized = 0;
         MPI_Initialized(&mpi_initialized);
-        if (mpi_initialized) {
+        MPI_Finalized(&mpi_finalized);
+        // Abort the whole MPI job when possible so the other ranks do not
+        // hang waiting in collectives.  MPI_Abort is only valid between
+        // MPI_Init and MPI_Finalize; after finalization fall through to the
+        // throw below.
+        if (mpi_initialized && !mpi_finalized) {
             MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
         }
         throw std::runtime_error("ddla: MPI error at " + std::string(file) +
@@ -643,6 +649,15 @@ static inline void MPI_CHECK(int status, const char* file = __builtin_FILE(), in
 // a dual build where RuntimeTraits<CPU>::error_t (int) and
 // RuntimeTraits<GPU>::error_t (cudaError_t/hipError_t) are different types and
 // the untemplated version only ever accepted the GPU one.
+// Error-propagation model for the CHECK family below: on failure these throw
+// std::runtime_error (previously they called exit(EXIT_FAILURE)).  An
+// uncaught exception still terminates the rank, so uncaught it behaves like
+// the old exit(); but if a caller catches the exception on one rank only,
+// the remaining ranks can hang in MPI/NCCL/RCCL collectives.  Callers that
+// catch must therefore abort the whole job themselves (e.g. MPI_Abort) when
+// the error could leave peers blocked in a collective.  MPI_CHECK already
+// aborts the job directly (see above); the other CHECK macros cannot, since
+// they have no communicator available.
 template <DdlaBackend Backend = detail::local_backend_v>
 static inline void RUNTIME_CHECK(typename detail::RuntimeTraits<Backend>::error_t status,
                                  const char* file = __builtin_FILE(), int line = __builtin_LINE())
