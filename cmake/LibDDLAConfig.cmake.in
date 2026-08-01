@@ -1,0 +1,24 @@
+@PACKAGE_INIT@
+
+# LibDDLA CMake package configuration.
+#
+# Provides the imported target ddla::ddla (the shared library) plus the
+# transitive MPI dependency required by the public headers.
+#
+# Usage:
+#   find_package(LibDDLA REQUIRED)
+#   target_link_libraries(myapp PRIVATE ddla::ddla)
+
+include(CMakeFindDependencyMacro)
+find_dependency(MPI)
+
+if(NOT TARGET ddla::ddla)
+  add_library(ddla::ddla SHARED IMPORTED)
+  set_target_properties(ddla::ddla PROPERTIES
+    IMPORTED_LOCATION "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_LIBDIR@/libddla.so"
+    INTERFACE_INCLUDE_DIRECTORIES "${PACKAGE_PREFIX_DIR}/@CMAKE_INSTALL_INCLUDEDIR@"
+    INTERFACE_LINK_LIBRARIES MPI::MPI_CXX
+  )
+endif()
+
+check_required_components(LibDDLA)

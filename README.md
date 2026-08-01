@@ -1,6 +1,6 @@
 # LibDDLA — Distributed Dense Linear Algebra
 
-LibDDLA 0.0.4 is a C++17 template library for **distributed dense linear algebra**.
+LibDDLA 0.0.5 is a C++17 template library for **distributed dense linear algebra**.
 It provides ScaLAPACK-style APIs with 2D block-cyclic data distribution over an
 MPI process grid, with a CPU (OpenBLAS/vendor BLAS), CUDA, or HIP backend
 selected at build time, including an optional dual CPU+GPU build that compiles
@@ -22,15 +22,20 @@ runtime. All functions live in the `ddla` namespace.
   `DDLA_USE_CCL` and `DDLA_USE_GPU_CPU_TUNNEL` are not supported with a
   CPU-only build, since there is no GPU backend to communicate with.
 - **Supported scalar types** are `float`, `double`, `std::complex<float>`, and
-  `std::complex<double>`. Not every routine is instantiated for all four types;
-  notably the standard distributed Cholesky family (`ppotrf` / `ppotrs` /
-  `pposv`) is **complex-only**.
+  `std::complex<double>`. The distributed Cholesky family (`ppotrf` /
+  `ppotrs` / `pposv`) is instantiated for all four types.
 - **Matrix storage is caller-owned.** LibDDLA routines operate on device pointers
   supplied by the caller. Individual routines may allocate and release temporary
   device workspaces internally.
-- There is **no installed CMake package config** (`find_package(LibDDLA)`
-  is not supported). Set `CMAKE_INSTALL_PREFIX`, build the `install` target, and link
-  your application against the installed shared library and headers.
+- **Integer dimensions (ScaLAPACK-compatible).** Global/local dimensions,
+  strides, and indices use `int`, matching ScaLAPACK's descriptor convention.
+  Matrices whose element count exceeds `INT_MAX` are not supported; extending
+  to `int64_t` global dimensions is a deliberate future work item and is not
+  part of the current API.
+- An **installable CMake package config** is provided: after
+  `cmake --install` (or `make install`), downstream builds can use
+  `find_package(LibDDLA)` and link `ddla::ddla`. The package config locates
+  MPI automatically and carries the include/library directories.
 
 ## Prerequisites
 
@@ -119,13 +124,18 @@ cmake --build build-dual -j
 cmake --build build-dual --target install
 ```
 
-The installed layout uses `include/ddla/*.h` and the platform library directory
-(normally `lib/libddla.so` on Linux). There is no
-CMake package config installed, so downstream builds must add the install
-prefix to their header and library search paths manually, or locate the library
-with CMake's `find_library`. Downstream translation units must also define the
-same backend macro(s) used to build LibDDLA (`DDLA_USE_CPU`, `DDLA_USE_CUDA`,
-and/or `DDLA_USE_HIP`, matching the build).
+The installed layout uses `include/ddla/*.h`, the platform library directory
+(normally `lib/libddla.so` on Linux), and a CMake package under
+`lib/cmake/LibDDLA`. Downstream builds can use:
+
+```cmake
+find_package(LibDDLA REQUIRED)
+target_link_libraries(myapp PRIVATE ddla::ddla)
+```
+
+Downstream translation units must still define the same backend macro(s) used
+to build LibDDLA (`DDLA_USE_CPU`, `DDLA_USE_CUDA`, and/or `DDLA_USE_HIP`,
+matching the build), because the backend selection is compile-time.
 
 ## CMake options
 
@@ -346,7 +356,7 @@ LibDDLA/
 
 ## Version
 
-**0.0.4** — defined in `src/version.h`.  The shared library SONAME tracks the
+**0.0.5** — defined in `src/version.h`.  The shared library SONAME tracks the
 major version.
 
 ## License

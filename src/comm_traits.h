@@ -20,6 +20,30 @@
 // ---------------------------------------------------------------------------
 namespace ddla {
 
+// ---------------------------------------------------------------------------
+// Host staging for the GPU_CPU_TUNNEL path.  These return a typed pointer
+// into a handle-owned, grow-on-demand byte buffer (see DdlaStream), so the
+// tunnel collectives below avoid allocating a fresh std::vector per call.
+// Each comm* wrapper is synchronous (blocking MPI plus a stream sync where
+// an async host<->device copy follows), so a buffer is never live across two
+// wrappers and reuse is safe.
+// ---------------------------------------------------------------------------
+namespace detail {
+
+template <typename T>
+inline T* tunnel_staging(DdlaHandle_t h, int which, std::size_t count)
+{
+    std::vector<std::byte>& buf = (which == 0) ? h->tunnel_host_staging_a
+                                               : h->tunnel_host_staging_b;
+    const std::size_t need = (count ? count : 1) * sizeof(T);
+    if (buf.size() < need) {
+        buf.resize(need);
+    }
+    return reinterpret_cast<T*>(buf.data());
+}
+
+} // namespace detail
+
 enum class CommScope { Grid, Row, Col };
 
 template <DdlaBackend Backend> struct CommTraits;   // primary: intentionally undefined
@@ -103,19 +127,19 @@ struct CommTraits<DdlaBackend::GPU> {
 // pointer implementation (neither CCL nor tunnel) -- comm_traits.h does not
 // need to distinguish those two cases itself.
 //
-// The tunnel case internally owns a function-local std::vector<T> host
-// scratch buffer -- callers never see or manage a host pointer, unlike
-// ddla_comm.h's tunnel-overloaded cclBcast/cclSend/cclRecv/cclAllReduce
-// (reused here as the underlying implementation, selected by argument count:
-// the tunnel overloads take an extra leading host-buffer argument). Because
-// that local vector is destroyed when this function returns, and the tunnel
-// cclBcast/cclRecv/cclAllReduce helpers do NOT synchronize after their final,
-// asynchronous host-to-device copy (by design -- their original callers keep
-// the host buffer alive across a broader scope), an extra
-// runtimeStreamSynchronize is added here after any such call so the async
-// copy completes before the local buffer is freed. cclSend needs no such
-// extra sync: MPI_Send is a blocking call, so the host buffer is safe to
-// free the instant it returns.
+// The tunnel case stages through handle-owned host scratch buffers (see
+// detail::tunnel_staging below) -- callers never see or manage a host
+// pointer, unlike ddla_comm.h's tunnel-overloaded cclBcast/cclSend/
+// cclRecv/cclAllReduce (reused here as the underlying implementation,
+// selected by argument count: the tunnel overloads take an extra leading
+// host-buffer argument). Because the tunnel cclBcast/cclRecv/cclAllReduce
+// helpers do NOT synchronize after their final, asynchronous host-to-device
+// copy (by design -- their original callers keep the host buffer alive
+// across a broader scope), an extra runtimeStreamSynchronize is added here
+// after any such call so the async copy completes before the scratch buffer
+// is reused by the next wrapper. cclSend needs no such extra sync:
+// MPI_Send is a blocking call, so the host buffer is safe to reuse the
+// instant it returns.
 // ---------------------------------------------------------------------------
 
 template <DdlaBackend Backend = detail::local_backend_v>
@@ -132,8 +156,8 @@ inline void commBcast(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_
                             CommTraits<Backend>::comm(h, scope)));
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
-        std::vector<T> host(count ? count : 1);
-        CCL_CHECK(cclBcast(host.data(), buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
+        T* host = detail::tunnel_staging<T>(h, 0, count);
+        CCL_CHECK(cclBcast(host, buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
         CCL_CHECK(cclBcast(buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
@@ -149,8 +173,8 @@ inline void commSend(const DdlaHandle_t& h, CommScope scope, const T* buf, std::
                            CommTraits<Backend>::comm(h, scope)));
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
-        std::vector<T> host(count ? count : 1);
-        CCL_CHECK(cclSend(host.data(), buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
+        T* host = detail::tunnel_staging<T>(h, 0, count);
+        CCL_CHECK(cclSend(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #else
         CCL_CHECK(cclSend(buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #endif
@@ -165,8 +189,8 @@ inline void commRecv(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_t
                            CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
-        std::vector<T> host(count ? count : 1);
-        CCL_CHECK(cclRecv(host.data(), buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
+        T* host = detail::tunnel_staging<T>(h, 0, count);
+        CCL_CHECK(cclRecv(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
         CCL_CHECK(cclRecv(buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
@@ -182,8 +206,9 @@ inline void commAllReduce(const DdlaHandle_t& h, CommScope scope,
         MPI_CHECK(MPI_Allreduce_ddla(sbuf, rbuf, count, op, CommTraits<Backend>::comm(h, scope)));
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
-        std::vector<T> hs(count ? count : 1), hr(count ? count : 1);
-        CCL_CHECK(cclAllReduce(hs.data(), sbuf, hr.data(), rbuf, count, op,
+        T* hs = detail::tunnel_staging<T>(h, 0, count);
+        T* hr = detail::tunnel_staging<T>(h, 1, count);
+        CCL_CHECK(cclAllReduce(hs, sbuf, hr, rbuf, count, op,
                                CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
@@ -223,18 +248,18 @@ inline void commAlltoallv(const DdlaHandle_t& h, CommScope scope, int nprocs,
         // hoisted out of its #ifdef unchanged.
         int send_total = nprocs > 0 ? sdispls[nprocs - 1] + sendcounts[nprocs - 1] : 0;
         int recv_total = nprocs > 0 ? rdispls[nprocs - 1] + recvcounts[nprocs - 1] : 0;
-        std::vector<T> h_send(send_total > 0 ? send_total : 1);
-        std::vector<T> h_recv(recv_total > 0 ? recv_total : 1);
+        T* h_send = detail::tunnel_staging<T>(h, 0, static_cast<std::size_t>(send_total));
+        T* h_recv = detail::tunnel_staging<T>(h, 1, static_cast<std::size_t>(recv_total));
         if (send_total > 0) {
-            RUNTIME_CHECK(runtimeMemcpyAsync(h_send.data(), sendbuf, sizeof(T) * send_total,
+            RUNTIME_CHECK(runtimeMemcpyAsync(h_send, sendbuf, sizeof(T) * send_total,
                                              runtimeMemcpyDeviceToHost, h->stream));
             RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
         }
-        MPI_CHECK(MPI_Alltoallv(h_send.data(), sendcounts, sdispls, detail::mpi_datatype<T>(),
-                                h_recv.data(), recvcounts, rdispls, detail::mpi_datatype<T>(),
+        MPI_CHECK(MPI_Alltoallv(h_send, sendcounts, sdispls, detail::mpi_datatype<T>(),
+                                h_recv, recvcounts, rdispls, detail::mpi_datatype<T>(),
                                 CommTraits<Backend>::comm(h, scope)));
         if (recv_total > 0) {
-            RUNTIME_CHECK(runtimeMemcpyAsync(recvbuf, h_recv.data(), sizeof(T) * recv_total,
+            RUNTIME_CHECK(runtimeMemcpyAsync(recvbuf, h_recv, sizeof(T) * recv_total,
                                              runtimeMemcpyHostToDevice, h->stream));
             RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
         }

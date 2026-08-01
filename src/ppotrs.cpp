@@ -58,6 +58,22 @@ void ppotrs(
     );
 }
 
+template void ppotrs<float>(
+    const char& side, const char& uplo, const char& trans,
+    const int& n, const int& nrhs,
+    float* d_A, const DdlaDesc& array_descA,
+    float* d_B, const DdlaDesc& array_descB,
+    bool is_nega, int location
+);
+
+template void ppotrs<double>(
+    const char& side, const char& uplo, const char& trans,
+    const int& n, const int& nrhs,
+    double* d_A, const DdlaDesc& array_descA,
+    double* d_B, const DdlaDesc& array_descB,
+    bool is_nega, int location
+);
+
 template void ppotrs<std::complex<double>>(
     const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,

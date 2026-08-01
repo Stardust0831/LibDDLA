@@ -32,8 +32,7 @@ void pgesv_nopiv(
     int info = 1;
     pgetrf_nopiv(n, n, d_A, array_descA, info);
     if (info != 0) {
-        printf("Error in pgetrf_nopiv, info = %d\n", info);
-        throw std::runtime_error("info != 0\n");
+        throw std::runtime_error("pgesv_nopiv: pgetrf_nopiv returned info = " + std::to_string(info));
     }
     pgetrs_nopiv('N', n, nrhs, d_A, array_descA, d_B, array_descB);
 }

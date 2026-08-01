@@ -30,6 +30,24 @@ template void pposv<std::complex<float>>(
     bool is_head, int location
 );
 
+template void pposv<float>(
+    const char& side, const char& uplo, const char& trans,
+    const int & n, const int& nrhs,
+    float* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    float* d_B, const int& ib, const int& jb, const DdlaDesc& array_descB,
+    int& info, // host pointer
+    bool is_head, int location
+);
+
+template void pposv<double>(
+    const char& side, const char& uplo, const char& trans,
+    const int & n, const int& nrhs,
+    double* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    double* d_B, const int& ib, const int& jb, const DdlaDesc& array_descB,
+    int& info, // host pointer
+    bool is_head, int location
+);
+
 template void pposv<std::complex<double>>(
     const char& side, const char& uplo, const char& trans,
     const int & n, const int& nrhs,

@@ -30,6 +30,8 @@
 #include <new>
 #include <complex>
 #include <type_traits>
+#include <stdexcept>
+#include <string>
 #include "ddla_handle_t.h"
 
 namespace ddla{
@@ -259,6 +261,15 @@ constexpr auto runtimeMemcpyDeviceToDevice = detail::RuntimeTraits<detail::local
 static inline runtimeError_t cpuMemcpy2DAsync(void* dst, size_t dpitch, const void* src, size_t spitch,
     size_t width, size_t height, runtimeMemcpyKind kind, runtimeStream_t stream) {
     (void)kind; (void)stream;
+    if (width == 0 || height == 0) return runtimeSuccess;
+    // Contiguous fast path: when the source and destination row pitches equal
+    // the row width, the whole region is one contiguous block -- a single
+    // memcpy avoids per-row call overhead (important for stride-1 vectors
+    // where height can be very large).
+    if (spitch == width && dpitch == width) {
+        std::memcpy(dst, src, width * height);
+        return runtimeSuccess;
+    }
     for (size_t i = 0; i < height; ++i)
         std::memcpy((char*)dst + i * dpitch, (const char*)src + i * spitch, width);
     return runtimeSuccess;
@@ -614,7 +625,13 @@ static inline void MPI_CHECK(int status, const char* file = __builtin_FILE(), in
     if (status != MPI_SUCCESS)
     {
         fprintf(stderr, "mpi error at %s:%d : %d\n", file, line, status);
-        exit(EXIT_FAILURE);
+        int mpi_initialized = 0;
+        MPI_Initialized(&mpi_initialized);
+        if (mpi_initialized) {
+            MPI_Abort(MPI_COMM_WORLD, EXIT_FAILURE);
+        }
+        throw std::runtime_error("ddla: MPI error at " + std::string(file) +
+                                 ":" + std::to_string(line));
     }
 }
 
@@ -634,7 +651,9 @@ static inline void RUNTIME_CHECK(typename detail::RuntimeTraits<Backend>::error_
     {
         fprintf(stderr, "runtime error at %s:%d : %s\n", file, line,
                 runtimeGetErrorString<Backend>(status));
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("ddla: runtime error at " + std::string(file) +
+                                 ":" + std::to_string(line) + " : " +
+                                 runtimeGetErrorString<Backend>(status));
     }
 }
 
@@ -643,7 +662,8 @@ static inline void BLAS_CHECK(deblasStatus_t err_, const char* file = __builtin_
     if (err_ != DEBLAS_STATUS_SUCCESS)
     {
         fprintf(stderr, "deblas error %d at %s:%d\n", err_, file, line);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("ddla: deblas error " + std::to_string(err_) +
+                                 " at " + std::string(file) + ":" + std::to_string(line));
     }
 }
 
@@ -652,7 +672,8 @@ static inline void SOLVER_CHECK(desolverStatus_t err_, const char* file = __buil
     if (err_ != DESOLVER_STATUS_SUCCESS)
     {
         fprintf(stderr, "cusolver error %d at %s:%d\n", err_, file, line);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("ddla: solver error " + std::to_string(err_) +
+                                 " at " + std::string(file) + ":" + std::to_string(line));
     }
 }
 
@@ -662,7 +683,8 @@ static inline void CCL_CHECK(ncclResult_t status, const char* file = __builtin_F
     if (status != ncclSuccess)
     {
         fprintf(stderr, "nccl error at %s:%d : %d\n", file, line, status);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("ddla: nccl error " + std::to_string(status) +
+                                 " at " + std::string(file) + ":" + std::to_string(line));
     }
 }
 #else
@@ -677,7 +699,8 @@ static inline void DERAND_CHECK(derandStatus_t status, const char* file = __buil
     if (status != DERAND_STATUS_SUCCESS)
     {
         fprintf(stderr, "derand error at %s:%d : %d\n", file, line, status);
-        exit(EXIT_FAILURE);
+        throw std::runtime_error("ddla: derand error " + std::to_string(status) +
+                                 " at " + std::string(file) + ":" + std::to_string(line));
     }
 }
 

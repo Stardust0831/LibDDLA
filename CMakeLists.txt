@@ -164,6 +164,27 @@ endif(DDLA_USE_CUDA)
 add_subdirectory(src)
 
 if(BUILD_TESTS)
-    # enable_testing()
+    enable_testing()
     add_subdirectory(tests)
 endif()
+# ---------------------------------------------------------------------------
+# Installable CMake package config (find_package(LibDDLA))
+# ---------------------------------------------------------------------------
+include(CMakePackageConfigHelpers)
+set(LIBDDLA_CMAKE_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/LibDDLA")
+configure_package_config_file(
+    ${PROJECT_SOURCE_DIR}/cmake/LibDDLAConfig.cmake.in
+    ${CMAKE_CURRENT_BINARY_DIR}/LibDDLAConfig.cmake
+    INSTALL_DESTINATION ${LIBDDLA_CMAKE_INSTALL_DIR}
+)
+write_basic_package_version_file(
+    ${CMAKE_CURRENT_BINARY_DIR}/LibDDLAConfigVersion.cmake
+    VERSION ${version}
+    COMPATIBILITY SameMajorVersion
+)
+install(FILES
+    ${CMAKE_CURRENT_BINARY_DIR}/LibDDLAConfig.cmake
+    ${CMAKE_CURRENT_BINARY_DIR}/LibDDLAConfigVersion.cmake
+    DESTINATION ${LIBDDLA_CMAKE_INSTALL_DIR}
+)
+

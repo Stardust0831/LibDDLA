@@ -6,6 +6,10 @@
 #include <ddla/ddla_config.h>
 #include <mpi.h>
 #include <iostream>
+#include <vector>
+#include <cstddef>
+#include <stdexcept>
+#include <string>
 #include <cmath>
 
 namespace ddla {
@@ -51,6 +55,16 @@ public:
     // -- lifecycle guards ---------------------------------------------------
     bool initialized = false;
     bool destroyed   = false;
+
+    // -- host staging for the GPU_CPU_TUNNEL path ---------------------------
+    // Grow-on-demand host buffers reused across comm* calls instead of
+    // allocating a fresh std::vector per collective.  Two buffers are needed
+    // because commAllReduce / commAlltoallv stage both send and receive data
+    // simultaneously.  ::operator new guarantees alignment suitable for any
+    // fundamental type, so reinterpret_cast<T*> is safe for T in
+    // {float, double, std::complex<float>, std::complex<double>}.
+    std::vector<std::byte> tunnel_host_staging_a;
+    std::vector<std::byte> tunnel_host_staging_b;
 
     // -----------------------------------------------------------------------
     // Device selection (per-handle)
@@ -150,8 +164,7 @@ public:
         nprows_ = nprows;
         npcols_ = npcols;
         if (nprows_ * npcols_ != nprocs) {
-            std::cerr << "nprows * npcols != nprocs" << std::endl;
-            exit(1);
+            throw std::runtime_error("ddla: nprows * npcols != nprocs");
         }
 
         if (major == 'R') {
@@ -161,8 +174,7 @@ public:
             mypcol_ = myid / nprows;
             myprow_ = myid % nprows;
         } else {
-            std::cerr << "major must be 'R' or 'C'" << std::endl;
-            exit(1);
+            throw std::runtime_error("ddla: major must be 'R' or 'C'");
         }
 
         MPI_Comm_split(comm, myprow_, myid, &row_comm);

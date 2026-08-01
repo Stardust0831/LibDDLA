@@ -208,7 +208,6 @@ bool ppotrf(
         MPI_CHECK(MPI_Bcast(&info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
         if(info != 0){
             info = info + n_s;
-            printf("the matrix is not positive definite myid:%d, info:%d\n", ddla_handle->myid, info);
             cleanup_device_buffers();
             return false;
         }
@@ -509,6 +508,20 @@ bool ppotrf(
     return is_nega;
 
 }
+
+template bool ppotrf<float>(
+    const char& uplo, const int& n,
+    float* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    int& info, // host pointer
+    bool is_head, int location
+);
+
+template bool ppotrf<double>(
+    const char& uplo, const int& n,
+    double* A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    int& info, // host pointer
+    bool is_head, int location
+);
 
 template bool ppotrf<std::complex<float>>(
     const char& uplo, const int& n,

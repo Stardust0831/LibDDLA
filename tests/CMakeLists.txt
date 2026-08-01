@@ -24,14 +24,30 @@ function(apply_test_connector_defs target)
     endif()
 endfunction()
 
-# add_test_executable with automatic connector definitions
+# Default number of MPI ranks for ctest-registered MPI tests.  Override with
+# -DDDLA_TEST_NP=N at configure time (AGENTS.md documents `mpirun -np 4`).
+set(DDLA_TEST_NP 4 CACHE STRING "MPI ranks used by ctest-registered tests")
+
+# add_test_executable with automatic connector definitions.  Tests are MPI
+# programs, so each is registered under mpirun (never run the binary bare);
+# GPU tests get the "gpu" label, everything else "cpu", so CI can select
+# with `ctest -L cpu`.
 function(add_test_executable test_name)
     set(test_source "${CMAKE_CURRENT_SOURCE_DIR}/${test_name}.cpp")
     if(EXISTS "${test_source}")
         add_executable(${test_name} ${test_name}.cpp)
         target_link_libraries(${test_name} PRIVATE ddla_lib)
         apply_test_connector_defs(${test_name})
-        add_test(NAME ${test_name} COMMAND ${test_name})
+        add_test(NAME ${test_name}_mpi
+            COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} ${DDLA_TEST_NP}
+                    ${MPIEXEC_PREFLAGS} $<TARGET_FILE:${test_name}>
+                    ${MPIEXEC_POSTFLAGS})
+        set_tests_properties(${test_name}_mpi PROPERTIES PROCESSORS ${DDLA_TEST_NP})
+        if(DDLA_USE_CUDA OR DDLA_USE_HIP)
+            set_tests_properties(${test_name}_mpi PROPERTIES LABELS gpu)
+        else()
+            set_tests_properties(${test_name}_mpi PROPERTIES LABELS cpu)
+        endif()
     else()
         message(STATUS "Skipping missing test source: ${test_name}.cpp")
     endif()
@@ -92,6 +108,7 @@ if(DDLA_USE_CUDA OR DDLA_USE_HIP)
     add_test_executable(test_potrf_bottom_right_block)
     add_test_executable(test_potrf_bottom_right)
     add_test_executable(test_api_grid_ppotrf_bottom_right)
+    add_test_executable(test_ppotrf_real)
     add_test_executable(test_pgemm_debug)
     add_test_executable(test_pgemm_debug2)
     add_bench_executable(bench_pzgemm)

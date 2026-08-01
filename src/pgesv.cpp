@@ -2,6 +2,8 @@
 #include <cassert>
 #include <vector>
 #include <ddla/ddla_connector.h>
+#include <stdexcept>
+#include <string>
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 
@@ -25,8 +27,7 @@ void pgesv(
         info
     );
     if(info !=0){
-        printf("Error in pzgetrf, info = %d\n", info);
-        throw std::runtime_error("info !=0\n");
+        throw std::runtime_error("pgesv: pgetrf returned info = " + std::to_string(info));
     }
     pgetrs(
         'N', n, nrhs,
