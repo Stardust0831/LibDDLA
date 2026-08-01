@@ -4,6 +4,7 @@
 #include <ddla/ddla_config.h>
 #include "ddla_desc.h"
 #include "write_matrix.h"
+#include "random_generate.h"
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 #include "gemmVbatched.h"
 #endif

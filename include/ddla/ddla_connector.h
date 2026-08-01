@@ -681,8 +681,6 @@ static inline void DERAND_CHECK(derandStatus_t status, const char* file = __buil
     }
 }
 
-template <typename T>
-void random_generate(T* data, const int64_t& lengthOfData);
 
 } // namespace DDLA
 

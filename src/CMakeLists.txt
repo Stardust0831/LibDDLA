@@ -24,6 +24,7 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         iamax.cpp
         geru.cpp
         write_matrix.cpp
+        random_generate.cpp
         pgemm.cpp
         transport_block.cpp
         ddla_handle_t.cpp
@@ -39,7 +40,7 @@ else()
         iamax.cpp
         geru.cpp
         write_matrix.cpp
-        ddla_utils.cpp
+        random_generate.cpp
         ptrtrs.cpp
         pgetf2.cpp
         pgetf2_kernels.cpp

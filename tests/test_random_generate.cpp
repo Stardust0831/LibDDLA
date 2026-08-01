@@ -78,13 +78,14 @@ bool validate_uniform_range(const std::vector<T>& host_data, size_t count,
     return ok;
 }
 
+#if DDLA_HAS_GPU
 //
 // Test one scalar type: allocate device memory, call random_generate,
 // copy back and validate.
 //
 
 template <typename T>
-bool test_type(int64_t count, const DdlaHandle_t& handle, const char* type_name)
+bool test_type_gpu(int64_t count, const DdlaHandle_t& handle, const char* type_name)
 {
     int myid;
     MPI_Comm_rank(handle->comm, &myid);
@@ -95,8 +96,8 @@ bool test_type(int64_t count, const DdlaHandle_t& handle, const char* type_name)
     T* d_data = nullptr;
     RUNTIME_CHECK(runtimeMalloc(&d_data, bytes));
 
-    // Call the template
-    random_generate(d_data, count);
+    // Call the GPU backend
+    random_generate<DdlaBackend::GPU>(d_data, count);
 
     // Copy back to host
     std::vector<T> h_data(count);
@@ -110,6 +111,27 @@ bool test_type(int64_t count, const DdlaHandle_t& handle, const char* type_name)
 
     return ok;
 }
+
+#endif
+
+#if DDLA_HAS_CPU
+//
+// Test one scalar type on the CPU backend: fill a host vector directly and
+// validate it on the host (no device staging needed).
+//
+
+template <typename T>
+bool test_type_cpu(int64_t count, const DdlaHandle_t& handle, const char* type_name)
+{
+    int myid;
+    MPI_Comm_rank(handle->comm, &myid);
+
+    std::vector<T> h_data(static_cast<size_t>(count));
+    random_generate<DdlaBackend::CPU>(h_data.data(), count);
+
+    return validate_uniform_range(h_data, count, myid, type_name);
+}
+#endif
 
 //
 // Zero-length call: must not crash or generate; nullptr is allowed.
@@ -150,17 +172,34 @@ int main(int argc, char* argv[])
 
     const int64_t count = 1024;
 
+#if DDLA_HAS_GPU
     if (myid == 0) printf("--- Testing float ---\n");
-    all_ok = test_type<float>(count, handle, "float") && all_ok;
+    all_ok = test_type_gpu<float>(count, handle, "float") && all_ok;
 
     if (myid == 0) printf("--- Testing double ---\n");
-    all_ok = test_type<double>(count, handle, "double") && all_ok;
+    all_ok = test_type_gpu<double>(count, handle, "double") && all_ok;
 
     if (myid == 0) printf("--- Testing std::complex<float> ---\n");
-    all_ok = test_type<std::complex<float>>(count, handle, "std::complex<float>") && all_ok;
+    all_ok = test_type_gpu<std::complex<float>>(count, handle, "std::complex<float>") && all_ok;
 
     if (myid == 0) printf("--- Testing std::complex<double> ---\n");
-    all_ok = test_type<std::complex<double>>(count, handle, "std::complex<double>") && all_ok;
+    all_ok = test_type_gpu<std::complex<double>>(count, handle, "std::complex<double>") && all_ok;
+#endif
+
+
+#if DDLA_HAS_CPU
+    if (myid == 0) printf("--- Testing CPU float ---\n");
+    all_ok = test_type_cpu<float>(count, handle, "float") && all_ok;
+
+    if (myid == 0) printf("--- Testing CPU double ---\n");
+    all_ok = test_type_cpu<double>(count, handle, "double") && all_ok;
+
+    if (myid == 0) printf("--- Testing CPU std::complex<float> ---\n");
+    all_ok = test_type_cpu<std::complex<float>>(count, handle, "std::complex<float>") && all_ok;
+
+    if (myid == 0) printf("--- Testing CPU std::complex<double> ---\n");
+    all_ok = test_type_cpu<std::complex<double>>(count, handle, "std::complex<double>") && all_ok;
+#endif
 
     // Zero-length / null-pointer safety
     if (myid == 0) printf("--- Testing zero-length no-op ---\n");
