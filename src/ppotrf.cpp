@@ -33,15 +33,24 @@ bool ppotrf(
     detail::require_gpu_backend(ddla_handle, "ppotrf");
     if(is_head)
     if(location != -1 && location != n){
+        // Symmetric permutation swapping global row/column `location` with
+        // the last index `n`: row swap (inca == m(), full row) then column
+        // swap (inca == 1, full column). A is a fully-populated (both
+        // triangles) Hermitian array, so both swaps touching every row/
+        // column entry keeps the matrix consistently Hermitian afterward --
+        // this is not a packed-triangle representation.
         pswap(
             n,
             A, location, 1, array_descA, array_descA.m(),
             A, n, 1, array_descA, array_descA.m()
         );
         pswap(
+            // Was: A, 1, location, array_descA, 1 as the second operand --
+            // swapping column `location` with itself, a no-op that left the
+            // column swap half of the permutation never applied.
             n,
             A, 1, location, array_descA, 1,
-            A, 1, location, array_descA, 1
+            A, 1, n, array_descA, 1
         );
     }
 
