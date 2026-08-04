@@ -49,12 +49,16 @@ void fill_local(int rows, int cols, const DdlaDesc& desc, Complex* d_A,
     RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
 }
 
-double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
+double benchmark_ptrtrs(char side, int n, int nrhs, const DdlaHandle_t& handle)
 {
     const int nb = std::min(128, n);
     DdlaDesc descA(handle), descB(handle);
     descA.init(n, n, nb, nb, 0, 0);
-    descB.init(n, nrhs, nb, nb, 0, 0);
+    if(side == 'L'){
+        descB.init(n, nrhs, nb, nb, 0, 0);
+    }else{
+        descB.init(nrhs, n, nb, nb, 0, 0);
+    }
 
     const size_t a_nelem = static_cast<size_t>(descA.lld()) * descA.n_loc();
     const size_t b_nelem = static_cast<size_t>(descB.lld()) * descB.n_loc();
@@ -67,11 +71,17 @@ double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
                                   std::max<size_t>(1, b_nelem) * sizeof(Complex),
                                   handle->stream));
     fill_local(n, n, descA, d_A, handle, [&](int i, int j){ return lower_value(i, j, n); });
-    fill_local(n, nrhs, descB, d_B, handle, [&](int i, int j){ return rhs_value(i, j, n); });
+    const int b_rows = (side == 'L') ? n : nrhs;
+    const int b_cols = (side == 'L') ? nrhs : n;
+    fill_local(b_rows, b_cols, descB, d_B, handle, [&](int i, int j){ return rhs_value(i, j, n); });
 
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
-    ptrtrs('L', 'L', 'N', 'N', n, nrhs, d_A, descA, d_B, descB);
+    if(side == 'L'){
+        ptrtrs('L', 'L', 'N', 'N', n, nrhs, d_A, descA, d_B, descB);
+    }else{
+        ptrtrs('R', 'L', 'N', 'N', nrhs, n, d_A, descA, d_B, descB);
+    }
     RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
@@ -87,7 +97,7 @@ double benchmark_ptrtrs(int n, int nrhs, const DdlaHandle_t& handle)
         std::cout << "RESULT n=" << n
                   << " nrhs=" << nrhs
                   << " type=complex<double>"
-                  << " op=ptrtrs(L,L,N,N)"
+                  << " op=ptrtrs(" << side << ",L,N,N)"
                   << " grid=2x2"
                   << " ranks=4"
                   << " nb=" << nb
@@ -129,10 +139,13 @@ int main(int argc, char** argv)
     if(handle->myid == 0){
         std::cout << "=== ptrtrs benchmark: complex<double>, 4 MPI ranks, 2x2 grid, nrhs=n ==="
                   << std::endl;
+        std::cout << "=== side='L' vs side='R' (X*L=B), same sizes on the same nodes ==="
+                  << std::endl;
     }
 
     for(int n : sizes){
-        benchmark_ptrtrs(n, n, handle);
+        benchmark_ptrtrs('L', n, n, handle);
+        benchmark_ptrtrs('R', n, n, handle);
     }
 
     ddla_destroy(handle);
