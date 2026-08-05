@@ -43,17 +43,22 @@ void ptrtrs(
 );
 
 /**
- * @brief Apply row-pivot permutation to a distributed matrix: A := P * A.
+ * @brief Apply a pivot permutation to a distributed matrix: swap rows or
+ *        columns of A according to a column-cyclic pivot vector.
  *
- * Implements the column-cyclic forward row pivoting applied after LU
- * factorization.  Only direc='F', rowcol='R', pivroc='C' is supported.
+ * Implements the pivoting applied after LU factorization (ScaLAPACK-style
+ * PZLASWP).  For a permutation P = P(0)*...*P(m-2) where P(k) swaps row/col
+ * k with row/col ipiv(k)-1, direc='F' applies pivots in ascending k order
+ * (computing P^T*A for rows / A*P for columns) and direc='B' in descending
+ * order (computing P*A for rows / A*P^T for columns).
  *
  * @tparam T   Scalar type.
- * @param direc   'F' -- forward pivoting direction.
- * @param rowcol  'R' -- pivot rows.
- * @param pivroc  'C' -- column-cyclic pivot distribution.
- * @param m       Number of rows to pivot.
- * @param n       Number of columns in A.
+ * @param direc   'F' -- forward pivoting order; 'B' -- backward.
+ * @param rowcol  'R' -- pivot rows; 'C' -- pivot columns.
+ * @param pivroc  'C' -- column-cyclic pivot distribution (only 'C').
+ * @param m       Number of pivots (rows/columns of A to pivot).
+ * @param n       For rowcol='R': number of columns in A; for rowcol='C':
+ *                number of rows in A (the fixed segment length).
  * @param d_A     Device pointer to distributed matrix A.
  * @param array_descA   DdlaDesc for A.
  * @param ipiv    Host array of pivot indices (1-based, length >= m).
@@ -243,13 +248,19 @@ template <typename T>
 void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle);
 
 /**
- * @brief Distributed LU solve: solve A * X = B using the factors from pgetrf.
+ * @brief Distributed LU solve: solve op(A) * X = B (side='L') or
+ *        X * op(A) = B (side='R') using the factors from pgetrf.
  *
- * Steps:  apply row pivots (plapiv), forward solve L*Y=B (ptrtrs), backward
- * solve U*X=Y (ptrtrs).  Currently only trans='N' (non-transposed) is supported.
+ * Steps for side='L', trans='N': apply row pivots (plapiv), forward solve
+ * L*Y=B (ptrtrs), backward solve U*X=Y (ptrtrs).  Other side/trans
+ * combinations apply the trsm sequence in the mirrored order and apply the
+ * pivot permutation on the solution side (rows for side='L', columns for
+ * side='R').
  *
  * @tparam T   Scalar type.
- * @param trans   'N' -- no transpose (only 'N' supported).
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of matrix A.
  * @param nrhs    Number of right-hand sides.
  * @param d_A     Device pointer to LU factors (from pgetrf).
@@ -260,21 +271,24 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
  */
 template <typename T>
 void pgetrs(
-    const char& trans, const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     const int* ipiv, // host
     T* d_B, const DdlaDesc& array_descB
 );
 
 /**
- * @brief Distributed LU solve without pivoting.
+ * @brief Distributed LU solve without pivoting: solve op(A) * X = B
+ *        (side='L') or X * op(A) = B (side='R') using the LU factors
+ *        produced by pgetrf_nopiv.
  *
- * Solves A * X = B using the LU factors produced by pgetrf_nopiv.
  * Because no pivoting is used, the solution is obtained by two triangular
- * solves: L * Y = B followed by U * X = Y.  Only trans='N' is supported.
+ * solves in the mirrored order for side='R' / trans='T','C'.
  *
  * @tparam T   Scalar type.
- * @param trans   'N' -- no transpose (only 'N' supported).
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of matrix A.
  * @param nrhs    Number of right-hand sides.
  * @param d_A     Device pointer to LU factors (from pgetrf_nopiv).
@@ -284,18 +298,22 @@ void pgetrs(
  */
 template <typename T>
 void pgetrs_nopiv(
-    const char& trans, const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
 );
 
 /**
- * @brief Distributed linear-system solver (driver): solve A * X = B.
+ * @brief Distributed linear-system solver (driver): solve op(A) * X = B
+ *        (side='L') or X * op(A) = B (side='R').
  *
  * Convenience wrapper: pgetrf (LU) + pgetrs (solve).  Corresponds to
  * ScaLAPACK PZGESV / PDGESV.
  *
  * @tparam T   Scalar type.
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of square matrix A.
  * @param nrhs    Number of right-hand sides.
  * @param d_A     Device pointer to A (input: coefficient; output: LU factors).
@@ -306,18 +324,21 @@ void pgetrs_nopiv(
  */
 template <typename T>
 void pgesv(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
 );
 
 /**
- * @brief Distributed linear-system solver without pivoting (driver).
+ * @brief Distributed linear-system solver without pivoting (driver): solve
+ *        op(A) * X = B (side='L') or X * op(A) = B (side='R').
  *
  * Convenience wrapper: pgetrf_nopiv (LU) + pgetrs_nopiv (solve).
- * Solves A * X = B without pivoting.
  *
  * @tparam T   Scalar type.
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of square matrix A.
  * @param nrhs    Number of right-hand sides.
  * @param d_A     Device pointer to A (input: coefficient; output: LU factors).
@@ -328,7 +349,7 @@ void pgesv(
  */
 template <typename T>
 void pgesv_nopiv(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
 );
@@ -516,17 +537,26 @@ void ppotrf_bottom_right(
 );
 
 /**
- * @brief Distributed solve using Cholesky factorization: A * X = B.
+ * @brief Distributed solve using Cholesky factorization: solve
+ *        op(A) * X = B (side='L') or X * op(A) = B (side='R').
  *
  * Solves a Hermitian positive-definite system using the factor from
- * ppotrf.  For uplo='L' it applies L then L^H; for uplo='U' it applies
- * U^H then U.
- * Only side='L' and trans='N' are supported.
+ * ppotrf.  For side='L', uplo='L' it applies L then L^H; the trsm order
+ * is mirrored for side='R'.  Because A is Hermitian, op(A) == A for both
+ * trans='N' and trans='C' (identical code path); trans='T' is not
+ * supported.
+ *
+ * When `location` is a head-correction index (the same value passed to
+ * ppotrf with is_head=true), ppotrs applies the matching permutation to B
+ * -- rows for side='L', columns for side='R' -- around the solve and undoes
+ * it afterward, so direct ppotrf + ppotrs users (and pposv) do not need to
+ * permute B themselves.
  *
  * @tparam T   Scalar type.
- * @param side     'L' (left) -- solve A*X = B.
+ * @param side     'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                 'R' -- solve X*op(A) = B (B is nrhs x n).
  * @param uplo     'L' or 'U' -- triangle containing the Cholesky factor.
- * @param trans    'N' (no transpose).
+ * @param trans    'N' or 'C' (equivalent for Hermitian A).
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
  * @param d_A      Device pointer to Cholesky factor (from ppotrf).
@@ -534,7 +564,8 @@ void ppotrf_bottom_right(
  * @param d_B      Device pointer to RHS / solution B (input/output).
  * @param array_descB  DdlaDesc for B.
  * @param is_nega  Diagonal sign-correction flag (from ppotrf return).
- * @param location Internal parameter (must be -1).
+ * @param location Head-correction index forwarded from ppotrf; -1 (or == n)
+ *                 means no B permutation.
  */
 template <typename T>
 void ppotrs(
@@ -547,14 +578,16 @@ void ppotrs(
 
 /**
  * @brief Distributed solver for Hermitian positive-definite systems
- *        (driver): solve A * X = B via Cholesky factorization.
+ *        (driver): solve op(A) * X = B (side='L') or X * op(A) = B
+ *        (side='R') via Cholesky factorization.
  *
  * Convenience wrapper:  ppotrf + ppotrs.  Corresponds to ScaLAPACK PZPOSV.
  *
  * @tparam T   Scalar type.
- * @param side     'L' -- solve A*X = B.
+ * @param side     'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                 'R' -- solve X*op(A) = B (B is nrhs x n).
  * @param uplo     'L' or 'U' -- triangle of A to store and factor.
- * @param trans    'N' -- no transpose.
+ * @param trans    'N' or 'C' (equivalent for Hermitian A).
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
  * @param d_A      Device pointer to A (input: pos-def; output: Cholesky factor).

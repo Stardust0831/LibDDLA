@@ -92,7 +92,7 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
     // ---- 5. LU 分解解 A * X = I → d_I 变为 X = A^-1，d_A 变为 LU 因子 ----
     printf("myid:%d, start pgesv\n", myid);
     double start_time_sv = MPI_Wtime();
-    pgesv(n, n, d_A, matrix_desc, d_I, matrix_desc);
+    pgesv('L', 'N', n, n, d_A, matrix_desc, d_I, matrix_desc);
     RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_sv = MPI_Wtime() - start_time_sv;

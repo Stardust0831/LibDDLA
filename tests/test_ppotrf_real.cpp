@@ -55,7 +55,7 @@ void check_ppotrf_real(const ddla::DdlaHandle_t& handle, const Shape& base)
                   std::abs(info) + (is_nega ? 1.0 : 0.0), 0.0);
     check_ddla_sync(handle);
 
-    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega, -1);
+    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega);
     check_ddla_sync(handle);
 
     auto x = download(handle, d_B.ptr, h_B.size());

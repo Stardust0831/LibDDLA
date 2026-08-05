@@ -11,8 +11,11 @@ Complex stored_tri(char uplo, int i, int j)
 }
 
 // op(A)(i,j) with trans in {'N','T','C'} applied to the stored triangle.
-Complex op_tri(char uplo, char trans, int i, int j)
+// For diag='U' the diagonal of op(A) is the unit value (1,0), matching what
+// ptrtrs treats as the implicit unit diagonal.
+Complex op_tri(char uplo, char trans, char diag, int i, int j)
 {
+    if(diag == 'U' && i == j) return Complex(1.0, 0.0);
     if(trans == 'N') return stored_tri(uplo, i, j);
     const Complex raw = stored_tri(uplo, j, i);
     return (trans == 'T') ? raw : std::conj(raw);
@@ -28,8 +31,8 @@ void check_ptrtrs(const ddla::DdlaHandle_t& handle, const Shape& base)
     ddla::DdlaDesc descA(handle);
     descA.init(n, n, nb, nb, 0, 0);
 
-    auto run_case = [&](char side, char uplo, char trans){
-        const std::string name = std::string("ptrtrs(") + side + "," + uplo + "," + trans + ",N)";
+    auto run_case = [&](char side, char uplo, char trans, char diag){
+        const std::string name = std::string("ptrtrs(") + side + "," + uplo + "," + trans + "," + diag + ")";
         // side='L': B is n x nrhs, solve op(A)*X = B;
         // side='R': B is nrhs x n, solve X*op(A) = B.
         const int b_rows = (side == 'L') ? n : nrhs;
@@ -42,9 +45,9 @@ void check_ptrtrs(const ddla::DdlaHandle_t& handle, const Shape& base)
             Complex sum(0.0, 0.0);
             for(int l = 0; l < n; ++l){
                 if(side == 'L'){
-                    sum += op_tri(uplo, trans, i, l) * x_value(l, j);
+                    sum += op_tri(uplo, trans, diag, i, l) * x_value(l, j);
                 }else{
-                    sum += x_value(i, l) * op_tri(uplo, trans, l, j);
+                    sum += x_value(i, l) * op_tri(uplo, trans, diag, l, j);
                 }
             }
             return sum;
@@ -56,17 +59,20 @@ void check_ptrtrs(const ddla::DdlaHandle_t& handle, const Shape& base)
         upload(handle, d_B.ptr, h_B);
         check_ddla_sync(handle);
 
-        ddla::ptrtrs(side, uplo, trans, 'N', b_rows, b_cols, d_A.ptr, descA, d_B.ptr, descB);
+        ddla::ptrtrs(side, uplo, trans, diag, b_rows, b_cols, d_A.ptr, descA, d_B.ptr, descB);
         check_solution(handle, descB, d_B.ptr, h_B.size(), name, 2e-10);
     };
 
-    run_case('L', 'L', 'N');
-    run_case('L', 'L', 'T');
-    run_case('L', 'U', 'T');
-    run_case('R', 'L', 'N');
-    run_case('R', 'U', 'N');
-    run_case('R', 'L', 'T');
-    run_case('R', 'U', 'T');
+    // Full side x uplo x trans x diag enumeration: 2 x 2 x 3 x 2 = 24 cases.
+    const char sides[]  = {'L', 'R'};
+    const char uplos[]  = {'L', 'U'};
+    const char transes[] = {'N', 'T', 'C'};
+    const char diags[]  = {'N', 'U'};
+    for(char side : sides)
+        for(char uplo : uplos)
+            for(char trans : transes)
+                for(char diag : diags)
+                    run_case(side, uplo, trans, diag);
 }
 
 int main(int argc, char** argv)

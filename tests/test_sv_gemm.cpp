@@ -73,6 +73,7 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     printf("myid:%d, start sv\n",myid);
     double start_time_sv = MPI_Wtime();
     pgesv(
+        'L', 'N',
         n, n,
         d_A, matrix_desc,
         d_identity, matrix_desc

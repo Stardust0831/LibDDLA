@@ -114,7 +114,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
             n, n,
             d_A, matrix_desc,
             d_A_copy, matrix_desc,
-            is_nega, -1
+            is_nega
         );
         RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
         printf("myid:%d, ppotrs time:%lf\n", ddla_handle->myid, MPI_Wtime() - start_time_ppotrs);

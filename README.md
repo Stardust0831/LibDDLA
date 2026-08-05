@@ -279,12 +279,12 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 | `pgetrf_bpiv` | Block LU with partial pivoting per block row (device pivot array) |
 | `pgetrf_nopiv` | Multi-process LU without pivoting |
 | `getrf_nopiv` | Local (single-process) LU without pivoting |
-| `pgetrs` | Solve using pivoted LU factors |
-| `pgetrs_nopiv` | Solve using no-pivot LU factors |
-| `pgesv` | Driver: LU + solve with pivoting |
-| `pgesv_nopiv` | Driver: LU + solve without pivoting |
-| `ptrtrs` | Distributed triangular solve |
-| `plapiv` | Apply row-pivot permutation |
+| `pgetrs` | Solve using pivoted LU factors: `op(A)·X = B` (side='L') or `X·op(A) = B` (side='R'), trans='N'/'T'/'C' |
+| `pgetrs_nopiv` | Solve using no-pivot LU factors (same side/trans options) |
+| `pgesv` | Driver: LU + solve with pivoting (side, trans) |
+| `pgesv_nopiv` | Driver: LU + solve without pivoting (side, trans) |
+| `ptrtrs` | Distributed triangular solve (side × uplo × trans × diag) |
+| `plapiv` | Apply pivot permutation to rows or columns, forward or backward |
 | `pswap` | Swap rows or columns between two distributed matrices |
 
 ### Cholesky
@@ -292,10 +292,21 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 | Function | Description |
 |----------|-------------|
 | `ppotrf` | Standard Cholesky factorization (complex-only) |
-| `ppotrs` | Solve using Cholesky factor (complex-only) |
-| `pposv` | Driver: Cholesky + solve (complex-only) |
+| `ppotrs` | Solve using Cholesky factor (side='L'/'R'; trans='N'/'C') |
+| `pposv` | Driver: Cholesky + solve (side='L'/'R'; trans='N'/'C') |
 | `potrf_bottom_right` | Local bottom-right Cholesky (all four scalar types) |
 | `ppotrf_bottom_right` | Distributed bottom-right Cholesky (all four scalar types) |
+
+**Solve semantics.** For `side='L'` the right-hand side B is `n × nrhs` and
+the system is `op(A)·X = B`; for `side='R'` B is `nrhs × n` and the system is
+`X·op(A) = B`.  The LU-family solves (`pgetrs`, `pgetrs_nopiv`, `pgesv`,
+`pgesv_nopiv`) accept `trans` = 'N', 'T' or 'C'.  The Cholesky solves
+(`ppotrs`, `pposv`) accept `trans` = 'N' or 'C', which are equivalent for a
+Hermitian matrix ('T' is not supported).  `plapiv` applies the pivot
+permutation to either rows (`rowcol`='R') or columns (`rowcol`='C'), in
+forward (`direc`='F') or backward (`direc`='B') order.  `ppotrs` applies the
+head-correction relocation permutation to B itself (rows for side='L',
+columns for side='R') when given the same `location` passed to `ppotrf`.
 
 ### Auxiliary and advanced
 

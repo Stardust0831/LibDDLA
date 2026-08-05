@@ -9,24 +9,39 @@ void check_pposv(const ddla::DdlaHandle_t& handle, const Shape& base)
     const int nb = base.nb;
     const int n = square_size(handle, base);
     const int nrhs = nrhs_size(base);
-    ddla::DdlaDesc descA(handle), descB(handle);
+    ddla::DdlaDesc descA(handle);
     descA.init(n, n, nb, nb, 0, 0);
-    descB.init(n, nrhs, nb, nb, 0, 0);
 
     auto h_A = make_local<Complex>(descA, [=](int i, int j){ return hpd_value(i, j, n); });
-    auto h_B = build_rhs(descB, n, hpd_value, n);
 
-    DeviceBuffer<Complex> d_A(handle, h_A.size());
-    DeviceBuffer<Complex> d_B(handle, h_B.size());
-    upload(handle, d_A.ptr, h_A);
-    upload(handle, d_B.ptr, h_B);
-    check_ddla_sync(handle);
+    auto run_case = [&](char side, char trans){
+        const std::string name = std::string("pposv(") + side + ",L," + trans + ")";
+        // side='L': B is n x nrhs, solve op(A)*X = B;
+        // side='R': B is nrhs x n, solve X*op(A) = B.
+        const int b_rows = (side == 'L') ? n : nrhs;
+        const int b_cols = (side == 'L') ? nrhs : n;
+        ddla::DdlaDesc descB(handle);
+        descB.init(b_rows, b_cols, nb, nb, 0, 0);
+        auto h_B = build_rhs_side(descB, n, side, trans, hpd_value, n);
 
-    int info = -1;
-    ddla::pposv('L', 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA,
-                d_B.ptr, 1, 1, descB, info);
-    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
-    check_solution(handle, descB, d_B.ptr, h_B.size(), "pposv", 5e-9);
+        DeviceBuffer<Complex> d_A(handle, h_A.size());
+        DeviceBuffer<Complex> d_B(handle, h_B.size());
+        upload(handle, d_A.ptr, h_A);
+        upload(handle, d_B.ptr, h_B);
+        check_ddla_sync(handle);
+
+        int info = -1;
+        ddla::pposv(side, 'L', trans, n, nrhs, d_A.ptr, 1, 1, descA,
+                    d_B.ptr, 1, 1, descB, info);
+        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        check_solution(handle, descB, d_B.ptr, h_B.size(), name, 5e-9);
+    };
+
+    // A is Hermitian, so trans='C' (op(A)=A^H) and trans='N' are equivalent.
+    run_case('L', 'N');
+    run_case('L', 'C');
+    run_case('R', 'N');
+    run_case('R', 'C');
 }
 
 namespace {
@@ -48,12 +63,16 @@ inline Complex head_value(int i, int j, int n, int head_idx)
     return i < j ? val : std::conj(val);
 }
 
-inline std::vector<Complex> build_head_rhs(const ddla::DdlaDesc& descB, int n, int head_idx)
+inline std::vector<Complex> build_head_rhs_side(const ddla::DdlaDesc& descB, int n,
+                                                char side, int head_idx)
 {
     return make_local<Complex>(descB, [&](int i, int j){
         Complex sum(0.0, 0.0);
         for(int l = 0; l < n; ++l){
-            sum += head_value(i, l, n, head_idx) * x_value(l, j);
+            if(side == 'L')
+                sum += head_value(i, l, n, head_idx) * x_value(l, j);
+            else
+                sum += x_value(i, l) * head_value(l, j, n, head_idx);
         }
         return sum;
     });
@@ -61,9 +80,10 @@ inline std::vector<Complex> build_head_rhs(const ddla::DdlaDesc& descB, int n, i
 
 } // namespace
 
-// pposv(is_head=true, location=<interior>) regression: this is exactly the
-// case that was silently broken until pposv learned to permute B around the
-// call to ppotrs (see src/pposv.cpp). Unlike test_api_grid_ppotrf_head.cpp,
+// pposv(is_head=true, location=<interior>) regression for both sides: this
+// is exactly the case that was silently broken until pposv learned to
+// permute B around the call to ppotrs (see src/pposv.cpp) -- rows of B for
+// side='L', columns of B for side='R'.  Unlike test_api_grid_ppotrf_head.cpp,
 // this test does *not* manually permute B -- pposv is meant to hide that
 // bookkeeping from its caller, so its absence here is the point.
 void check_pposv_head(const ddla::DdlaHandle_t& handle, const Shape& base)
@@ -75,27 +95,36 @@ void check_pposv_head(const ddla::DdlaHandle_t& handle, const Shape& base)
     const int nrhs = nrhs_size(base);
     const int head_idx0 = std::max(1, n / 3) - 1; // 0-based, interior
 
-    ddla::DdlaDesc descA(handle), descB(handle);
+    ddla::DdlaDesc descA(handle);
     descA.init(n, n, nb, nb, 0, 0);
-    descB.init(n, nrhs, nb, nb, 0, 0);
-
     auto h_A = make_local<Complex>(descA, [=](int i, int j){
         return head_value(i, j, n, head_idx0);
     });
-    auto h_B = build_head_rhs(descB, n, head_idx0);
 
-    DeviceBuffer<Complex> d_A(handle, h_A.size());
-    DeviceBuffer<Complex> d_B(handle, h_B.size());
-    upload(handle, d_A.ptr, h_A);
-    upload(handle, d_B.ptr, h_B);
-    check_ddla_sync(handle);
+    auto run_case = [&](char side){
+        const std::string name = std::string("pposv_head(location=interior) side=") + side;
+        const int b_rows = (side == 'L') ? n : nrhs;
+        const int b_cols = (side == 'L') ? nrhs : n;
+        ddla::DdlaDesc descB(handle);
+        descB.init(b_rows, b_cols, nb, nb, 0, 0);
+        auto h_B = build_head_rhs_side(descB, n, side, head_idx0);
 
-    const int head_idx_1based = head_idx0 + 1;
-    int info = -1;
-    ddla::pposv('L', 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA,
-                d_B.ptr, 1, 1, descB, info, true, head_idx_1based);
-    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
-    check_solution(handle, descB, d_B.ptr, h_B.size(), "pposv_head(location=interior)", 5e-9);
+        DeviceBuffer<Complex> d_A(handle, h_A.size());
+        DeviceBuffer<Complex> d_B(handle, h_B.size());
+        upload(handle, d_A.ptr, h_A);
+        upload(handle, d_B.ptr, h_B);
+        check_ddla_sync(handle);
+
+        const int head_idx_1based = head_idx0 + 1;
+        int info = -1;
+        ddla::pposv(side, 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA,
+                    d_B.ptr, 1, 1, descB, info, true, head_idx_1based);
+        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        check_solution(handle, descB, d_B.ptr, h_B.size(), name, 5e-9);
+    };
+
+    run_case('L');
+    run_case('R');
 }
 
 int main(int argc, char** argv)

@@ -460,6 +460,25 @@ inline std::vector<Complex> build_rhs(const ddla::DdlaDesc& descB, int n,
     });
 }
 
+// B := op(A)*X (side='L', B is n x nrhs) or B := X*op(A) (side='R',
+// B is nrhs x n), with op(A) chosen by trans via op_value.
+inline std::vector<Complex> build_rhs_side(const ddla::DdlaDesc& descB, int n,
+                                           char side, char trans,
+                                           Complex (*matrix)(int, int, int),
+                                           int tag)
+{
+    return make_local<Complex>(descB, [&](int i, int j){
+        Complex sum(0.0, 0.0);
+        for(int l = 0; l < n; ++l){
+            if(side == 'L')
+                sum += op_value(trans, n, n, i, l, matrix, tag) * x_value(l, j);
+            else
+                sum += x_value(i, l) * op_value(trans, n, n, l, j, matrix, tag);
+        }
+        return sum;
+    });
+}
+
 inline void check_solution(const ddla::DdlaHandle_t& handle, const ddla::DdlaDesc& descB,
                            const Complex* d_B, size_t count,
                            const std::string& name, double tol)

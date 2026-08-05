@@ -22,7 +22,7 @@ namespace ddla {
  */
 template <typename T>
 void pgesv_nopiv(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
 )
@@ -34,26 +34,26 @@ void pgesv_nopiv(
     if (info != 0) {
         throw std::runtime_error("pgesv_nopiv: pgetrf_nopiv returned info = " + std::to_string(info));
     }
-    pgetrs_nopiv('N', n, nrhs, d_A, array_descA, d_B, array_descB);
+    pgetrs_nopiv(side, trans, n, nrhs, d_A, array_descA, d_B, array_descB);
 }
 
 template void pgesv_nopiv<float>(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     float* d_A, const DdlaDesc& array_descA,
     float* d_B, const DdlaDesc& array_descB
 );
 template void pgesv_nopiv<double>(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     double* d_A, const DdlaDesc& array_descA,
     double* d_B, const DdlaDesc& array_descB
 );
 template void pgesv_nopiv<std::complex<float>>(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     std::complex<float>* d_A, const DdlaDesc& array_descA,
     std::complex<float>* d_B, const DdlaDesc& array_descB
 );
 template void pgesv_nopiv<std::complex<double>>(
-    const int& n, const int& nrhs,
+    const char& side, const char& trans, const int& n, const int& nrhs,
     std::complex<double>* d_A, const DdlaDesc& array_descA,
     std::complex<double>* d_B, const DdlaDesc& array_descB
 );

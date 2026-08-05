@@ -54,19 +54,12 @@ inline std::vector<Complex> build_head_rhs(const ddla::DdlaDesc& descB, int n, i
     });
 }
 
-// Row-permute a distributed n x nrhs matrix: swap global row `p` (1-based)
-// with global row `n` (1-based), across all nrhs columns. ppotrf only
-// permutes A itself when relocating the head element; a caller solving
-// against a *different* right-hand side (as any real use of location != -1
-// would) must apply the same row swap to B before ppotrs, and undo it on
-// the solution afterward -- this helper does that swap (self-inverse, so
-// the same call undoes it).
-inline void permute_rhs_rows(Complex* d_B, const ddla::DdlaDesc& descB, int n, int nrhs, int p)
-{
-    if(p == n) return;
-    ddla::pswap(nrhs, d_B, p, 1, descB, descB.m(), d_B, n, 1, descB, descB.m());
-}
-
+// ppotrs now applies the head-relocation permutation to B itself (rows for
+// side='L', columns for side='R') when given the same `location` that was
+// passed to ppotrf, so direct ppotrf + ppotrs head-correction callers do
+// not need to permute B by hand.  check_head_case below verifies exactly
+// that: ppotrf is called with is_head=true and location, and ppotrs is
+// called with the same location -- no manual permute_rhs_rows() calls.
 void check_head_case(const ddla::DdlaHandle_t& handle, int n, int nrhs, int nb,
                      int head_idx_1based, const std::string& label)
 {
@@ -97,9 +90,9 @@ void check_head_case(const ddla::DdlaHandle_t& handle, int n, int nrhs, int nb,
     // magnitude needs revisiting for this n.
     require_close(handle, label + " is_nega", is_nega ? 0.0 : 1.0, 0.0);
 
-    if(location != -1) permute_rhs_rows(d_B.ptr, descB, n, nrhs, head_idx_1based);
-    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega, -1);
-    if(location != -1) permute_rhs_rows(d_B.ptr, descB, n, nrhs, head_idx_1based);
+    // Same location forwarded to ppotrs; the B permutation (if any) happens
+    // inside ppotrs.
+    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega, location);
 
     check_solution(handle, descB, d_B.ptr, h_B.size(), label, 5e-9);
 }

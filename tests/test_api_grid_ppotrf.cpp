@@ -61,7 +61,7 @@ void check_ppotrf(const ddla::DdlaHandle_t& handle, const Shape& base)
     int info = -1;
     const bool is_nega = ddla::ppotrf('L', n, d_A.ptr, 1, 1, descA, info);
     if(info != 0 || is_nega) MPI_Abort(ddla_get_communicator(handle), 1);
-    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega, -1);
+    ddla::ppotrs('L', 'L', 'N', n, nrhs, d_A.ptr, descA, d_B.ptr, descB, is_nega);
     check_solution(handle, descB, d_B.ptr, h_B.size(), "ppotrf", 5e-9);
 }
 

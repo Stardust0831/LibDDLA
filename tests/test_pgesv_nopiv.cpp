@@ -66,7 +66,7 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
 
     // Solve A * X = I (overwrites d_A with LU factors, d_identity with X).
     double start_time_sv = MPI_Wtime();
-    pgesv_nopiv(n, n, d_A, matrix_desc, d_identity, matrix_desc);
+    pgesv_nopiv('L', 'N', n, n, d_A, matrix_desc, d_identity, matrix_desc);
     RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_sv = MPI_Wtime() - start_time_sv;

@@ -123,7 +123,9 @@ if(DDLA_USE_CUDA OR DDLA_USE_HIP)
     add_bench_executable(benchmark_pgetrf)
     add_bench_executable(benchmark_pgetf2)
     add_bench_executable(benchmark_ptrtrs)
+    add_bench_executable(benchmark_solve_side)
     add_bench_executable(benchmark_ppotrf_bottom_right)
+    add_bench_executable(benchmark_plapiv)
 endif()
 
 # Backend handle test — works for all backends
