@@ -53,8 +53,10 @@ else()
         pswap.cpp
         pgetrs.cpp
         pgetrs_nopiv.cpp
+        pgetrs_bpiv.cpp
         pgesv.cpp
         pgesv_nopiv.cpp
+        pgesv_bpiv.cpp
         pgemm.cpp
         pgeadd.cpp
         pdam.cpp

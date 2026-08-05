@@ -413,6 +413,15 @@ inline Complex dominant_value(int i, int j, int n)
     return Complex(0.015 * ((i + 2 * j) % 5 - 2), 0.01 * ((2 * i + j) % 7 - 3));
 }
 
+// Row-cycled variant of dominant_value: global row i carries the strong
+// diagonal element of row (i+1)%n, so diagonal blocks factored with partial
+// pivoting must actually swap rows (non-identity ipiv).  Exercises the pivot
+// path that a strictly diagonally dominant matrix never triggers.
+inline Complex cycled_value(int i, int j, int n)
+{
+    return dominant_value((i + 1) % n, j, n);
+}
+
 inline Complex hpd_value(int i, int j, int n)
 {
     if(i == j){

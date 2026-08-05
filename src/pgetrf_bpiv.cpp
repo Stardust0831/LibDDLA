@@ -18,12 +18,16 @@ namespace ddla {
  *
  * Right-looking block algorithm: at each step only the nb×nb diagonal block
  * is factored with getrf (local, single-GPU).  Pivoting is "block-partial" --
- * row swaps are confined to the diagonal block and then applied to the right
- * panel before the trailing-submatrix update.
+ * row swaps are confined to the diagonal block and then applied to the full
+ * rows (the already-factored columns as well as the right panel) before the
+ * trailing-submatrix update.  The output is a standard LU factorization
+ * A = P*L*U: every block's row swaps are applied to the whole row, including
+ * the L part in the already-factored columns.
  *
  * For each panel step k (global column n_s):
  *   1. Panel LU:     P1 * A11 = L1 * U1          (getrf on local nb×nb block)
- *   2. Apply pivot:  swap rows in right panel    (desolverLaswp with local ipiv)
+ *   2. Apply pivot:  swap rows in right panel and in the factored columns
+ *                    [0, n_s) of the current block rows   (desolverLaswp)
  *   3. Compute U12:  U12 = L1^{-1} * B           (trsm LEFT/LOWER/UNIT)
  *   4. Compute L21:  L21 = C * U1^{-1}           (trsm RIGHT/UPPER/NON-UNIT)
  *   5. Update trail: D <- D - L21 * U12          (gemm)
@@ -101,8 +105,36 @@ void pgetrf_bpiv(
             info += n_s;
             break;
         }
-        if(n_s + nb_real == n)
+        if(n_s + nb_real == n){
+            // Last block: no right panel, but for a standard A = P*L*U the
+            // row swaps must still be applied to the already-factored columns
+            // [0, n_s).  getrf wrote these pivots only on (owner_row,
+            // owner_col) -- the loop breaks before step 2's row broadcast --
+            // so broadcast them first.
+            const int l_cols = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
+            if(myprow == owner_row){
+                commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
+                if(l_cols > 0){
+#ifdef DDLA_USE_CUDA
+                    SOLVER_CHECK(desolverLaswp(
+                        solverH, l_cols,
+                        d_A + mm_row_start, lld,
+                        1, nb_real,   // 1-based local row range
+                        d_ipiv + mm_row_start, 1
+                    ));
+#endif
+#ifdef DDLA_USE_HIP
+                    BLAS_CHECK(deblasLaswp(
+                        blasH, l_cols,
+                        d_A + mm_row_start, lld,
+                        1, nb_real,   // 1-based local row range
+                        d_ipiv + mm_row_start, 1
+                    ));
+#endif
+                }
+            }
             break;
+        }
 
         // ================================================================
         // Step 2: Apply pivot to the right panel  B <- P1 * B
@@ -129,6 +161,30 @@ void pgetrf_bpiv(
         if (myprow == owner_row) {
             commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
             commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
+            // Apply the row swaps to the already-factored columns [0, n_s) of
+            // this block's rows, so the factorization is a standard
+            // A = P*L*U (the L part is permuted too).  These local columns
+            // hold no data of the current trailing submatrix, so this is a
+            // purely local laswp.
+            const int l_cols = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
+            if(l_cols > 0){
+#ifdef DDLA_USE_CUDA
+                SOLVER_CHECK(desolverLaswp(
+                    solverH, l_cols,
+                    d_A + mm_row_start, lld,
+                    1, nb_real,   // 1-based local row range
+                    d_ipiv + mm_row_start, 1
+                ));
+#endif
+#ifdef DDLA_USE_HIP
+                BLAS_CHECK(deblasLaswp(
+                    blasH, l_cols,
+                    d_A + mm_row_start, lld,
+                    1, nb_real,   // 1-based local row range
+                    d_ipiv + mm_row_start, 1
+                ));
+#endif
+            }
             // Apply row swaps to the local right panel columns [n_s+nb_real, n).
             // The pivoted rows in the local matrix start at i_loc.
             // Number of local columns in the right panel: those from n_s+nb_real to n-1.

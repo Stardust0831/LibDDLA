@@ -183,10 +183,13 @@ void pgetrf(
 /**
  * @brief Block LU factorization with partial pivoting within each block row.
  *
- * Computes PA = LU where pivoting is applied at the block level: within each
+ * Computes A = P*L*U where pivoting is applied at the block level: within each
  * block column the diagonal block is factored with getrf (producing P1 A = L1 U1),
- * then the pivot is applied to the right panel (B ← P1 B), the U and L panels
- * are computed via trsm, and the trailing submatrix updated via gemm.
+ * then the pivot is applied to the full rows (the already-factored columns as
+ * well as the right panel), the U and L panels are computed via trsm, and the
+ * trailing submatrix updated via gemm.  The output is a standard LU
+ * factorization: each block's row swaps cover every column, including the L
+ * part, so the factors can be used with any standard triangular solve.
  *
  * This is a right-looking block algorithm.  Corresponds to the block-wise
  * derivation in README.md (Experimental Routines).
@@ -196,7 +199,8 @@ void pgetrf(
  * @param n        Number of columns of A.
  * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
  * @param array_descA  DdlaDesc for A (mb == nb required).
- * @param ipiv     device pivot array (output, 1-based, length >= m_loc).
+ * @param ipiv     device pivot array (output, 1-based block-local offsets,
+ *                 length >= m_loc).
  * @param info     host info 0 on success, >0 if singular. 
  */
 template <typename T>
@@ -349,6 +353,67 @@ void pgesv(
  */
 template <typename T>
 void pgesv_nopiv(
+    const char& side, const char& trans, const int& n, const int& nrhs,
+    T* d_A, const DdlaDesc& array_descA,
+    T* d_B, const DdlaDesc& array_descB
+);
+
+/**
+ * @brief Distributed solve using the block LU factors from pgetrf_bpiv:
+ *        solve op(A) * X = B (side='L') or X * op(A) = B (side='R').
+ *
+ * pgetrf_bpiv performs block-partial pivoting: each nb x nb diagonal block is
+ * factored with a local getrf and its row permutation is applied to the full
+ * rows (already-factored columns and right panel) with laswp in forward
+ * order, yielding a standard A = P*L*U.  Its pivot array @p d_ipiv is a
+ * device array holding 1-based offsets *within* each diagonal block (kept on
+ * the owning process row).  The block permutations act on disjoint row sets,
+ * so they commute and each block's swaps are local to one process row
+ * (side='L') or process column (side='R'); pgetrs_bpiv applies them without
+ * any data movement.
+ *
+ * @tparam T   Scalar type.
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
+ * @param n       Order of matrix A.
+ * @param nrhs    Number of right-hand sides.
+ * @param d_A     Device pointer to LU factors (from pgetrf_bpiv).
+ * @param array_descA  DdlaDesc for A.
+ * @param d_ipiv  Device pivot array from pgetrf_bpiv (block-local, 1-based).
+ * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param array_descB  DdlaDesc for B.
+ */
+template <typename T>
+void pgetrs_bpiv(
+    const char& side, const char& trans, const int& n, const int& nrhs,
+    T* d_A, const DdlaDesc& array_descA,
+    int* d_ipiv, // device
+    T* d_B, const DdlaDesc& array_descB
+);
+
+/**
+ * @brief Distributed linear-system solver using block-partial-pivoting LU
+ *        (driver): solve op(A) * X = B (side='L') or X * op(A) = B
+ *        (side='R').
+ *
+ * Convenience wrapper: pgetrf_bpiv (block LU with partial pivoting within
+ * each block row) + pgetrs_bpiv (solve).
+ *
+ * @tparam T   Scalar type.
+ * @param side    'L' -- solve op(A)*X = B (B is n x nrhs);
+ *                'R' -- solve X*op(A) = B (B is nrhs x n).
+ * @param trans   'N', 'T' or 'C' -- operation applied to A.
+ * @param n       Order of square matrix A.
+ * @param nrhs    Number of right-hand sides.
+ * @param d_A     Device pointer to A (input: coefficient; output: LU factors).
+ * @param array_descA  DdlaDesc for A.
+ * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param array_descB  DdlaDesc for B.
+ * @throws std::runtime_error if LU factorization fails (info != 0).
+ */
+template <typename T>
+void pgesv_bpiv(
     const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const DdlaDesc& array_descA,
     T* d_B, const DdlaDesc& array_descB
