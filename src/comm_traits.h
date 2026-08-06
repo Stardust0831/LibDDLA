@@ -164,7 +164,7 @@ inline void commBcast(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
         T* host = detail::tunnel_staging<T>(h, 0, count);
-        CCL_CHECK(cclBcast(host, buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
+        MPI_CHECK(cclBcast(host, buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
         CCL_CHECK(cclBcast(buf, count, root, CommTraits<Backend>::comm(h, scope), h->stream));
@@ -181,7 +181,7 @@ inline void commSend(const DdlaHandle_t& h, CommScope scope, const T* buf, std::
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
         T* host = detail::tunnel_staging<T>(h, 0, count);
-        CCL_CHECK(cclSend(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
+        MPI_CHECK(cclSend(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #else
         CCL_CHECK(cclSend(buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #endif
@@ -197,7 +197,7 @@ inline void commRecv(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_t
     } else {
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
         T* host = detail::tunnel_staging<T>(h, 0, count);
-        CCL_CHECK(cclRecv(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
+        MPI_CHECK(cclRecv(host, buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
         CCL_CHECK(cclRecv(buf, count, peer, CommTraits<Backend>::comm(h, scope), h->stream));
@@ -215,7 +215,7 @@ inline void commAllReduce(const DdlaHandle_t& h, CommScope scope,
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
         T* hs = detail::tunnel_staging<T>(h, 0, count);
         T* hr = detail::tunnel_staging<T>(h, 1, count);
-        CCL_CHECK(cclAllReduce(hs, sbuf, hr, rbuf, count, op,
+        MPI_CHECK(cclAllReduce(hs, sbuf, hr, rbuf, count, op,
                                CommTraits<Backend>::comm(h, scope), h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #else
