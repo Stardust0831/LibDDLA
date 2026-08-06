@@ -279,7 +279,6 @@ void ptran(const T* d_A, const DdlaDesc& descA,
     devT* d_AT_dev = reinterpret_cast<devT*>(d_AT);
 
     runtimeStream_t stream = handle->stream;
-    runtimeStream_t stream_data = handle->stream_data;
 
     // ---- Phase 2: allocate device buffers ----
     T* d_sendbuf = nullptr;
