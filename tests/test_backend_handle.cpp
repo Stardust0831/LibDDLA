@@ -3,7 +3,7 @@
  * @brief Test backend selection, handle lifecycle, and public accessors.
  *
  * Covers:
- *  - Default/AUTO resolution to the sole compiled backend
+ *  - Default resolution to the compile-time default backend
  *  - Explicit available backend
  *  - Explicit unavailable backend (throws)
  *  - Backend query (ddla_get_backend)
@@ -47,12 +47,12 @@ int main(int argc, char** argv)
 
     if (myid == 0) std::cout << "=== Backend & Handle Test ===" << std::endl;
 
-    // ---- 1. Default/AUTO resolution -----------------------------------
+    // ---- 1. Default backend resolution --------------------------------
     {
         DdlaHandle_t h1 = nullptr;
         ddla_init(h1);
-        TEST("AUTO resolves to sole compiled backend",
-             ddla_get_backend(h1) != DdlaBackend::AUTO);
+        TEST("Default resolves to compile-time default backend",
+             ddla_get_backend(h1) == default_backend_v);
         TEST("Resolved backend is available",
              ddla_backend_available(ddla_get_backend(h1)));
         ddla_destroy(h1);
@@ -100,8 +100,13 @@ int main(int argc, char** argv)
     // ---- 4. Backend query on null handle -------------------------------
     {
         DdlaHandle_t null_h = nullptr;
-        TEST("ddla_get_backend(nullptr) returns AUTO",
-             ddla_get_backend(null_h) == DdlaBackend::AUTO);
+        bool threw = false;
+        try {
+            ddla_get_backend(null_h);
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        TEST("ddla_get_backend(nullptr) throws std::runtime_error", threw);
         TEST("ddla_get_stream(nullptr) returns nullptr",
              ddla_get_stream(null_h) == nullptr);
     }

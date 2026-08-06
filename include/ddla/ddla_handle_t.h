@@ -11,9 +11,8 @@ namespace ddla {
 // Backend selection
 // ---------------------------------------------------------------------------
 enum class DdlaBackend {
-    AUTO,  ///< Resolve to the sole compiled backend (CPU or GPU)
-    CPU,   ///< CPU-only (host BLAS, MPI communication)
-    GPU    ///< GPU (CUDA or HIP, depending on build configuration)
+    CPU,  ///< CPU-only (host BLAS, MPI communication)
+    GPU   ///< GPU (CUDA or HIP, depending on build configuration)
 };
 
 /// Compile-time default used by backend-templated compute interfaces.
@@ -24,7 +23,9 @@ inline constexpr DdlaBackend default_backend_v =
 #elif DDLA_HAS_CPU
     DdlaBackend::CPU;
 #else
-    DdlaBackend::AUTO;
+    // Unreachable: CMake requires at least one backend (CPU, CUDA, or HIP).
+    // Kept as a hard error so the header stays self-consistent.
+#error "LibDDLA requires at least one backend (CPU or GPU)"
 #endif
 
 /// Memory copy direction for ddla_memcpy.
@@ -44,7 +45,8 @@ using DdlaHandle_t = DdlaStream*;      // ABI: opaque pointer
 // Lifecycle
 // ---------------------------------------------------------------------------
 
-/// Create an uninitialized handle (backend = AUTO).
+/// Create an uninitialized handle using the compile-time default backend
+/// (`default_backend_v`: GPU when compiled with GPU support, else CPU).
 void ddla_init(DdlaHandle_t& handle);
 
 /// Create a handle requesting a specific backend.
@@ -72,6 +74,7 @@ void ddla_destroy(DdlaHandle_t& handle);
 bool ddla_backend_available(DdlaBackend backend);
 
 /// Return the resolved backend for this handle.
+/// @throws std::runtime_error if @p handle is null.
 DdlaBackend ddla_get_backend(const DdlaHandle_t& handle);
 
 // ---------------------------------------------------------------------------

@@ -49,8 +49,9 @@ public:
 
     char major = 'R';
 
-    // -- backend identity (set during ddla_set) -----------------------------
-    DdlaBackend backend = DdlaBackend::AUTO;
+    // -- backend identity (set during ddla_init) -----------------------------
+    // Placeholder until ddla_init overwrites it; never consulted before that.
+    DdlaBackend backend = DdlaBackend::CPU;
 
     // -- lifecycle guards ---------------------------------------------------
     bool initialized = false;
@@ -139,8 +140,8 @@ public:
         DdlaBackend saved_backend = backend;
         clean();
 
-        // Device selection (GPU handles only). `saved_backend` is never
-        // AUTO here: ddla_set always resolves it before calling init().
+        // Device selection (GPU handles only). `saved_backend` is already
+        // concrete here: ddla_init stores the requested backend directly.
         if (saved_backend == DdlaBackend::GPU) {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
             RUNTIME_CHECK(runtimeFree(NULL));
@@ -181,7 +182,7 @@ public:
         MPI_Comm_split(comm, mypcol_, myid, &col_comm);
 
         // CCL / stream / BLAS / solver: GPU handles only. `backend` is
-        // never AUTO here: ddla_set always resolves it before calling init().
+        // already concrete here (set by ddla_init).
         if (backend == DdlaBackend::GPU) {
 #ifdef DDLA_USE_CCL
             DdlaStream::nccl_comm_create(nccl_comm, comm);

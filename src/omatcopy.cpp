@@ -92,16 +92,13 @@ inline void cpu_omatcopy(char trans, int rows, int cols,
 
 inline const char* omatcopy_backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 template <DdlaBackend Backend, typename T>
 void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
               const T& alpha, const T* A, int lda, T* B, int ldb)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "omatcopy backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU omatcopy is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,
@@ -135,8 +132,6 @@ template <DdlaBackend Backend, typename T>
 void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
             const T* src, int src_ld, int rows, int cols)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "copy2D backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     if (rows <= 0 || cols <= 0) return;
 
     if constexpr (Backend == DdlaBackend::CPU) {

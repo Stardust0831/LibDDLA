@@ -23,8 +23,7 @@ namespace ddla {
 
 inline const char* pgemm_backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 
@@ -38,8 +37,6 @@ void pgemm(
     const T& beta,
     T* C, const DdlaDesc& descC)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "pgemm backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU pgemm is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,

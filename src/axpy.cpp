@@ -23,8 +23,7 @@ namespace {
 
 inline const char* axpy_backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 #if DDLA_HAS_CPU
@@ -61,8 +60,6 @@ template <DdlaBackend Backend, typename T>
 void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
           const T* x, int incx, T* y, int incy)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "axpy backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU axpy is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,

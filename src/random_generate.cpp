@@ -9,8 +9,6 @@ namespace ddla {
 template <DdlaBackend Backend, typename T>
 void random_generate(T* data, const int64_t& lengthOfData)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "random_generate backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU random_generate is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,

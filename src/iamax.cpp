@@ -21,8 +21,7 @@ namespace {
 
 inline const char* iamax_backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 #if DDLA_HAS_CPU
@@ -52,8 +51,6 @@ inline int cpu_iamax(int n, const std::complex<double>* x, int incx)
 template <DdlaBackend Backend, typename T>
 void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "iamax backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU iamax is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,

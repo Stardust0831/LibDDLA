@@ -22,26 +22,8 @@ bool ddla_backend_available(DdlaBackend backend)
 #else
         return false;
 #endif
-    case DdlaBackend::AUTO:
-        // AUTO is always "available" — resolves to the sole compiled backend
-        return true;
     }
     return false;
-}
-
-// ---------------------------------------------------------------------------
-// Resolve AUTO to the actual compiled backend
-// ---------------------------------------------------------------------------
-static DdlaBackend resolve_auto()
-{
-#if DDLA_HAS_GPU
-    return DdlaBackend::GPU;
-#elif DDLA_HAS_CPU
-    return DdlaBackend::CPU;
-#else
-    // Should be unreachable (CMake requires at least one backend)
-    throw std::runtime_error("No backend compiled into LibDDLA");
-#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -49,19 +31,13 @@ static DdlaBackend resolve_auto()
 // ---------------------------------------------------------------------------
 void ddla_init(DdlaHandle_t& handle)
 {
-    ddla_init(handle, DdlaBackend::AUTO);
+    ddla_init(handle, default_backend_v);
 }
 
 void ddla_init(DdlaHandle_t& handle, DdlaBackend requested_backend)
 {
-    // Resolve AUTO to the compiled backend
-    DdlaBackend resolved = requested_backend;
-    if (requested_backend == DdlaBackend::AUTO) {
-        resolved = resolve_auto();
-    }
-
     // Validate availability
-    if (!ddla_backend_available(resolved)) {
+    if (!ddla_backend_available(requested_backend)) {
         throw std::runtime_error(
             "Requested backend is not available in this build of LibDDLA");
     }
@@ -69,7 +45,7 @@ void ddla_init(DdlaHandle_t& handle, DdlaBackend requested_backend)
     // Allocate fresh handle — do NOT read the incoming value (callers may
     // pass uninitialized pointer variables; reading them is UB).
     handle = new DdlaStream();
-    handle->backend = resolved;
+    handle->backend = requested_backend;
 }
 
 // ---------------------------------------------------------------------------
@@ -78,25 +54,20 @@ void ddla_init(DdlaHandle_t& handle, DdlaBackend requested_backend)
 DdlaBackend ddla_get_backend(const DdlaHandle_t& handle)
 {
     if (handle == nullptr) {
-        return DdlaBackend::AUTO;
+        throw std::runtime_error("ddla_get_backend: handle is null");
     }
     return handle->backend;
 }
 
 // ---------------------------------------------------------------------------
-// Shared by both ddla_set overloads: resolve AUTO to a concrete backend,
-// validate it is available in this build, and collectively verify every
-// MPI rank picked the same backend. Packs {value, -value} into a single
-// MPI_MAX Allreduce to recover both the max and the min in one collective
-// call instead of two.
+// Shared by both ddla_set overloads: validate the handle backend is
+// available in this build, and collectively verify every MPI rank picked
+// the same backend. Packs {value, -value} into a single MPI_MAX Allreduce
+// to recover both the max and the min in one collective call instead of two.
 // ---------------------------------------------------------------------------
 static void resolve_and_validate_backend(DdlaHandle_t handle, const MPI_Comm& comm)
 {
-    DdlaBackend resolved = handle->backend;
-    if (resolved == DdlaBackend::AUTO) {
-        resolved = resolve_auto();
-        handle->backend = resolved;
-    }
+    const DdlaBackend resolved = handle->backend;
 
     if (!ddla_backend_available(resolved)) {
         throw std::runtime_error(

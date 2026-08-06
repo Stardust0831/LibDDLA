@@ -69,8 +69,7 @@ inline void cpu_gemm(
 
 inline const char* backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 template <DdlaBackend Backend, typename T>
@@ -84,8 +83,6 @@ void gemm(
     const T& beta,
     T* C, int ldc)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "gemm backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU gemm is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,

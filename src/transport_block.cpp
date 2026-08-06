@@ -16,8 +16,7 @@ namespace ddla {
 
 inline const char* transport_block_backend_name(DdlaBackend backend)
 {
-    return backend == DdlaBackend::CPU ? "CPU" :
-           backend == DdlaBackend::GPU ? "GPU" : "AUTO";
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
 }
 
 // ---------------------------------------------------------------------------

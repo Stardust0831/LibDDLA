@@ -44,8 +44,6 @@ void write_host_matrix(const T* A, int m, int n, const char* filename)
 template <DdlaBackend Backend, typename T>
 void write_matrix(const T* A, const int& m, const int& n, const char* filename)
 {
-    static_assert(Backend == DdlaBackend::CPU || Backend == DdlaBackend::GPU,
-                  "write_matrix backend must be DdlaBackend::CPU or DdlaBackend::GPU");
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU write_matrix is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,
