@@ -122,15 +122,13 @@ void pgetrf(
             commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - mm_col_start), owner_row);
         }
         if(mm_row_start<m_loc&&mm_col_start<n_loc){
-            BLAS_CHECK(deblasGemm(
-                blasH, DEBLAS_OP_N, DEBLAS_OP_N,
+            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, n_loc - mm_col_start, nb_real,
                 -1.0,
                 d_temp_L, m_loc - mm_row_start,
                 d_temp_U, nb_real,
                 1.0,
-                d_A + mm_row_start + mm_col_start * lld, lld
-            ));
+                d_A + mm_row_start + mm_col_start * lld, lld);
         }
     }
     RUNTIME_CHECK(runtimeFreeAsync(d_temp_block, stream));

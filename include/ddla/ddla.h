@@ -238,7 +238,7 @@ void pgetrf_nopiv(const int& m, const int& n, T* d_A, const DdlaDesc& array_desc
  * Uses a right-looking block algorithm with block size nb=32:
  *   1. Panel factorization via custom getf2_nopiv_kernel.
  *   2. Solve for U panel via deblasTrsm.
- *   3. Update trailing submatrix via deblasGemm.
+ *   3. Update trailing submatrix via gemm.
  *
  * @tparam T   Scalar type.
  * @param m        Number of rows of A.

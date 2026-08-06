@@ -3,6 +3,7 @@
 #include <complex>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 #include "ddla_stream_impl.h"
 
@@ -26,46 +27,6 @@ void zgemm_(const char*, const char*, const int*, const int*, const int*,
 #endif
 
 namespace ddla {
-
-#if DDLA_HAS_CPU
-inline void cpu_gemm(
-    char transa, char transb, int m, int n, int k,
-    const float& alpha, const float* A, int lda,
-    const float* B, int ldb, const float& beta, float* C, int ldc)
-{
-    sgemm_(&transa, &transb, &m, &n, &k,
-           &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
-}
-
-inline void cpu_gemm(
-    char transa, char transb, int m, int n, int k,
-    const double& alpha, const double* A, int lda,
-    const double* B, int ldb, const double& beta, double* C, int ldc)
-{
-    dgemm_(&transa, &transb, &m, &n, &k,
-           &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
-}
-
-inline void cpu_gemm(
-    char transa, char transb, int m, int n, int k,
-    const std::complex<float>& alpha, const std::complex<float>* A, int lda,
-    const std::complex<float>* B, int ldb,
-    const std::complex<float>& beta, std::complex<float>* C, int ldc)
-{
-    cgemm_(&transa, &transb, &m, &n, &k,
-           &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
-}
-
-inline void cpu_gemm(
-    char transa, char transb, int m, int n, int k,
-    const std::complex<double>& alpha, const std::complex<double>* A, int lda,
-    const std::complex<double>* B, int ldb,
-    const std::complex<double>& beta, std::complex<double>* C, int ldc)
-{
-    zgemm_(&transa, &transb, &m, &n, &k,
-           &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
-}
-#endif
 
 inline const char* backend_name(DdlaBackend backend)
 {
@@ -100,8 +61,20 @@ void gemm(
 
     if constexpr (Backend == DdlaBackend::CPU) {
 #if DDLA_HAS_CPU
-        cpu_gemm(transa, transb, m, n, k,
-                 alpha, A, lda, B, ldb, beta, C, ldc);
+        if constexpr (std::is_same_v<T, float>)
+            sgemm_(&transa, &transb, &m, &n, &k,
+                   &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
+        else if constexpr (std::is_same_v<T, double>)
+            dgemm_(&transa, &transb, &m, &n, &k,
+                   &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
+        else if constexpr (std::is_same_v<T, std::complex<float>>)
+            cgemm_(&transa, &transb, &m, &n, &k,
+                   &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
+        else if constexpr (std::is_same_v<T, std::complex<double>>)
+            zgemm_(&transa, &transb, &m, &n, &k,
+                   &alpha, A, &lda, B, &ldb, &beta, C, &ldc);
+        else
+            static_assert(sizeof(T) == 0, "gemm: unsupported scalar type T");
 #endif
     } else {
 #if DDLA_HAS_GPU
@@ -109,9 +82,61 @@ void gemm(
                                       transa == 'T' ? DEBLAS_OP_T : DEBLAS_OP_C;
         const deblasOperation_t opB = transb == 'N' ? DEBLAS_OP_N :
                                       transb == 'T' ? DEBLAS_OP_T : DEBLAS_OP_C;
-        BLAS_CHECK(deblasGemm(
-            handle->blasH, opA, opB,
-            m, n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+        if constexpr (std::is_same_v<T, float>) {
+#if defined(DDLA_USE_CUDA)
+            BLAS_CHECK(cublasSgemm(handle->blasH, opA, opB, m, n, k,
+                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
+#elif defined(DDLA_USE_HIP)
+            BLAS_CHECK(hipblasSgemm(handle->blasH, opA, opB, m, n, k,
+                                    &alpha, A, lda, B, ldb, &beta, C, ldc));
+#else
+            throw std::runtime_error(
+                "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
+#endif
+        } else if constexpr (std::is_same_v<T, double>) {
+#if defined(DDLA_USE_CUDA)
+            BLAS_CHECK(cublasDgemm(handle->blasH, opA, opB, m, n, k,
+                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
+#elif defined(DDLA_USE_HIP)
+            BLAS_CHECK(hipblasDgemm(handle->blasH, opA, opB, m, n, k,
+                                    &alpha, A, lda, B, ldb, &beta, C, ldc));
+#else
+            throw std::runtime_error(
+                "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
+#endif
+        } else if constexpr (std::is_same_v<T, std::complex<float>>) {
+#if defined(DDLA_USE_CUDA)
+            BLAS_CHECK(cublasCgemm(handle->blasH, opA, opB, m, n, k,
+                                   (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda,
+                                   (cuFloatComplex*)B, ldb,
+                                   (cuFloatComplex*)&beta, (cuFloatComplex*)C, ldc));
+#elif defined(DDLA_USE_HIP)
+            BLAS_CHECK(hipblasCgemm(handle->blasH, opA, opB, m, n, k,
+                                    (hipblasComplex*)&alpha, (hipblasComplex*)A, lda,
+                                    (hipblasComplex*)B, ldb,
+                                    (hipblasComplex*)&beta, (hipblasComplex*)C, ldc));
+#else
+            throw std::runtime_error(
+                "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
+#endif
+        } else if constexpr (std::is_same_v<T, std::complex<double>>) {
+#if defined(DDLA_USE_CUDA)
+            BLAS_CHECK(cublasZgemm(handle->blasH, opA, opB, m, n, k,
+                                   (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda,
+                                   (cuDoubleComplex*)B, ldb,
+                                   (cuDoubleComplex*)&beta, (cuDoubleComplex*)C, ldc));
+#elif defined(DDLA_USE_HIP)
+            BLAS_CHECK(hipblasZgemm(handle->blasH, opA, opB, m, n, k,
+                                    (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda,
+                                    (hipblasDoubleComplex*)B, ldb,
+                                    (hipblasDoubleComplex*)&beta, (hipblasDoubleComplex*)C, ldc));
+#else
+            throw std::runtime_error(
+                "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
+#endif
+        } else {
+            static_assert(sizeof(T) == 0, "gemm: unsupported scalar type T");
+        }
 #endif
     }
 }

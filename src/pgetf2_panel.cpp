@@ -99,15 +99,14 @@ void pgetf2_panel(
         }
         // printf("myid:%d, n_s:%d, update trailing matrix mm_row_start:%d, mm_col_start:%d\n",mpi_comm_global_h.myid,n_s,mm_row_start,mm_col_start);
         if(mm_row_start<m_loc && mm_col_start<j_s + nb_real && j_loc>=0){
-            BLAS_CHECK(deblasGemm(
-                blasH, DEBLAS_OP_N, DEBLAS_OP_N,
+            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, j_s + nb_real - mm_col_start, panel_real,
                 -1.0,
                 d_A + mm_row_start + j_loc * lld, lld,
                 d_temp_U, panel_real,
                 1.0,
                 d_A + mm_row_start + mm_col_start * lld, lld
-            ));
+            );
         }
     }
     info = 0;

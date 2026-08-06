@@ -198,15 +198,13 @@ void ptrtrs(
             }
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
             if(length_block_A > 0){
-                BLAS_CHECK(deblasGemm(
-                    blasH, trans_device, DEBLAS_OP_N, 
+                gemm<DdlaBackend::GPU, T>(ddla_handle, trans, 'N',
                     length_block_A, array_descB.n_loc(), nb_real,
                     (T)-1.0,
                     d_block_A, trans == 'N' ? length_block_A : nb_real,
                     d_block_B, nb_real,
                     (T)1.0,
-                    d_B + B_offset, lldB
-                ));
+                    d_B + B_offset, lldB);
             }
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
         }
@@ -324,15 +322,13 @@ void ptrtrs(
             );
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
             if(length_block_A > 0 && array_descB.m_loc() > 0){
-                BLAS_CHECK(deblasGemm(
-                    blasH, DEBLAS_OP_N, DEBLAS_OP_N,
+                gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                     array_descB.m_loc(), length_block_A, nb_real,
                     (T)-1.0,
                     d_block_B, array_descB.m_loc(),
                     d_block_A, nb_real,
                     (T)1.0,
-                    d_B + B_offset, lldB
-                ));
+                    d_B + B_offset, lldB);
             }
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
         }

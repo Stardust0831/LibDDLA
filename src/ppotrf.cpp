@@ -277,15 +277,15 @@ bool ppotrf(
         }else{
             // the first approach in which the unused block will be polluted
             // if(length_row > 0 && length_col > 0)
-            //     BLAS_CHECK(deblasGemm(
-            //         blasH, DEBLAS_OP_N, DEBLAS_OP_T,
+            //     gemm<DdlaBackend::GPU, T>(
+            //         ddla_handle, 'N', 'T',
             //         length_row, length_col, nb_real,
             //         (T)-1.0,
             //         d_block_col, length_row,
             //         d_block_row, length_col,
             //         (T)1.0,
             //         A + mm_row_start + mm_col_start * lldA, lldA
-            //     ));
+            //     );
             // the second method is to use the batched gemm which will not pollute the unused block
             if(length_row <= 0 || length_col <= 0)
                 continue;
@@ -312,13 +312,12 @@ bool ppotrf(
                 }while(g_row_s < g_col_s);
                 length_col_real += nb;
                 if(length_col_real > 0)
-                    BLAS_CHECK(deblasGemm(
-                        blasH, DEBLAS_OP_N, DEBLAS_OP_C,
+                    gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'C',
                         row_remain, length_col_real, nb_real, (T)-1.0,
                         d_block_col + length_row - row_remain, length_row,
                         d_block_row, length_col,
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - row_remain), lldA
-                    ));
+                    );
             }
             if(col_remain != 0){
                 int g_col_s = array_descA.indx_l2g_c(array_descA.n_loc() - col_remain);
@@ -329,13 +328,12 @@ bool ppotrf(
                     g_row_s = array_descA.indx_l2g_r(mm_row_start + length_row - length_row_real);
                 }while(g_row_s < g_col_s);
                 if(length_row_real > 0)
-                    BLAS_CHECK(deblasGemm(
-                        blasH, DEBLAS_OP_N, DEBLAS_OP_C,
+                    gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'C',
                         length_row_real, col_remain, nb, (T)-1.0,
                         d_block_col + length_row - length_row_real, length_row,
                         d_block_row + length_col - col_remain, length_col,
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - length_row_real) + (length_col - col_remain) * lldA, lldA
-                    ));
+                    );
             }
             // printf("1-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             for(;row_s <= num_row_block * nb; row_s += nb){
@@ -447,15 +445,14 @@ bool ppotrf(
                         const int g_col = array_descA.indx_l2g_c(col_loc);
                         if(g_row >= g_col)
                             continue;
-                        BLAS_CHECK(deblasGemm(
-                            blasH, DEBLAS_OP_C, DEBLAS_OP_N,
+                        gemm<DdlaBackend::GPU, T>(ddla_handle, 'C', 'N',
                             row_remain, col_len, nb_real,
                             (T)-1.0,
                             d_block_col + row_offset * nb_real, nb_real,
                             d_block_row + col_offset * nb_real, nb_real,
                             (T)1.0,
                             A + row_loc + col_loc * lldA, lldA
-                        ));
+                        );
                     }
                 }
 
@@ -468,15 +465,14 @@ bool ppotrf(
                         const int g_row = array_descA.indx_l2g_r(row_loc);
                         if(g_row >= g_col)
                             continue;
-                        BLAS_CHECK(deblasGemm(
-                            blasH, DEBLAS_OP_C, DEBLAS_OP_N,
+                        gemm<DdlaBackend::GPU, T>(ddla_handle, 'C', 'N',
                             nb, col_remain, nb_real,
                             (T)-1.0,
                             d_block_col + row_offset * nb_real, nb_real,
                             d_block_row + col_offset * nb_real, nb_real,
                             (T)1.0,
                             A + row_loc + col_loc * lldA, lldA
-                        ));
+                        );
                     }
                 }
 

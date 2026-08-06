@@ -269,15 +269,13 @@ void pgetrf_bpiv(
         int trailing_n = n_loc - right_panel_col_start;
 
         if(trailing_m > 0 && trailing_n > 0){
-            BLAS_CHECK(deblasGemm(
-                blasH, DEBLAS_OP_N, DEBLAS_OP_N,
+            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                 trailing_m, trailing_n, nb_real,
                 T(-1.0),
                 d_temp_L, trailing_m,
                 d_temp_U, nb_real,
                 T(1.0),
-                d_A + left_panel_row_start + right_panel_col_start * lld, lld
-            ));
+                d_A + left_panel_row_start + right_panel_col_start * lld, lld);
         }
 
         RUNTIME_CHECK(runtimeStreamSynchronize(stream));

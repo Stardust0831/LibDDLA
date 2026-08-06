@@ -283,9 +283,9 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
             if (j + jb < m)
             {
                 T neg_one = T(-1);
-                BLAS_CHECK(deblasGemm(
-                    blas_handle,
-                    DEBLAS_OP_N, DEBLAS_OP_N,
+                gemm<DdlaBackend::GPU, T>(
+                    ddla_handle,
+                    'N', 'N',
                     mm - jb, nn, jb,
                     neg_one,
                     d_A + j * lda + (j + jb),      // L_panel (m-jb x jb)
@@ -295,7 +295,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                     one,
                     d_A + (j + jb) * lda + (j + jb), // A22 trailing (m-jb x n-jb)
                     lda
-                ));
+                );
             }
         }
     }
