@@ -8,10 +8,10 @@
 #include <vector>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_comm.h>
 #include <ddla/ddla_connector.h>
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
+#include "comm_traits.h"
 #include <ddla/gemmBatched.h>
 #include <ddla/herk.h>
 #include <ddla/syrk.h>
@@ -94,14 +94,6 @@ void ppotrf_bottom_right(
     const runtimeStream_t stream = handle->stream;
     const deblasHandle_t blas_handle = handle->blasH;
 
-#ifdef DDLA_USE_CCL
-    const ncclComm_t row_comm = handle->nccl_row_comm;
-    const ncclComm_t col_comm = handle->nccl_col_comm;
-#else
-    const MPI_Comm row_comm = handle->row_comm;
-    const MPI_Comm col_comm = handle->col_comm;
-#endif
-
     const int max_local_rows = num_loc(
         n, nb, myprow, descA.irsrc(), nprocs_dim);
     const int max_local_cols = num_loc(
@@ -160,15 +152,6 @@ void ppotrf_bottom_right(
     std::vector<T*> h_left_array(max_batch_count);
     std::vector<T*> h_right_array(max_batch_count);
     std::vector<T*> h_target_array(max_batch_count);
-
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-    const std::size_t host_buffer_count = std::max({
-        static_cast<std::size_t>(nb) * nb,
-        static_cast<std::size_t>(max_local_rows) * nb,
-        static_cast<std::size_t>(max_local_cols) * nb
-    });
-    std::vector<T> h_communication_buffer(host_buffer_count);
-#endif
 
     auto cleanup = [&]()
     {
@@ -232,31 +215,11 @@ void ppotrf_bottom_right(
         }
 
         if(uplo == 'U' && mypcol == owner_col){
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(
-                h_communication_buffer.data(), d_diag,
-                static_cast<std::size_t>(block_width) * block_width,
-                owner_row, handle->col_comm, stream));
-#else
-            CCL_CHECK(cclBcast(
-                d_diag,
-                static_cast<std::size_t>(block_width) * block_width,
-                owner_row, col_comm, stream));
-#endif
+            commBcast(handle, CommScope::Col, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_row);
         }
 
         if(uplo == 'L' && myprow == owner_row){
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(
-                h_communication_buffer.data(), d_diag,
-                static_cast<std::size_t>(block_width) * block_width,
-                owner_col, handle->row_comm, stream));
-#else
-            CCL_CHECK(cclBcast(
-                d_diag,
-                static_cast<std::size_t>(block_width) * block_width,
-                owner_col, row_comm, stream));
-#endif
+            commBcast(handle, CommScope::Row, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_col);
         }
 
         if(uplo == 'U' && local_row_prefix > 0){
@@ -286,17 +249,7 @@ void ppotrf_bottom_right(
                 ));
             }
 
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(
-                h_communication_buffer.data(), d_row_panel,
-                static_cast<std::size_t>(local_row_prefix) * block_width,
-                owner_col, handle->row_comm, stream));
-#else
-            CCL_CHECK(cclBcast(
-                d_row_panel,
-                static_cast<std::size_t>(local_row_prefix) * block_width,
-                owner_col, row_comm, stream));
-#endif
+            commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
         }
 
         if(uplo == 'U'){
@@ -319,17 +272,7 @@ void ppotrf_bottom_right(
                     ));
                 }
 
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(
-                    h_communication_buffer.data(), d_col_panel,
-                    static_cast<std::size_t>(local_col_prefix) * block_width,
-                    relay_row, handle->col_comm, stream));
-#else
-                CCL_CHECK(cclBcast(
-                    d_col_panel,
-                    static_cast<std::size_t>(local_col_prefix) * block_width,
-                    relay_row, col_comm, stream));
-#endif
+                commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
             }
         }else{
             if(local_col_prefix > 0){
@@ -363,17 +306,7 @@ void ppotrf_bottom_right(
                     ));
                 }
 
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(
-                    h_communication_buffer.data(), d_col_panel,
-                    static_cast<std::size_t>(local_col_prefix) * block_width,
-                    owner_row, handle->col_comm, stream));
-#else
-                CCL_CHECK(cclBcast(
-                    d_col_panel,
-                    static_cast<std::size_t>(local_col_prefix) * block_width,
-                    owner_row, col_comm, stream));
-#endif
+                commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
             }
 
             // A column tile owned by relay_col under icsrc is the same global
@@ -395,17 +328,7 @@ void ppotrf_bottom_right(
                     ));
                 }
 
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(
-                    h_communication_buffer.data(), d_row_panel,
-                    static_cast<std::size_t>(local_row_prefix) * block_width,
-                    relay_col, handle->row_comm, stream));
-#else
-                CCL_CHECK(cclBcast(
-                    d_row_panel,
-                    static_cast<std::size_t>(local_row_prefix) * block_width,
-                    relay_col, row_comm, stream));
-#endif
+                commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
             }
         }
 

@@ -13,7 +13,7 @@
 #include <ddla/gemmBatched.h>
 #include <ddla/herk.h>
 #include <ddla/gemm.h>
-#include <ddla/ddla_comm.h>
+#include "comm_traits.h"
 
 namespace ddla{
 
@@ -62,14 +62,6 @@ bool ppotrf(
     int myprow = array_descA.myprow();
     int mypcol = array_descA.mypcol();
 
-    // 初始化 NCCL  
-    #ifdef DDLA_USE_CCL
-    ncclComm_t row_comm=ddla_handle->nccl_row_comm;
-    ncclComm_t col_comm=ddla_handle->nccl_col_comm;
-    #else
-    MPI_Comm row_comm=ddla_handle->row_comm;
-    MPI_Comm col_comm=ddla_handle->col_comm;
-    #endif
     runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
     desolverHandle_t solverH=ddla_handle->solverH;
@@ -105,10 +97,6 @@ bool ppotrf(
                              static_cast<std::size_t>(nb) * array_descA.m_loc() * sizeof(T));
     int *d_info = nullptr;
     device_malloc_if_nonzero((void**)&d_info, sizeof(int));
-
-    #ifdef DDLA_USE_GPU_CPU_TUNNEL
-    std::vector<T> h_temp(nb * std::max(array_descA.n_loc(), array_descA.m_loc()));
-    #endif
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -225,11 +213,7 @@ bool ppotrf(
             mm_row_start += nb_real;
         length_row = array_descA.m_loc() - mm_row_start;
         if(mypcol == owner_col){
-            #ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_row, ddla_handle->col_comm, ddla_handle->stream));
-            #else
-            CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_row, col_comm, stream));
-            #endif
+            commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
             if(length_row > 0){
                 BLAS_CHECK(deblasTrsm(
                     blasH, side_device, uplo_device, trans_device, diag_device,
@@ -249,22 +233,14 @@ bool ppotrf(
             mm_col_start += nb_real;
         length_col = array_descA.n_loc() - mm_col_start;
         if(length_row > 0){
-            #ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(h_temp.data(), d_block_col, length_row * nb_real, owner_col, ddla_handle->row_comm, ddla_handle->stream));
-            #else
-            CCL_CHECK(cclBcast(d_block_col, length_row * nb_real, owner_col, row_comm, stream));
-            #endif
+            commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)length_row * nb_real, owner_col);
         }
         if(myprow == mypcol){
             if(length_col > 0)
                 RUNTIME_CHECK(runtimeMemcpyAsync(d_block_row, d_block_col, length_col * nb_real * sizeof(T), runtimeMemcpyDeviceToDevice, stream));
         }
         if(length_col > 0){
-            #ifdef DDLA_USE_GPU_CPU_TUNNEL
-            MPI_CHECK(cclBcast(h_temp.data(), d_block_row, nb_real * length_col, mypcol, ddla_handle->col_comm, ddla_handle->stream));
-            #else
-            CCL_CHECK(cclBcast(d_block_row, nb_real * length_col, mypcol, col_comm, stream));
-            #endif
+            commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, mypcol);
         }
         if(myprow == mypcol){
             if(length_row > 0)
@@ -377,11 +353,7 @@ bool ppotrf(
                 mm_col_start += nb_real;
             length_col = array_descA.n_loc() - mm_col_start;
             if(myprow == owner_row){
-                #ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_col, ddla_handle->row_comm, ddla_handle->stream));
-                #else
-                CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_col, row_comm, stream));
-                #endif
+                commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 if(length_col > 0){
                     BLAS_CHECK(deblasTrsm(
                         blasH, side_device, uplo_device, trans_device, diag_device,
@@ -401,22 +373,14 @@ bool ppotrf(
                 mm_row_start += nb_real;
             length_row = array_descA.m_loc() - mm_row_start;
             if(length_col > 0){
-                #ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(h_temp.data(), d_block_row, nb_real * length_col, owner_row, ddla_handle->col_comm, ddla_handle->stream));
-                #else
-                CCL_CHECK(cclBcast(d_block_row, nb_real * length_col, owner_row, col_comm, stream));
-                #endif
+                commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, owner_row);
             }
             if(myprow == mypcol){
                 if(length_row > 0)
                     RUNTIME_CHECK(runtimeMemcpyAsync(d_block_col, d_block_row, nb_real * length_row * sizeof(T), runtimeMemcpyDeviceToDevice, stream));
             }
             if(length_row > 0){
-                #ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(h_temp.data(), d_block_col, nb_real * length_row, myprow, ddla_handle->row_comm, ddla_handle->stream));
-                #else
-                CCL_CHECK(cclBcast(d_block_col, nb_real * length_row, myprow, row_comm, stream));
-                #endif
+                commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)nb_real * length_row, myprow);
             }
             if(myprow == mypcol){
                 if(length_col > 0)

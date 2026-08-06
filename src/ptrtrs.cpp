@@ -5,11 +5,8 @@
 #include "require_gpu.h"
 #include <ddla/trsm.h>
 #include <ddla/transport_block.h>
-#include <ddla/ddla_comm.h>
+#include "comm_traits.h"
 #include <ddla/gemm.h>
-#ifdef DDLA_USE_GPU_CPU_TUNNEL
-#include <vector>
-#endif
 namespace ddla{
 
 
@@ -44,14 +41,6 @@ void ptrtrs(
     int npcols = array_descA.npcols();
     // printf("nprows:%d, npcols:%d\n",nprows,npcols);
 
-    // 初始化 NCCL  
-    #ifdef DDLA_USE_CCL
-    ncclComm_t row_comm=ddla_handle->nccl_row_comm;
-    ncclComm_t col_comm=ddla_handle->nccl_col_comm;
-    #else
-    MPI_Comm row_comm=ddla_handle->row_comm;
-    MPI_Comm col_comm=ddla_handle->col_comm;
-    #endif
     runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
 
@@ -75,10 +64,6 @@ void ptrtrs(
     // side='L' stages an nb x n_loc block row of B; side='R' an m_loc x nb block column.
     RUNTIME_CHECK(runtimeMallocAsync(&d_block_B, nb * std::max(array_descB.m_loc(), array_descB.n_loc()) * sizeof(T), stream));
     RUNTIME_CHECK(runtimeMallocAsync(&d_block_A, std::max(array_descA.m_loc(), array_descA.n_loc()) * nb * sizeof(T), stream));
-
-    #ifdef DDLA_USE_GPU_CPU_TUNNEL
-    std::vector<T> h_temp(nb * std::max({array_descB.m_loc(), array_descB.n_loc(), nb}));
-    #endif
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start, mm_row_step, mm_col_step;
@@ -131,11 +116,7 @@ void ptrtrs(
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
             // 广播当前块行
             if(array_descA.myprow() == owner_row){
-                #ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_col, ddla_handle->row_comm, stream));
-                #else
-                CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_col, row_comm, stream));
-                #endif
+                commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 BLAS_CHECK(deblasTrsm(
                     blasH, side_device, uplo_device, trans_device, diag_device,
                     nb_real, array_descB.n_loc(), 1.0,
@@ -255,11 +236,7 @@ void ptrtrs(
             // broadcast the diagonal block within the column, then solve the
             // block column of B on the owner column's processes
             if(array_descA.mypcol() == owner_col){
-                #ifdef DDLA_USE_GPU_CPU_TUNNEL
-                MPI_CHECK(cclBcast(h_temp.data(), d_block_diag, nb_real * nb_real, owner_row, ddla_handle->col_comm, stream));
-                #else
-                CCL_CHECK(cclBcast(d_block_diag, nb_real * nb_real, owner_row, col_comm, stream));
-                #endif
+                commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
                 BLAS_CHECK(deblasTrsm(
                     blasH, DEBLAS_SIDE_RIGHT, uplo_device, trans_device, diag_device,
                     array_descB.m_loc(), nb_real, 1.0,
