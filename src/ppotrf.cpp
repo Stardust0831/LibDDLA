@@ -77,32 +77,17 @@ bool ppotrf(
     deblasOperation_t trans_device = DEBLAS_OP_C;
     deblasSideMode_t side_device = (uplo == 'U') ?DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
 
-    auto device_malloc_if_nonzero = [&](void** ptr, const std::size_t bytes)
-    {
-        if(bytes == 0){
-            *ptr = nullptr;
-            return;
-        }
-        RUNTIME_CHECK(runtimeMallocAsync(ptr, bytes, stream));
-    };
-    auto device_free_if_nonnull = [&](void* ptr)
-    {
-        if(ptr != nullptr){
-            RUNTIME_CHECK(runtimeFreeAsync(ptr, stream));
-        }
-    };
-
     T* d_block_diag = nullptr;
     T* d_block_row = nullptr;
     T* d_block_col = nullptr;
-    device_malloc_if_nonzero((void**)&d_block_diag,
-                             static_cast<std::size_t>(nb) * nb * sizeof(T));
-    device_malloc_if_nonzero((void**)&d_block_row,
-                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T));
-    device_malloc_if_nonzero((void**)&d_block_col,
-                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_diag,
+                             static_cast<std::size_t>(nb) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_row,
+                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_col,
+                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T), stream));
     int *d_info = nullptr;
-    device_malloc_if_nonzero((void**)&d_info, sizeof(int));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_info, sizeof(int), stream));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -118,18 +103,18 @@ bool ppotrf(
     std::vector<T*> h_A_array(batchCount), h_B_array(batchCount), h_C_array(batchCount);
 
     const std::size_t pointer_buffer_bytes = static_cast<std::size_t>(batchCount) * sizeof(T*);
-    device_malloc_if_nonzero((void**)&d_A_array, pointer_buffer_bytes);
-    device_malloc_if_nonzero((void**)&d_B_array, pointer_buffer_bytes);
-    device_malloc_if_nonzero((void**)&d_C_array, pointer_buffer_bytes);
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_array, pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_B_array, pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_C_array, pointer_buffer_bytes, stream));
     auto cleanup_device_buffers = [&]()
     {
-        device_free_if_nonnull(d_A_array);
-        device_free_if_nonnull(d_B_array);
-        device_free_if_nonnull(d_C_array);
-        device_free_if_nonnull(d_block_diag);
-        device_free_if_nonnull(d_block_row);
-        device_free_if_nonnull(d_block_col);
-        device_free_if_nonnull(d_info);
+        RUNTIME_CHECK(runtimeFreeAsync(d_A_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_B_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_C_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_diag, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_row, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_col, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(stream));
     };
     int h_info;
