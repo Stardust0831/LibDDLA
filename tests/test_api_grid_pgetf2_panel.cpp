@@ -20,7 +20,7 @@ void check_pgetf2_panel(const ddla::DdlaHandle_t& handle, const Shape& base)
 
         std::vector<int> ipiv(descA.m_loc(), -1);
         int info = -1;
-        ddla::pgetf2_panel(n, std::min(nb, n), d_A.ptr, 0, descA, ipiv.data(), info);
+        ddla::pgetf2_panel(n, n, std::min(nb, n), d_A.ptr, 0, descA, ipiv.data(), info);
         require_close(handle, "pgetf2_panel(singular info)", std::abs(info - 1), 0.0);
     }
 
@@ -32,7 +32,7 @@ void check_pgetf2_panel(const ddla::DdlaHandle_t& handle, const Shape& base)
 
         std::vector<int> ipiv(descA.m_loc(), -1);
         int info = -1;
-        ddla::pgetf2_panel(n, std::min(nb, n), d_A.ptr, 0, descA, ipiv.data(), info);
+        ddla::pgetf2_panel(n, n, std::min(nb, n), d_A.ptr, 0, descA, ipiv.data(), info);
         require_close(handle, "pgetf2_panel(normal info)", std::abs(info), 0.0);
     }
 }

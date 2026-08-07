@@ -37,9 +37,11 @@ void pgesv_bpiv(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgesv_bpiv");
+    assert(n <= array_descA.m() && n <= array_descA.n());
+    const int m_loc_A = num_loc(n, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
     int* d_ipiv = nullptr;
     RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_ipiv),
-                                     sizeof(int) * std::max(1, array_descA.m_loc()),
+                                     sizeof(int) * std::max(1, m_loc_A),
                                      ddla_handle->stream));
     int info = 0;
     pgetrf_bpiv(n, n, d_A, array_descA, d_ipiv, info);

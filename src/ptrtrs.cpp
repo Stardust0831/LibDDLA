@@ -21,15 +21,9 @@ void ptrtrs(
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "ptrtrs");
     
-    assert(array_descA.m() == array_descA.n());
     assert(array_descA.mb()==array_descA.nb());
     assert(array_descA.mb()==array_descB.mb());
     assert(side=='L'||side=='R');
-    if(side=='L'){
-        assert(array_descA.m() == array_descB.m());
-    }else{
-        assert(array_descA.m() == array_descB.n());
-    }
     assert(uplo=='L'||uplo=='U');
     assert(diag=='U'||diag=='N');
     assert(trans=='N'||trans=='T'||trans=='C');
@@ -58,12 +52,27 @@ void ptrtrs(
     // Order of the triangular system: op(A) is n_solve x n_solve, matching the
     // rows of B for side='L' (B is m x n) and the columns of B for side='R'.
     const int n_solve = (side == 'L') ? m : n;
+    // The descriptor may describe a matrix larger than the logical sub-matrix
+    // (leading-block, anchored at global (0,0)); all local extents below are
+    // derived from the logical dims via num_loc so nothing beyond the leading
+    // block is ever touched.
+    const int m_loc_A = num_loc(n_solve, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
+    const int n_loc_A = num_loc(n_solve, array_descA.nb(), array_descA.mypcol(), array_descA.icsrc(), array_descA.npcols());
+    const int m_loc_B = num_loc(m, array_descB.mb(), array_descB.myprow(), array_descB.irsrc(), array_descB.nprows());
+    const int n_loc_B = num_loc(n, array_descB.nb(), array_descB.mypcol(), array_descB.icsrc(), array_descB.npcols());
+    if(side=='L'){
+        assert(m <= array_descA.m() && m <= array_descA.n());
+        assert(m <= array_descB.m() && n <= array_descB.n());
+    }else{
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(m <= array_descB.m() && n <= array_descB.n());
+    }
     
     T* d_block_diag,*d_block_A,*d_block_B;
     RUNTIME_CHECK(runtimeMallocAsync(&d_block_diag, nb * nb * sizeof(T), stream));
     // side='L' stages an nb x n_loc block row of B; side='R' an m_loc x nb block column.
-    RUNTIME_CHECK(runtimeMallocAsync(&d_block_B, nb * std::max(array_descB.m_loc(), array_descB.n_loc()) * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync(&d_block_A, std::max(array_descA.m_loc(), array_descA.n_loc()) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_block_B, nb * std::max(m_loc_B, n_loc_B) * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&d_block_A, std::max(m_loc_A, n_loc_A) * nb * sizeof(T), stream));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start, mm_row_step, mm_col_step;
@@ -119,14 +128,14 @@ void ptrtrs(
                 commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 BLAS_CHECK(deblasTrsm(
                     blasH, side_device, uplo_device, trans_device, diag_device,
-                    nb_real, array_descB.n_loc(), 1.0,
+                    nb_real, n_loc_B, 1.0,
                     d_block_diag, nb_real,
                     d_B + mm_row_start, lldB
                 ));
             }
             transport_block(
                 'R', 'N', 
-                nb_real, array_descB.n(),
+                nb_real, n,
                 d_B, n_s, 0, array_descB,
                 d_block_B
             );
@@ -144,17 +153,17 @@ void ptrtrs(
                 }else{
                     // U^H solve: gather the row panel to the right of the diagonal.
                     A_offset = mm_row_start + (mm_col_start + mm_col_step) * array_descA.lld();
-                    length_block_A = array_descA.n_loc() - mm_col_start - mm_col_step;
-                    g_n = array_descA.n() - n_s - nb_real;
+                    length_block_A = n_loc_A - mm_col_start - mm_col_step;
+                    g_n = n_solve - n_s - nb_real;
                     g_ja = n_s + nb_real;
                 }
             }else{
                 g_ja = n_s;
                 g_n = nb_real;
                 if(uplo == 'L'){
-                    length_block_A = array_descA.m_loc() - mm_row_start - mm_row_step;
+                    length_block_A = m_loc_A - mm_row_start - mm_row_step;
                     A_offset = mm_row_start + mm_row_step + mm_col_start * array_descA.lld();
-                    g_m = array_descA.m() - n_s - nb_real;
+                    g_m = n_solve - n_s - nb_real;
                     g_ia = n_s + nb_real;
                 }else{
                     // U solve: gather the column panel above the diagonal.
@@ -174,13 +183,13 @@ void ptrtrs(
                 length_block_A = mm_row_start;
                 B_offset = 0;
             }else{
-                length_block_A = array_descA.m_loc() - mm_row_start - mm_row_step;
+                length_block_A = m_loc_A - mm_row_start - mm_row_step;
                 B_offset = mm_row_start + mm_row_step;
             }
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
             if(length_block_A > 0){
                 gemm<DdlaBackend::GPU, T>(ddla_handle, trans, 'N',
-                    length_block_A, array_descB.n_loc(), nb_real,
+                    length_block_A, n_loc_B, nb_real,
                     (T)-1.0,
                     d_block_A, trans == 'N' ? length_block_A : nb_real,
                     d_block_B, nb_real,
@@ -239,7 +248,7 @@ void ptrtrs(
                 commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
                 BLAS_CHECK(deblasTrsm(
                     blasH, DEBLAS_SIDE_RIGHT, uplo_device, trans_device, diag_device,
-                    array_descB.m_loc(), nb_real, 1.0,
+                    m_loc_B, nb_real, 1.0,
                     d_block_diag, nb_real,
                     d_B + mm_col_start * lldB, lldB
                 ));
@@ -247,7 +256,7 @@ void ptrtrs(
             // gather the solved block column of B (local part: m_loc x nb_real)
             transport_block(
                 'C', 'N',
-                array_descB.m(), nb_real,
+                m, nb_real,
                 d_B, 0, n_s, array_descB,
                 d_block_B
             );
@@ -263,10 +272,10 @@ void ptrtrs(
                 g_m = nb_real;
                 g_ia = n_s;
                 if(far_right){
-                    g_n = array_descA.n() - n_s - nb_real;
+                    g_n = n_solve - n_s - nb_real;
                     g_ja = n_s + nb_real;
                     A_offset = mm_row_start + (mm_col_start + mm_col_step) * array_descA.lld();
-                    length_block_A = array_descA.n_loc() - mm_col_start - mm_col_step;
+                    length_block_A = n_loc_A - mm_col_start - mm_col_step;
                     B_offset = (mm_col_start + mm_col_step) * lldB;
                 }else{
                     g_n = n_s;
@@ -280,9 +289,9 @@ void ptrtrs(
                 g_n = nb_real;
                 g_ja = n_s;
                 if(far_right){
-                    g_m = array_descA.m() - n_s - nb_real;
+                    g_m = n_solve - n_s - nb_real;
                     g_ia = n_s + nb_real;
-                    length_block_A = array_descA.n_loc() - mm_col_start - mm_col_step;
+                    length_block_A = n_loc_A - mm_col_start - mm_col_step;
                     B_offset = (mm_col_start + mm_col_step) * lldB;
                 }else{
                     g_m = n_s;
@@ -298,11 +307,11 @@ void ptrtrs(
                 d_block_A
             );
             RUNTIME_CHECK(runtimeStreamSynchronize(stream));
-            if(length_block_A > 0 && array_descB.m_loc() > 0){
+            if(length_block_A > 0 && m_loc_B > 0){
                 gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
-                    array_descB.m_loc(), length_block_A, nb_real,
+                    m_loc_B, length_block_A, nb_real,
                     (T)-1.0,
-                    d_block_B, array_descB.m_loc(),
+                    d_block_B, m_loc_B,
                     d_block_A, nb_real,
                     (T)1.0,
                     d_B + B_offset, lldB);

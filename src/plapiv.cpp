@@ -25,10 +25,10 @@ void plapiv(
     assert(pivroc=='C');
     if(rowcol=='R'){
         assert(m<=array_descA.m());
-        assert(n==array_descA.n());
+        assert(n<=array_descA.n());
     }else{
         assert(m<=array_descA.n());
-        assert(n==array_descA.m());
+        assert(n<=array_descA.m());
     }
     (void)iwork;
 
@@ -40,9 +40,14 @@ void plapiv(
     int mb = array_descA.mb();
     int nb = array_descA.nb();
     int lldA = array_descA.lld();
+    // Logical local extents of the leading-block sub-matrix: rowcol='R'
+    // pivots rows over the leading n columns, rowcol='C' pivots columns over
+    // the leading m rows.
+    const int length_rowcol_R = num_loc(n, nb, mypcol, array_descA.icsrc(), npcols);
+    const int length_rowcol_C = num_loc(m, mb, myprow, array_descA.irsrc(), nprows);
 
     T*temp_A_target;
-    RUNTIME_CHECK(runtimeMallocAsync(&temp_A_target, sizeof(T)*std::max(array_descA.n_loc(), array_descA.m_loc()), ddla_handle->stream));
+    RUNTIME_CHECK(runtimeMallocAsync(&temp_A_target, sizeof(T)*std::max(length_rowcol_R, length_rowcol_C), ddla_handle->stream));
 
     runtimeStream_t stream = ddla_handle->stream;
     deblasHandle_t blasH = ddla_handle->blasH;
@@ -85,7 +90,7 @@ void plapiv(
             const int target_i_col = array_descA.indx_g2l_c(target_i_global);
             const int owner_col_i = indxg2p(i, nb, array_descA.icsrc(), npcols);
             const int owner_col_t = indxg2p(target_i_global, nb, array_descA.icsrc(), npcols);
-            const int length_v = array_descA.m_loc();
+            const int length_v = length_rowcol_C;
             if(owner_col_i == owner_col_t){
                 if(mypcol == owner_col_i)
                     BLAS_CHECK(deblasSwap(blasH, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1));
@@ -116,22 +121,22 @@ void plapiv(
             target_i_loc = array_descA.indx_g2l_r(target_i_global);
             if(target_row==owner_row){
                 if(myprow==owner_row)
-                    BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + i_locA, lldA, d_A + target_i_loc, lldA));
+                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA));
             }else{
                 if(myprow==target_row){
                     RUNTIME_CHECK(runtimeMemcpy2DAsync(
                         temp_A_target, 1 * sizeof(T),
                         d_A + target_i_loc, lldA * sizeof(T),
-                        1 * sizeof(T), array_descA.n_loc(),
+                        1 * sizeof(T), length_rowcol_R,
                         runtimeMemcpyDeviceToDevice, stream
                     ));
-                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), owner_row);
-                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), owner_row);
-                    BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + target_i_loc, lldA, temp_A_target, 1));
+                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
+                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
+                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1));
                 }else if(myprow==owner_row){
-                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), target_row);
-                    BLAS_CHECK(deblasSwap(blasH, array_descA.n_loc(), d_A + i_locA, lldA, temp_A_target, 1));
-                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)array_descA.n_loc(), target_row);
+                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
+                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1));
+                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
                 }
             }
         }

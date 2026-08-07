@@ -50,7 +50,7 @@ void run_case(const ddla::DdlaHandle_t& handle, const ddla::DdlaDesc& desc,
 
     std::vector<int> ipiv(desc.m_loc(), -1);
     int info = -1;
-    ddla::pgetf2(desc.m(), panel_width, d_A.ptr, 0, desc, ipiv.data(), info);
+    ddla::pgetf2(desc.m(), desc.n(), panel_width, d_A.ptr, 0, desc, ipiv.data(), info);
 
     const std::string label = std::string("pgetf2(") + scalar_name<T>()
                             + "/" + case_name + ")";

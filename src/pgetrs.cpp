@@ -18,10 +18,15 @@ void pgetrs(
     assert(trans == 'N' || trans == 'T' || trans == 'C');
     // side='L': B is n x nrhs, solves op(A)*X = B;
     // side='R': B is nrhs x n, solves X*op(A) = B.
+    // Descriptors may describe matrices larger than the logical sub-matrix
+    // (leading-block); only the leading n columns of A and the corresponding
+    // leading block of B are referenced.
     if(side == 'L'){
-        assert(array_descA.m() == array_descB.m());
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.m());
     }else{
-        assert(array_descA.m() == array_descB.n());
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.n());
     }
     const int b_rows = (side == 'L') ? n : nrhs;
     const int b_cols = (side == 'L') ? nrhs : n;

@@ -33,6 +33,10 @@ namespace ddla{
  * @param array_descA  DdlaDesc for A (must be square, mb == nb).
  * @param d_B    Device pointer to RHS / solution B.
  * @param array_descB  DdlaDesc for B.
+ *
+ * The descriptors may describe matrices larger than the logical sub-matrix
+ * (leading block anchored at global (0,0)); only the leading m x n block of B
+ * and the corresponding leading block of A are referenced.
  */
 template<typename T>
 void ptrtrs(
@@ -64,6 +68,11 @@ void ptrtrs(
  * @param ipiv    Host array of pivot indices (1-based, length >= m).
  * @param array_descIP  DdlaDesc for pivot vector (same row distribution as A).
  * @param iwork   Workspace (unused, pass nullptr).
+ *
+ * The descriptor may describe a matrix larger than the logical sub-matrix
+ * (leading block anchored at global (0,0)); only the leading m rows (rowcol
+ * 'R') / m columns (rowcol 'C') and the leading n-column / n-row segment are
+ * pivoted.
  */
 template <typename T>
 void plapiv(
@@ -107,12 +116,14 @@ void pswap(
 /**
  * @brief Internal unblocked panel LU factorization for distributed matrices.
  *
- * Factors the panel starting at global column n_s with width nb_real.  This
- * is the inner kernel called by pgetrf to factor each diagonal block.
- * Outputs pivot indices into ipiv (1-based).
+ * Factors the panel starting at global column n_s with width nb_real within the
+ * leading-block sub-matrix of size m-by-n (n_s + nb_real <= n).  This is the
+ * inner kernel called by pgetrf to factor each diagonal block.  Outputs pivot
+ * indices into ipiv (1-based).
  *
  * @tparam T   Scalar type.
- * @param m        Total rows of A.
+ * @param m        Total rows of the logical sub-matrix (<= desc.m()).
+ * @param n        Total columns of the logical sub-matrix (<= desc.n()).
  * @param nb_real  Actual width of this panel (<= nb).
  * @param d_A      Device pointer to matrix A (input/output).
  * @param n_s      Global starting column index of the panel.
@@ -122,7 +133,7 @@ void pswap(
  */
 template <typename T>
 void pgetf2(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     T* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
@@ -135,7 +146,8 @@ void pgetf2(
  * pivot selection within a panel.
  *
  * @tparam T   Scalar type.
- * @param m        Total rows of A.
+ * @param m        Total rows of the logical sub-matrix (<= desc.m()).
+ * @param n        Total columns of the logical sub-matrix (<= desc.n()).
  * @param nb_real  Actual panel width.
  * @param d_A      Device pointer to matrix A.
  * @param n_start  Global starting column of the panel.
@@ -145,7 +157,7 @@ void pgetf2(
  */
 template <typename T>
 void pgetf2_panel(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     T* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
@@ -162,11 +174,13 @@ void pgetf2_panel(
  *   4. Update the trailing submatrix (gemm: C -= L*U).
  *
  * Requires square blocks (mb == nb).  Corresponds to ScaLAPACK
- * PZGETRF / PDGETRF.
+ * PZGETRF / PDGETRF.  The descriptor may describe a matrix larger than the
+ * logical m-by-n sub-matrix (leading block anchored at global (0,0)); only
+ * the leading m x n block is factored.
  *
  * @tparam T   Scalar type.
- * @param m        Number of rows of A.
- * @param n        Number of columns of A.
+ * @param m        Number of rows of A (<= desc.m()).
+ * @param n        Number of columns of A (<= desc.n()).
  * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
  * @param array_descA  DdlaDesc for A (mb == nb required).
  * @param ipiv     Host pivot array (output, 1-based, length >= m_loc).
@@ -508,7 +522,10 @@ void pgeadd(
  *
  * For every global diagonal element A(i,i) with 0 <= i < n, add alpha.
  * Only the locally owned portion of the 2D block-cyclic distribution is
- * updated; no inter-process communication is required.
+ * updated; no inter-process communication is required.  The descriptor may
+ * describe a matrix larger than the logical leading-block sub-matrix: pass
+ * n < 0 (the default) to add over the whole matrix, or a positive n to touch
+ * only the leading n x n block.
  *
  * Supported combinations match LibRPA's DeviceConnector::pdam:
  *   (float,float), (double,double),
@@ -520,9 +537,11 @@ void pgeadd(
  * @param alpha  Scalar to add to each diagonal element.
  * @param d_A    Device pointer to distributed matrix A (input/output).
  * @param array_descA  DdlaDesc for A (must be square).
+ * @param n      Logical order of the leading sub-matrix (<= desc.m());
+ *               n < 0 means the whole matrix.  Default -1.
  */
 template <typename T1, typename T2>
-void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA);
+void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA, const int& n = -1);
 
 /**
  * @brief Distributed Cholesky factorization.
@@ -537,7 +556,7 @@ void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA);
  *
  * @tparam T   Scalar type (complex<float> or complex<double>).
  * @param uplo     'L' or 'U' -- triangle of A to store and factor.
- * @param n        Order of A.
+ * @param n        Order of A (<= desc.m(), desc.n()).
  * @param A        Device pointer to A (input: Hermitian pos-def; output: Cholesky factor).
  * @param ia       Global starting row (1-based).
  * @param ja       Global starting col (1-based).
@@ -547,6 +566,10 @@ void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA);
  * @param location Internal row/col rearrangement index (default -1).
  * @return true if the last diagonal element needed a sign correction,
  *         false otherwise.
+ *
+ * The descriptor may describe a matrix larger than the logical n-by-n
+ * sub-matrix (leading block anchored at global (0,0)); only the leading
+ * n x n block is factored.
  */
 template<typename T>
 bool ppotrf(
@@ -590,10 +613,14 @@ void potrf_bottom_right(
  * @tparam T            Scalar type (float, double, complex<float>,
  *                      complex<double>).
  * @param uplo          'U' for A = U * U^H or 'L' for A = L^H * L.
- * @param n             Order of A.
+ * @param n             Order of A (<= desc.m(), desc.n()).
  * @param d_A           Device pointer to the local block-cyclic storage of A.
  * @param array_descA   Descriptor for the distributed matrix A.
  * @param info          0 on success; i > 0 identifies the failed global pivot.
+ *
+ * The descriptor may describe a matrix larger than the logical n-by-n
+ * sub-matrix (leading block anchored at global (0,0)); only the leading
+ * n x n block is factored.
  */
 template <typename T>
 void ppotrf_bottom_right(

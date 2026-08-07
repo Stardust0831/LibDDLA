@@ -70,7 +70,7 @@ void ppotrf_bottom_right(
     assert(uplo == 'U' || uplo == 'L');
     assert(n >= 0);
     assert(descA.is_initialized());
-    assert(n == descA.m() && n == descA.n());
+    assert(n <= descA.m() && n <= descA.n());
     assert(descA.mb() == descA.nb());
     assert(descA.nprows() == descA.npcols());
 

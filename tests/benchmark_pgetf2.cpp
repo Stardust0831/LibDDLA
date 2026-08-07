@@ -66,7 +66,7 @@ double benchmark_size(int n, int repeats, const ddla::DdlaHandle_t& handle)
 
         MPI_CHECK(MPI_Barrier(handle->comm));
         const double start = MPI_Wtime();
-        ddla::pgetf2(n, kPanelWidth, d_A, 0, desc, ipiv.data(), info);
+        ddla::pgetf2(n, n, kPanelWidth, d_A, 0, desc, ipiv.data(), info);
         RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
         const double elapsed = MPI_Wtime() - start;
 

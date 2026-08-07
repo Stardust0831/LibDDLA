@@ -13,12 +13,13 @@ namespace ddla{
 template <typename T>
 
 void pgetf2_panel(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     T* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 )
 {
+    assert(m <= array_descA.m() && n <= array_descA.n());
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgetf2_panel");
 
@@ -32,8 +33,8 @@ void pgetf2_panel(
     assert(array_descA.mb()==array_descA.nb());
     int lld = array_descA.lld();
 
-    int m_loc = array_descA.m_loc();
-    int n_loc = array_descA.n_loc();
+    int m_loc = num_loc(m, array_descA.mb(), myprow, array_descA.irsrc(), nprows);
+    int n_loc = num_loc(n, array_descA.nb(), mypcol, array_descA.icsrc(), npcols);
 
     const int panel = std::min(32, nb/2>0?nb/2:1);
     int panel_real;
@@ -64,7 +65,7 @@ void pgetf2_panel(
         owner_row = indxg2p(n_s, nb, array_descA.irsrc(), nprows);
         // start pgetf2
         pgetf2(
-            m, panel_real,
+            m, n, panel_real,
             d_A, n_s, array_descA,
             ipiv, info
         );
@@ -115,28 +116,28 @@ void pgetf2_panel(
 }
 
 template void pgetf2_panel<float>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     float* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2_panel<double>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     double* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2_panel<std::complex<float>>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     std::complex<float>* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2_panel<std::complex<double>>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     std::complex<double>* d_A, const int& n_start, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host

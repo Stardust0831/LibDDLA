@@ -29,6 +29,7 @@ bool ppotrf(
     assert(uplo == 'L' || uplo == 'U');
     assert(array_descA.mb() == array_descA.nb());
     assert(n > 0);
+    assert(n <= array_descA.m() && n <= array_descA.n());
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "ppotrf");
     if(is_head)
@@ -61,6 +62,11 @@ bool ppotrf(
     int npcols = array_descA.npcols();
     int myprow = array_descA.myprow();
     int mypcol = array_descA.mypcol();
+    // Logical local extents of the leading-block n x n sub-matrix; the
+    // descriptor may describe a larger matrix, so all local sizes below are
+    // derived from the logical n via num_loc.
+    const int m_loc_A = num_loc(n, array_descA.mb(), myprow, array_descA.irsrc(), nprows);
+    const int n_loc_A = num_loc(n, array_descA.nb(), mypcol, array_descA.icsrc(), npcols);
 
     runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
@@ -92,9 +98,9 @@ bool ppotrf(
     device_malloc_if_nonzero((void**)&d_block_diag,
                              static_cast<std::size_t>(nb) * nb * sizeof(T));
     device_malloc_if_nonzero((void**)&d_block_row,
-                             static_cast<std::size_t>(nb) * array_descA.n_loc() * sizeof(T));
+                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T));
     device_malloc_if_nonzero((void**)&d_block_col,
-                             static_cast<std::size_t>(nb) * array_descA.m_loc() * sizeof(T));
+                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T));
     int *d_info = nullptr;
     device_malloc_if_nonzero((void**)&d_info, sizeof(int));
 
@@ -102,8 +108,8 @@ bool ppotrf(
     int mm_row_start, mm_col_start;
     int nb_real;
 
-    int num_row_block = array_descA.m_loc() / nb;
-    int num_col_block = array_descA.n_loc() / nb;
+    int num_row_block = m_loc_A / nb;
+    int num_col_block = n_loc_A / nb;
     int batchCount = num_row_block * num_col_block;
 
     T** d_A_array = nullptr;
@@ -128,9 +134,9 @@ bool ppotrf(
     };
     int h_info;
     int i_batch_count, row_s, col_s, row_remain, col_remain, length_row, length_col;
-    for(int n_s = 0; n_s < array_descA.m(); n_s += nb)
+    for(int n_s = 0; n_s < n; n_s += nb)
     {
-        nb_real = std::min(nb, array_descA.m() - n_s);
+        nb_real = std::min(nb, n - n_s);
         // printf("myid:%d, n_s:%d, nb_real:%d\n",ddla_handle->myid, n_s, nb_real);
         mm_row_start = num_loc(n_s, nb, myprow, array_descA.irsrc(), nprows);
         mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
@@ -140,7 +146,7 @@ bool ppotrf(
 
         if(myprow == owner_row && mypcol == owner_col)
         {
-            if(n_s + nb_real == array_descA.m() && is_head){
+            if(n_s + nb_real == n && is_head){
                 if(nb_real > 1){
                     SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
                     if(uplo == 'L'){
@@ -200,7 +206,7 @@ bool ppotrf(
                 runtimeMemcpyDeviceToDevice, stream
             ));
         }
-        if(n_s + nb_real == array_descA.m())
+        if(n_s + nb_real == n)
             MPI_CHECK(MPI_Bcast(&is_nega, 1, MPI_CXX_BOOL, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
         MPI_CHECK(MPI_Bcast(&info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
         if(info != 0){
@@ -211,7 +217,7 @@ bool ppotrf(
         if(uplo == 'L'){
         if(myprow == owner_row)
             mm_row_start += nb_real;
-        length_row = array_descA.m_loc() - mm_row_start;
+        length_row = m_loc_A - mm_row_start;
         if(mypcol == owner_col){
             commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
             if(length_row > 0){
@@ -231,7 +237,7 @@ bool ppotrf(
         }
         if(mypcol == owner_col)
             mm_col_start += nb_real;
-        length_col = array_descA.n_loc() - mm_col_start;
+        length_col = n_loc_A - mm_col_start;
         if(length_row > 0){
             commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)length_row * nb_real, owner_col);
         }
@@ -279,7 +285,7 @@ bool ppotrf(
             col_remain = length_col % nb;
             row_s = nb + row_remain;
             if(row_remain != 0){
-                int g_row_s = array_descA.indx_l2g_r(array_descA.m_loc() - row_remain);
+                int g_row_s = array_descA.indx_l2g_r(m_loc_A - row_remain);
                 int g_col_s;
                 int length_col_real =  length_col;
                 do{
@@ -296,7 +302,7 @@ bool ppotrf(
                     );
             }
             if(col_remain != 0){
-                int g_col_s = array_descA.indx_l2g_c(array_descA.n_loc() - col_remain);
+                int g_col_s = array_descA.indx_l2g_c(n_loc_A - col_remain);
                 int g_row_s;
                 int length_row_real = length_row + nb;
                 do{
@@ -313,12 +319,12 @@ bool ppotrf(
             }
             // printf("1-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             for(;row_s <= num_row_block * nb; row_s += nb){
-                int g_row_s = array_descA.indx_l2g_r(array_descA.m_loc() - row_s);
+                int g_row_s = array_descA.indx_l2g_r(m_loc_A - row_s);
                 int g_col_s;
                 col_s = col_remain;
                 do{
                     col_s += nb;
-                    g_col_s = array_descA.indx_l2g_c(array_descA.n_loc() - col_s);
+                    g_col_s = array_descA.indx_l2g_c(n_loc_A - col_s);
                 }while(g_row_s < g_col_s);
                 // printf("myid:%d, col_s:%d\n", ddla_handle->myid, col_s);
                 for(; col_s <= num_col_block * nb; col_s += nb){
@@ -327,7 +333,7 @@ bool ppotrf(
                     // printf("myid:%d, before h_B\n", ddla_handle->myid);
                     h_B_array[i_batch_count] = d_block_row + length_col - col_s;
                     // printf("myid:%d, before h_C\n", ddla_handle->myid);
-                    h_C_array[i_batch_count] = A + array_descA.m_loc() - row_s + (array_descA.n_loc() - col_s) * lldA;
+                    h_C_array[i_batch_count] = A + m_loc_A - row_s + (n_loc_A - col_s) * lldA;
                     i_batch_count++;
                 }
             }
@@ -351,7 +357,7 @@ bool ppotrf(
         }else{
             if(mypcol == owner_col)
                 mm_col_start += nb_real;
-            length_col = array_descA.n_loc() - mm_col_start;
+            length_col = n_loc_A - mm_col_start;
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 if(length_col > 0){
@@ -371,7 +377,7 @@ bool ppotrf(
             }
             if(myprow == owner_row)
                 mm_row_start += nb_real;
-            length_row = array_descA.m_loc() - mm_row_start;
+            length_row = m_loc_A - mm_row_start;
             if(length_col > 0){
                 commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, owner_row);
             }

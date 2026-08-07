@@ -18,7 +18,9 @@ void pgesv(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgesv");
-    std::vector<int> ipiv(array_descA.m_loc());
+    assert(n <= array_descA.m() && n <= array_descA.n());
+    const int n_loc_A = num_loc(n, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
+    std::vector<int> ipiv(n_loc_A);
     int info = 0;
     pgetrf(
         n, n,

@@ -48,16 +48,21 @@ void pgetrs_bpiv(
     detail::require_gpu_backend(ddla_handle, "pgetrs_bpiv");
     assert(side == 'L' || side == 'R');
     assert(trans == 'N' || trans == 'T' || trans == 'C');
-    assert(array_descA.m() == array_descA.n());
     assert(array_descA.mb() == array_descA.nb());
     if(side == 'L'){
-        assert(array_descA.m() == array_descB.m());
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.m());
     }else{
-        assert(array_descA.m() == array_descB.n());
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.n());
     }
     const int nb = array_descA.mb();
     const int b_rows = (side == 'L') ? n : nrhs;
     const int b_cols = (side == 'L') ? nrhs : n;
+    // Logical local extents of the leading-block sub-matrices.
+    const int m_loc_A = num_loc(n, array_descA.mb(), array_descA.myprow(), array_descA.irsrc(), array_descA.nprows());
+    const int n_loc_B = num_loc(b_cols, array_descB.nb(), array_descB.mypcol(), array_descB.icsrc(), array_descB.npcols());
+    const int m_loc_B = num_loc(b_rows, array_descB.mb(), array_descB.myprow(), array_descB.irsrc(), array_descB.nprows());
 
     // Copy the local block pivots to host.  Valid entries live only on the
     // (owner_row, owner_col) process of each block (pgetrf_bpiv broadcasts
@@ -65,7 +70,7 @@ void pgetrs_bpiv(
     // breaks before the broadcast).  apply_pivots below re-broadcasts each
     // block's pivots over the full grid from that single owner, so every
     // process gets correct values regardless of block.
-    std::vector<int> h_ipiv(array_descA.m_loc());
+    std::vector<int> h_ipiv(m_loc_A);
     RUNTIME_CHECK(runtimeMemcpyAsync(h_ipiv.data(), d_ipiv,
                                      h_ipiv.size() * sizeof(int),
                                      runtimeMemcpyDeviceToHost, ddla_handle->stream));
@@ -115,7 +120,7 @@ void pgetrs_bpiv(
                         const int j1 = array_descB.indx_g2l_c(n_s + i - 1);
                         const int j2 = array_descB.indx_g2l_c(n_s + t);
                         BLAS_CHECK(deblasSwap(ddla_handle->blasH,
-                                              array_descB.m_loc(), d_B + j1 * lldB, 1,
+                                              m_loc_B, d_B + j1 * lldB, 1,
                                               d_B + j2 * lldB, 1));
                     }
                 }else{
@@ -123,7 +128,7 @@ void pgetrs_bpiv(
                         const int i1 = array_descB.indx_g2l_r(n_s + i - 1);
                         const int i2 = array_descB.indx_g2l_r(n_s + t);
                         BLAS_CHECK(deblasSwap(ddla_handle->blasH,
-                                              array_descB.n_loc(), d_B + i1, lldB,
+                                              n_loc_B, d_B + i1, lldB,
                                               d_B + i2, lldB));
                     }
                 }

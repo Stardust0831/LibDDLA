@@ -20,6 +20,7 @@ void pgetrf(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgetrf");
+    assert(m <= array_descA.m() && n <= array_descA.n());
 
     int nprows = array_descA.nprows();
     int npcols = array_descA.npcols();
@@ -31,8 +32,8 @@ void pgetrf(
     assert(array_descA.mb()==array_descA.nb());
     int lld = array_descA.lld();
 
-    int m_loc = array_descA.m_loc();
-    int n_loc = array_descA.n_loc();
+    int m_loc = num_loc(m, array_descA.mb(), myprow, array_descA.irsrc(), nprows);
+    int n_loc = num_loc(n, array_descA.nb(), mypcol, array_descA.icsrc(), npcols);
 
     runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
@@ -66,7 +67,7 @@ void pgetrf(
         // start pgetf2
 
         pgetf2_panel(
-            m, nb_real,
+            m, n, nb_real,
             d_A, n_s, array_descA,
             ipiv, info
         );

@@ -1,4 +1,5 @@
 #include <ddla/ddla.h>
+#include <cassert>
 #include <complex>
 #include <ddla/ddla_connector.h>
 #include "ddla_stream_impl.h"
@@ -26,16 +27,20 @@ struct PivotBroadcast {
 
 } // namespace
 
-// now implement only support m=matrix_m, n = nb_real(<=nb), the the column block must belong to one process in a row
+// Factors the leading-block panel starting at global column n_s of width
+// nb_real (<= nb), for the logical m-by-n sub-matrix anchored at global (0,0)
+// of a possibly-larger descriptor.  All local extents are derived from the
+// logical m/n (num_loc), so the panel kernel never touches rows/columns beyond
+// the leading block.
 template <typename T>
 void pgetf2(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     T* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 )
 {
-    (void)m;
+    assert(m <= array_descA.m() && n <= array_descA.n());
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgetf2");
 
@@ -47,8 +52,8 @@ void pgetf2(
     int myprow = array_descA.myprow();
     int mypcol = array_descA.mypcol();
 
-    int m_loc = array_descA.m_loc();
-    int n_loc = array_descA.n_loc();
+    int m_loc = num_loc(m, array_descA.mb(), myprow, array_descA.irsrc(), nprows);
+    int n_loc = num_loc(n, array_descA.nb(), mypcol, array_descA.icsrc(), npcols);
     int lld = array_descA.lld();
     int nb = array_descA.nb();
 
@@ -218,28 +223,28 @@ void pgetf2(
 }
 
 template void pgetf2<float>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     float* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2<double>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     double* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2<std::complex<float>>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     std::complex<float>* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
 );
 
 template void pgetf2<std::complex<double>>(
-    const int& m, const int& nb_real,
+    const int& m, const int& n, const int& nb_real,
     std::complex<double>* d_A, const int& n_s, const DdlaDesc& array_descA,
     int* ipiv, // host
     int& info  // host
