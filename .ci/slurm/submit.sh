@@ -60,7 +60,7 @@ echo "build_job=$build_job" | tee "$results/jobs.txt"
 wait_job() {
     local job=$1
     while squeue -h -j "$job" | grep -q .; do
-        squeue -h -j "$job" -o "%i %T %M %R" || true
+        squeue -h -j "$job" -o "%i %T %M %R" >&2 || true
         sleep 30
     done
     sacct -X -j "$job" --format=State,ExitCode -n -P | head -n 1
