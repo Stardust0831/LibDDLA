@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=libddla-gpu-tests
+#SBATCH --partition=@TEST_PARTITION@
+#SBATCH --qos=@TEST_QOS@
+#SBATCH --nodes=1
+#SBATCH --ntasks=8
+#SBATCH --ntasks-per-node=8
+#SBATCH --gpus-per-node=8
+#SBATCH --time=@TEST_TIME@
+#SBATCH --dependency=afterok:@BUILD_JOB@
+#SBATCH --output=@RESULTS@/test-slurm-%j.log
+#SBATCH --export=NIL
+
+set -euo pipefail
+export HOME=@HOME@
+export USER=${SLURM_JOB_USER:?}
+export LOGNAME=$USER
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+export OMP_NUM_THREADS=1
+source @MAPPING_ROOT@/${SLURM_JOB_PARTITION}.bash
+source @CONTROL@/modules.sh
+export SLURM_EXPORT_ENV=ALL
+export OMPI_MCA_plm_slurm_args=--external-launcher
+export PRTE_MCA_plm_slurm_args=--external-launcher
+if [[ @DISABLE_NCCL_IB@ == true ]]; then
+    export NCCL_IB_DISABLE=1
+else
+    unset NCCL_IB_DISABLE
+fi
+module -t list 2>&1 | tee @RESULTS@/modules-test.txt
+command -v ctest mpirun nvidia-smi | tee @RESULTS@/tools-test.txt
+nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv,noheader \
+    | tee @RESULTS@/gpus.txt
+nvidia-smi dmon -s pucvmte -o T > @RESULTS@/dmon-${SLURM_JOB_ID}.log &
+
+set +e
+ctest --test-dir @BUILD@ -L "gpu|cpu" -j1 --output-on-failure \
+    --output-junit @RESULTS@/ctest.xml 2>&1 | tee @RESULTS@/ctest.log
+ctest_rc=${PIPESTATUS[0]}
+set -e
+python3 @CONTROL@/report.py \
+    --manifest @RESULTS@/manifest.json \
+    --junit @RESULTS@/ctest.xml \
+    --results @RESULTS@ \
+    --job-id "$SLURM_JOB_ID"
+exit "$ctest_rc"

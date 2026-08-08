@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#SBATCH --job-name=libddla-build
+#SBATCH --partition=@BUILD_PARTITION@
+#SBATCH --qos=@BUILD_QOS@
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gpus-per-node=1
+#SBATCH --time=@BUILD_TIME@
+#SBATCH --output=@RESULTS@/build-slurm-%j.log
+#SBATCH --export=NIL
+
+set -euo pipefail
+export HOME=@HOME@
+export USER=${SLURM_JOB_USER:?}
+export LOGNAME=$USER
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+source @CONTROL@/modules.sh
+module -t list 2>&1 | tee @RESULTS@/modules-build.txt
+command -v cmake make mpicxx nvcc | tee @RESULTS@/tools-build.txt
+
+cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_CUDA_ARCHITECTURES=70 \
+    -DDDLA_USE_CUDA=ON \
+    -DBUILD_TESTS=ON \
+    -DDDLA_TEST_NP=4 \
+    -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    2>&1 | tee @RESULTS@/configure.log
+cmake --build @BUILD@ --parallel 32 2>&1 | tee @RESULTS@/build.log
+ctest --test-dir @BUILD@ --show-only=json-v1 > @RESULTS@/manifest.json
