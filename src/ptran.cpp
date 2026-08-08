@@ -338,7 +338,11 @@ void ptran(const T* d_A, const DdlaDesc& descA,
     }
 
     // ---- Phase 5: communication ----
-    if(send_total > 0 || recv_total > 0){
+    // commAlltoallv is a grid-wide collective: EVERY rank must call it, even
+    // ranks whose blocks are all local (zero send/recv counts are valid for
+    // MPI_Alltoallv and the NCCL group), or peers block forever inside the
+    // collective.  Do not gate it on a rank-local send/recv condition.
+    {
         std::vector<int> sendcounts(nprocs, 0), recvcounts(nprocs, 0);
         std::vector<int> sdispls(nprocs, 0), rdispls(nprocs, 0);
         for(auto& b : send_blocks) sendcounts[b.dst_rank] += b.bm * b.bn;

@@ -42,9 +42,9 @@ void plapiv(
     int lldA = array_descA.lld();
     // Logical local extents of the leading-block sub-matrix: rowcol='R'
     // pivots rows over the leading n columns, rowcol='C' pivots columns over
-    // the leading m rows.
+    // the leading n rows (n is the fixed segment length, see ddla.h).
     const int length_rowcol_R = num_loc(n, nb, mypcol, array_descA.icsrc(), npcols);
-    const int length_rowcol_C = num_loc(m, mb, myprow, array_descA.irsrc(), nprows);
+    const int length_rowcol_C = num_loc(n, mb, myprow, array_descA.irsrc(), nprows);
 
     T*temp_A_target;
     RUNTIME_CHECK(runtimeMallocAsync(&temp_A_target, sizeof(T)*std::max(length_rowcol_R, length_rowcol_C), ddla_handle->stream));
@@ -78,7 +78,7 @@ void plapiv(
         if(i_loc>=0){
             target_i_global = ipiv[i_loc] - 1;
         }
-        MPI_Bcast(&target_i_global, 1, MPI_INT, owner_row, col_comm);
+        MPI_CHECK(MPI_Bcast(&target_i_global, 1, MPI_INT, owner_row, col_comm));
         if(target_i_global == i)
             continue;
         if(rowcol=='C'){

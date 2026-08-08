@@ -76,7 +76,7 @@ static void resolve_and_validate_backend(DdlaHandle_t handle, const MPI_Comm& co
 
     int send[2] = { static_cast<int>(resolved), -static_cast<int>(resolved) };
     int recv[2] = { 0, 0 };
-    MPI_Allreduce(send, recv, 2, MPI_INT, MPI_MAX, comm);
+    MPI_CHECK(MPI_Allreduce(send, recv, 2, MPI_INT, MPI_MAX, comm));
     int max_backend = recv[0];
     int min_backend = -recv[1];
     if (max_backend != min_backend) {

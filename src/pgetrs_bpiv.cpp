@@ -106,8 +106,8 @@ void pgetrs_bpiv(
                 for(int i = 0; i < nb_real; ++i)
                     piv[i] = h_ipiv[mm_row_start + i];
             }
-            MPI_Bcast(piv.data(), nb_real, MPI_INT,
-                      ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm);
+            MPI_CHECK(MPI_Bcast(piv.data(), nb_real, MPI_INT,
+                                ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
             const int begin = forward ? 1 : nb_real;
             const int end   = forward ? nb_real + 1 : 0;
             const int step  = forward ? 1 : -1;

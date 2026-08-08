@@ -78,9 +78,9 @@ public:
 #else
         int localRank;
         MPI_Comm localCommInner;
-        MPI_Comm_split_type(local_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &localCommInner);
-        MPI_Comm_rank(localCommInner, &localRank);
-        MPI_Comm_free(&localCommInner);
+        MPI_CHECK(MPI_Comm_split_type(local_comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &localCommInner));
+        MPI_CHECK(MPI_Comm_rank(localCommInner, &localRank));
+        MPI_CHECK(MPI_Comm_free(&localCommInner));
 
         int deviceCount = 0;
         RUNTIME_CHECK(runtimeGetDeviceCount(&deviceCount));
@@ -109,11 +109,11 @@ public:
     static inline void nccl_comm_create(ncclComm_t &c, const MPI_Comm &comm_group)
     {
         int rank, size;
-        MPI_Comm_rank(comm_group, &rank);
-        MPI_Comm_size(comm_group, &size);
+        MPI_CHECK(MPI_Comm_rank(comm_group, &rank));
+        MPI_CHECK(MPI_Comm_size(comm_group, &size));
         ncclUniqueId id;
-        if (rank == 0) { ncclGetUniqueId(&id); }
-        MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_group);
+        if (rank == 0) { CCL_CHECK(ncclGetUniqueId(&id)); }
+        MPI_CHECK(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_group));
         CCL_CHECK(ncclCommInitRank(&c, size, id, rank));
     }
 #endif
@@ -123,8 +123,8 @@ public:
     // -----------------------------------------------------------------------
     void init(MPI_Comm comm_group, const char& major)
     {
-        MPI_Comm_rank(comm_group, &myid);
-        MPI_Comm_size(comm_group, &nprocs);
+        MPI_CHECK(MPI_Comm_rank(comm_group, &myid));
+        MPI_CHECK(MPI_Comm_size(comm_group, &nprocs));
         nprows_ = static_cast<int>(std::ceil(std::sqrt(nprocs)));
         while (nprocs % nprows_ != 0) { nprows_--; }
         npcols_ = nprocs / nprows_;
@@ -158,9 +158,9 @@ public:
         this->major = major;
 
         // Duplicate communicator
-        MPI_Comm_dup(comm_group, &comm);
-        MPI_Comm_rank(comm, &myid);
-        MPI_Comm_size(comm, &nprocs);
+        MPI_CHECK(MPI_Comm_dup(comm_group, &comm));
+        MPI_CHECK(MPI_Comm_rank(comm, &myid));
+        MPI_CHECK(MPI_Comm_size(comm, &nprocs));
 
         nprows_ = nprows;
         npcols_ = npcols;
@@ -178,8 +178,8 @@ public:
             throw std::runtime_error("ddla: major must be 'R' or 'C'");
         }
 
-        MPI_Comm_split(comm, myprow_, myid, &row_comm);
-        MPI_Comm_split(comm, mypcol_, myid, &col_comm);
+        MPI_CHECK(MPI_Comm_split(comm, myprow_, myid, &row_comm));
+        MPI_CHECK(MPI_Comm_split(comm, mypcol_, myid, &col_comm));
 
         // CCL / stream / BLAS / solver: GPU handles only. `backend` is
         // already concrete here (set by ddla_init).
@@ -264,30 +264,30 @@ public:
 
 #ifdef DDLA_USE_CCL
         if (nccl_comm != nullptr) {
-            ncclCommDestroy(nccl_comm);
+            CCL_CHECK(ncclCommDestroy(nccl_comm));
             nccl_comm = nullptr;
         }
         if (nccl_row_comm != nullptr) {
-            ncclCommDestroy(nccl_row_comm);
+            CCL_CHECK(ncclCommDestroy(nccl_row_comm));
             nccl_row_comm = nullptr;
         }
         if (nccl_col_comm != nullptr) {
-            ncclCommDestroy(nccl_col_comm);
+            CCL_CHECK(ncclCommDestroy(nccl_col_comm));
             nccl_col_comm = nullptr;
         }
 #endif
 
         // Communicators last
         if (row_comm != MPI_COMM_NULL) {
-            MPI_Comm_free(&row_comm);
+            MPI_CHECK(MPI_Comm_free(&row_comm));
             row_comm = MPI_COMM_NULL;
         }
         if (col_comm != MPI_COMM_NULL) {
-            MPI_Comm_free(&col_comm);
+            MPI_CHECK(MPI_Comm_free(&col_comm));
             col_comm = MPI_COMM_NULL;
         }
         if (comm != MPI_COMM_NULL) {
-            MPI_Comm_free(&comm);
+            MPI_CHECK(MPI_Comm_free(&comm));
             comm = MPI_COMM_NULL;
         }
 

@@ -219,6 +219,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                 <<<1, threads, shmem, stream>>>(
                     jb, jb, d_A + j * lda + j, lda, d_info, j);
         }
+        RUNTIME_CHECK(runtimeGetLastError());
 
         // ---------------------------------------------------------------
         // 2) Solve L panel: A(j+jb:m-1, j:j+jb) = A(j+jb:m-1, j:j+jb) * U^{-1}
