@@ -4,7 +4,7 @@
 #SBATCH --qos=@BUILD_QOS@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --gpus=1
+#SBATCH --gpus-per-node=1
 #SBATCH --time=@BUILD_TIME@
 #SBATCH --output=@RESULTS@/build-slurm-%j.log
 #SBATCH --export=NIL
