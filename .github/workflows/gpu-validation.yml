@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: "Commit to build and test on SAI"
+        description: "Commit or branch to test (defaults to develop)"
         required: false
         type: string
   schedule:
@@ -33,7 +33,7 @@ jobs:
       - name: Checkout requested commit
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.source_sha || github.sha }}
+          ref: ${{ inputs.source_sha || 'develop' }}
           fetch-depth: 0
           persist-credentials: false
 
