@@ -19,6 +19,9 @@ export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 export OMP_NUM_THREADS=1
 source @MAPPING_ROOT@/${SLURM_JOB_PARTITION}.bash
 source @CONTROL@/modules.sh
+CI_SYSTEM_MPIRUN=$(command -v mpirun)
+export CI_SYSTEM_MPIRUN
+export MAP_OPT
 export SLURM_EXPORT_ENV=ALL
 export OMPI_MCA_plm_slurm_args=--external-launcher
 export PRTE_MCA_plm_slurm_args=--external-launcher
