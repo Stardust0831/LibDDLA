@@ -28,7 +28,7 @@ def manifest_tests(path: Path) -> list[dict[str, str]]:
         }
         rows.append({
             "name": test["name"],
-            "processors": properties.get("PROCESSORS", ""),
+            "processors": properties.get("PROCESSORS", "1"),
         })
     return rows
 
