@@ -21,9 +21,13 @@ command -v cmake make mpicxx nvcc | tee @RESULTS@/tools-build.txt
 cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=70 \
+    -DCUDAToolkit_ROOT=/opt/devtools/nvidia/hpc_sdk/Linux_x86_64/26.3/cuda/12.9 \
+    -DCMAKE_CUDA_COMPILER=/opt/devtools/nvidia/hpc_sdk/Linux_x86_64/26.3/cuda/12.9/bin/nvcc \
     -DDDLA_USE_CUDA=ON \
+    -DDDLA_USE_CCL=ON \
     -DBUILD_TESTS=ON \
     -DDDLA_TEST_NP=4 \
+    -DMPIEXEC_EXECUTABLE=@CONTROL@/mpirun_with_mapping.sh \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     2>&1 | tee @RESULTS@/configure.log
 cmake --build @BUILD@ --parallel 32 2>&1 | tee @RESULTS@/build.log

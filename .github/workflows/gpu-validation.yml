@@ -78,7 +78,7 @@ jobs:
           scp -F "$REMOTE_SSH_CONFIG" \
             .ci/slurm/config.ini .ci/slurm/modules.sh .ci/slurm/known_hosts \
             .ci/slurm/build.sbatch.in .ci/slurm/test.sbatch.in \
-            .ci/slurm/report.py .ci/slurm/submit.sh \
+            .ci/slurm/mpirun_with_mapping.sh .ci/slurm/report.py .ci/slurm/submit.sh \
             "gpu-ci:$run_root/control/"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci \
             "chmod 700 '$run_root/control/'*.sh; '$run_root/control/submit.sh' '$run_root'"
