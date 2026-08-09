@@ -19,7 +19,8 @@ namespace ddla{
  *                                     B := B * op(A)^{-1}    (side='R').
  *
  * Solves a triangular system on a distributed GPU matrix using block-cyclic
- * data distribution and NCCL/RCCL communication.  Corresponds to the
+ * data distribution and MPI/NCCL/RCCL communication (per the DDLA_USE_CCL /
+ * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Corresponds to the
  * ScaLAPACK PZTRTRS / PDTRTRS routine.
  *
  * @tparam T  Scalar type (float, double, complex<float>, complex<double>).
@@ -91,8 +92,6 @@ void plapiv(
  * Communication occurs only when the source and target rows/columns reside on
  * different processes.
  *
- * @tparam Backend  Compile-time execution backend. The build default is CPU
- *                  for CPU-only builds and GPU otherwise.
  * @tparam T        Scalar type.
  * @param N     Length of the segment to swap.
  * @param A     Device pointer to distributed matrix A.
@@ -213,7 +212,7 @@ void pgetrf(
  * @param n        Number of columns of A.
  * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
  * @param array_descA  DdlaDesc for A (mb == nb required).
- * @param ipiv     device pivot array (output, 1-based block-local offsets,
+ * @param d_ipiv   device pivot array (output, 1-based block-local offsets,
  *                 length >= m_loc).
  * @param info     host info 0 on success, >0 if singular. 
  */
@@ -439,8 +438,9 @@ void pgesv_bpiv(
  * @brief Distributed matrix-matrix multiplication:
  *        C := alpha * op(A) * op(B) + beta * C.
  *
- * Uses a 2D block-cyclic data distribution and NCCL/RCCL broadcast of
- * panel columns of A and panel rows of B (AB-path).  Supports all standard
+ * Uses a 2D block-cyclic data distribution and broadcast of panel columns of
+ * A and panel rows of B (AB-path) over MPI/NCCL/RCCL (per the DDLA_USE_CCL /
+ * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Supports all standard
  * transpose options:
  *   - 'N': op(X) = X
  *   - 'T': op(X) = X^T
@@ -536,7 +536,8 @@ void pgeadd(
  * @tparam T2  Element type of the distributed matrix A.
  * @param alpha  Scalar to add to each diagonal element.
  * @param d_A    Device pointer to distributed matrix A (input/output).
- * @param array_descA  DdlaDesc for A (must be square).
+ * @param array_descA  DdlaDesc for A (may describe a matrix larger than the
+ *                     leading n x n sub-matrix touched).
  * @param n      Logical order of the leading sub-matrix (<= desc.m());
  *               n < 0 means the whole matrix.  Default -1.
  */
@@ -552,14 +553,13 @@ void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA, const int& n = 
  * submatrix via gemm/herk.  With uplo='L', computes A = L * L^H.
  * With uplo='U', computes A = U^H * U.
  *
- * @note Only complex<float> and complex<double> are instantiated.
- *
- * @tparam T   Scalar type (complex<float> or complex<double>).
+ * @tparam T   Scalar type (float, double, complex<float>, complex<double>).
  * @param uplo     'L' or 'U' -- triangle of A to store and factor.
  * @param n        Order of A (<= desc.m(), desc.n()).
  * @param A        Device pointer to A (input: Hermitian pos-def; output: Cholesky factor).
- * @param ia       Global starting row (1-based).
- * @param ja       Global starting col (1-based).
+ * @param ia       Reserved; must be 1 (1-based).  The factor operates on the
+ *                 leading n x n sub-matrix anchored at global (0,0).
+ * @param ja       Reserved; must be 1 (1-based).
  * @param array_descA  DdlaDesc for A (mb == nb required).
  * @param info     0 on success, >0 if not positive-definite.
  * @param is_head  Internal flag for multi-head Cholesky (default false).
@@ -683,12 +683,13 @@ void ppotrs(
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
  * @param d_A      Device pointer to A (input: pos-def; output: Cholesky factor).
- * @param ia       Global starting row of A (1-based).
- * @param ja       Global starting col of A (1-based).
+ * @param ia       Reserved; must be 1 (1-based).  Solves operate on the
+ *                 leading n x n / n x nrhs sub-matrices anchored at (0,0).
+ * @param ja       Reserved; must be 1 (1-based).
  * @param array_descA  DdlaDesc for A.
  * @param d_B      Device pointer to RHS / solution B (input/output).
- * @param ib       Global starting row of B (1-based).
- * @param jb       Global starting col of B (1-based).
+ * @param ib       Reserved; must be 1 (1-based).
+ * @param jb       Reserved; must be 1 (1-based).
  * @param array_descB  DdlaDesc for B.
  * @param info     Output: 0 on success, >0 if not positive-definite.
  * @param is_head  Forwarded to ppotrf.

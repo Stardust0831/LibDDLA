@@ -720,6 +720,6 @@ static inline void DERAND_CHECK(derandStatus_t status, const char* file = __buil
 }
 
 
-} // namespace DDLA
+} // namespace ddla
 
 #endif // DDLA_CONNECTOR_H

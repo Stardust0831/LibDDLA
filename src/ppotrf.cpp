@@ -30,6 +30,9 @@ bool ppotrf(
     assert(array_descA.mb() == array_descA.nb());
     assert(n > 0);
     assert(n <= array_descA.m() && n <= array_descA.n());
+    // The factorization operates on the leading n x n sub-matrix anchored at
+    // global (0,0); ia/ja are reserved and must be 1 (1-based).
+    assert(ia == 1 && ja == 1);
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "ppotrf");
     if(is_head)
@@ -122,7 +125,6 @@ bool ppotrf(
     for(int n_s = 0; n_s < n; n_s += nb)
     {
         nb_real = std::min(nb, n - n_s);
-        // printf("myid:%d, n_s:%d, nb_real:%d\n",ddla_handle->myid, n_s, nb_real);
         mm_row_start = num_loc(n_s, nb, myprow, array_descA.irsrc(), nprows);
         mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
 
@@ -302,7 +304,6 @@ bool ppotrf(
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - length_row_real) + (length_col - col_remain) * lldA, lldA
                     );
             }
-            // printf("1-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             for(;row_s <= num_row_block * nb; row_s += nb){
                 int g_row_s = array_descA.indx_l2g_r(m_loc_A - row_s);
                 int g_col_s;
@@ -311,18 +312,13 @@ bool ppotrf(
                     col_s += nb;
                     g_col_s = array_descA.indx_l2g_c(n_loc_A - col_s);
                 }while(g_row_s < g_col_s);
-                // printf("myid:%d, col_s:%d\n", ddla_handle->myid, col_s);
                 for(; col_s <= num_col_block * nb; col_s += nb){
-                    // printf("myid:%d, before h_A\n", ddla_handle->myid);
                     h_A_array[i_batch_count] = d_block_col + length_row - row_s;
-                    // printf("myid:%d, before h_B\n", ddla_handle->myid);
                     h_B_array[i_batch_count] = d_block_row + length_col - col_s;
-                    // printf("myid:%d, before h_C\n", ddla_handle->myid);
                     h_C_array[i_batch_count] = A + m_loc_A - row_s + (n_loc_A - col_s) * lldA;
                     i_batch_count++;
                 }
             }
-            // printf("2-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             if(i_batch_count == 0) continue;
             RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
             RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
@@ -463,7 +459,6 @@ bool ppotrf(
         }
         RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     }
-    // printf("myid:%d, end\n", ddla_handle->myid);
     cleanup_device_buffers();
     return is_nega;
 

@@ -33,7 +33,6 @@ void ptrtrs(
 
     int nprows = array_descA.nprows();
     int npcols = array_descA.npcols();
-    // printf("nprows:%d, npcols:%d\n",nprows,npcols);
 
     runtimeStream_t stream=ddla_handle->stream;
     deblasHandle_t blasH=ddla_handle->blasH;
@@ -96,7 +95,6 @@ void ptrtrs(
         }
         for(int n_s = n_s_start; n_s != n_s_end; n_s += n_s_step){
             int nb_real = std::min(nb, n_solve - n_s);
-            // printf("n_s=%d, nb_real=%d\n",n_s, nb_real);
 
             mm_row_start = num_loc(n_s, nb, array_descA.myprow(), array_descA.irsrc(), nprows);
             mm_col_start = num_loc(n_s, nb, array_descA.mypcol(), array_descA.icsrc(), npcols);
@@ -112,7 +110,6 @@ void ptrtrs(
                 mm_col_step = nb_real;
             else 
                 mm_col_step = 0;
-            // printf("owner_row:%d,owner_col:%d\n",owner_row,owner_col);
 
             if(array_descA.myprow() == owner_row && array_descA.mypcol() == owner_col){
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(

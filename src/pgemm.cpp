@@ -140,13 +140,13 @@ void pgemm(
     const int n_loc_B = num_loc((transb == 'N') ? n : k, descB.nb(), descB.mypcol(), descB.icsrc(), descB.npcols());
 
     // Scratch buffers (GPU stream-scratch or CPU heap) for the SUMMA panel
-    // pipeline, freed explicitly below. runtimeMalloc/runtimeFree never throw
-    // -- RUNTIME_CHECK calls exit(EXIT_FAILURE) on failure instead -- and the
-    // transport_block/gemm/scal calls below only throw for a null handle or a
-    // backend mismatch, neither of which can occur here since `h` and
-    // `Backend` are already validated above and passed through unchanged. So
-    // there is no exception path between these allocations and the frees at
-    // the end of this function.
+    // pipeline, freed explicitly below.  RUNTIME_CHECK throws std::runtime_error
+    // on failure (uncaught it terminates the rank), and the transport_block/
+    // gemm/scal calls below can throw on a null handle or a backend mismatch --
+    // both validated above, but a failure between these allocations and the
+    // frees at the end leaks the scratch buffers on that rank.  The process
+    // terminates via the uncaught exception, so the OS reclaims them; this is
+    // not a runaway leak in practice.
     const int buffer_max = 2;
     T* d_A_temp[buffer_max] = {nullptr, nullptr};
     T* d_B_temp[buffer_max] = {nullptr, nullptr};

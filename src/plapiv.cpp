@@ -58,7 +58,8 @@ void plapiv(
     int i_loc;
     int owner_row;
     int target_row;
-    int target_i_global,target_i_loc;
+    int target_i_global = 0;
+    int target_i_loc;
     // Pivot i (global index) is stored in the local ipiv entry of global row i
     // on the owning process row (column-cyclic pivot distribution, pivroc='C'),
     // described by array_descIP, and broadcast within the column communicator.

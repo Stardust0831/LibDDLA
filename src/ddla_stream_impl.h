@@ -60,9 +60,9 @@ public:
     // -- host staging for the GPU_CPU_TUNNEL path ---------------------------
     // Grow-on-demand host buffers reused across comm* calls instead of
     // allocating a fresh std::vector per collective.  Two buffers are needed
-    // because commAllReduce / commAlltoallv stage both send and receive data
-    // simultaneously.  ::operator new guarantees alignment suitable for any
-    // fundamental type, so reinterpret_cast<T*> is safe for T in
+    // because commAlltoallv stages both send and receive data simultaneously.
+    // ::operator new guarantees alignment suitable for any fundamental type, so
+    // reinterpret_cast<T*> is safe for T in
     // {float, double, std::complex<float>, std::complex<double>}.
     std::vector<std::byte> tunnel_host_staging_a;
     std::vector<std::byte> tunnel_host_staging_b;
@@ -144,7 +144,6 @@ public:
         // concrete here: ddla_init stores the requested backend directly.
         if (saved_backend == DdlaBackend::GPU) {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-            RUNTIME_CHECK(runtimeFree(NULL));
             set_local_device(getLocalDevice(comm_group));
 #endif
         }

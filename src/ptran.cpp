@@ -144,8 +144,8 @@ __global__ void scatter_blocks_kernel(
  * Performance improvements over the original per-block geam/memcpy2D loop:
  *   - P0: Three fused CUDA kernels replace thousands of per-block kernel launches.
  *   - P0: Redundant runtimeDeviceSynchronize() in pgemm.cpp removed.
- *   - P1: Phase 4 (local transpose) runs on stream_data, overlapping with
- *         Phase 3+5+6 (pack + communication + scatter) on stream.
+ *   - P1: Phase 4 (local transpose) launches on the same stream as Phase
+ *         3+5+6, keeping a single ordered device stream (no overlap).
  *
  * All device allocations use runtimeMallocAsync/runtimeFreeAsync (stream-ordered),
  * eliminating the runtimeStreamSynchronize that synchronous free requires and

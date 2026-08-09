@@ -1,4 +1,5 @@
 #include <ddla/ddla.h>
+#include <cassert>
 #include "require_gpu.h"
 
 namespace ddla{
@@ -15,6 +16,9 @@ void pposv(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pposv");
+    // Solve operates on the leading n x n / n x nrhs sub-matrices anchored at
+    // global (0,0); ia/ja/ib/jb are reserved and must be 1 (1-based).
+    assert(ia == 1 && ja == 1 && ib == 1 && jb == 1);
     bool is_nega = ppotrf(uplo, n, d_A, ia, ja, array_descA, info, is_head, location);
     // is_nega must be *passed to* ppotrs (which applies the corresponding sign
     // flip), not used to skip the solve entirely -- the previous `&& !is_nega`
@@ -63,4 +67,4 @@ template void pposv<std::complex<double>>(
     bool is_head, int location
 );
 
-} // namespace DDLA
+} // namespace ddla

@@ -13,7 +13,7 @@ message(STATUS "Building ddla library version ${CMAKE_PROJECT_VERSION}")
 if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
     # CPU-only build: minimal source set supporting pgemm. transport_block.cpp
     # is included here (unlike before the CommTraits<Backend>/comm_traits.h
-    # unification) because CpuOps::transport_panel now calls the unified
+    # unification) because the CPU pgemm calls the unified
     # transport_block<DdlaBackend::CPU,T> directly instead of a separate,
     # hand-duplicated CPU-only implementation.
     list(APPEND lib_sources
