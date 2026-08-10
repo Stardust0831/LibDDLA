@@ -141,6 +141,9 @@ ddlaStatus_t ddlaSynchronize(const DdlaHandle_t& handle);
 /// Set the compute stream of a GPU handle; subsequent library calls on this
 /// handle are enqueued on @p stream.
 ///
+/// The handle takes ownership of @p stream: it is destroyed by ddlaDestroy,
+/// so the caller must not destroy it separately.
+///
 /// @throws std::runtime_error if the handle uses the CPU backend (CPU
 /// handles have no device stream).
 ddlaStatus_t ddlaSetStream(const DdlaHandle_t& handle, void* stream);
