@@ -152,7 +152,7 @@ static int check_one(
                 transa, transb, M, N, K, alpha,
                 d_A, descA_gpu, d_B, descB_gpu, beta, d_C, descC_gpu);
         }
-        int ret_dl = ddlaMemcpy(h_C_gpu.data(), d_C, xferC, DdlaMemoryCopyKind::DeviceToHost, h_gpu);
+        int ret_dl = static_cast<int>(ddlaMemcpy(h_C_gpu.data(), d_C, xferC, DdlaMemoryCopyKind::DeviceToHost, h_gpu));
         TEST("GPU download after compute", ret_dl == 0);
     };
 
@@ -289,8 +289,8 @@ static int check_k_zero(DdlaHandle_t h_cpu, DdlaHandle_t h_gpu)
     pgemm<DdlaBackend::GPU>('N', 'N', M, N, 0, alpha,
                             d_A, descA_gpu, d_B, descB_gpu,
                             beta, d_C, descC_gpu);
-    int dl = ddlaMemcpy(h_C_gpu.data(), d_C, szC * sizeof(T),
-                        DdlaMemoryCopyKind::DeviceToHost, h_gpu);
+    int dl = static_cast<int>(ddlaMemcpy(h_C_gpu.data(), d_C, szC * sizeof(T),
+                        DdlaMemoryCopyKind::DeviceToHost, h_gpu));
     TEST("k=0 GPU download", dl == 0);
     TEST("k=0 GPU sync after download", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
