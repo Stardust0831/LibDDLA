@@ -26,7 +26,7 @@
 #include <cusolverMp.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <ddla/ddla_desc.h>
 #include <ddla/ddla_handle_t.h>
 #include "ddla_stream_impl.h"

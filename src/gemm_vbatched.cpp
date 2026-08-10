@@ -1,4 +1,4 @@
-#include <ddla/gemmVbatched.h>
+#include "gemmVbatched.h"
 #include "ddla_stream_impl.h"
 
 #include "vbatched/gemm_vbatched_compat.h"

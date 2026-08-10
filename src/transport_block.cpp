@@ -7,10 +7,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "comm_traits.h"
-#include <ddla/geam.h>
+#include "geam.h"
 
 namespace ddla {
 

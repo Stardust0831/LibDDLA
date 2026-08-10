@@ -8,14 +8,14 @@
 #include <vector>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"
-#include <ddla/gemmBatched.h>
-#include <ddla/herk.h>
-#include <ddla/syrk.h>
-#include <ddla/trsm.h>
+#include "gemmBatched.h"
+#include "herk.h"
+#include "syrk.h"
+#include "trsm.h"
 
 namespace ddla{
 

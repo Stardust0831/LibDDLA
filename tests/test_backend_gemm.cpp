@@ -11,7 +11,7 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/gemm.h>
+#include "gemm.h"
 
 using namespace ddla;
 

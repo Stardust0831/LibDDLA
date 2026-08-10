@@ -42,8 +42,8 @@ void pzgemm_(const char* transa, const char* transb, const int* m, const int* n,
 }
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
 
 using namespace ddla;
 using Z = std::complex<double>;

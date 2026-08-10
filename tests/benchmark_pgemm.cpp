@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;

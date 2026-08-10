@@ -11,9 +11,9 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/axpy.h>
-#include <ddla/iamax.h>
-#include <ddla/geru.h>
+#include "axpy.h"
+#include "iamax.h"
+#include "geru.h"
 
 using namespace ddla;
 

@@ -6,10 +6,10 @@
 #include <vector>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include <ddla/getrf.h>
-#include <ddla/scal.h>
+#include "getrf.h"
+#include "scal.h"
 
 using namespace ddla;
 

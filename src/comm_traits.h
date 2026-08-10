@@ -1,7 +1,7 @@
 #ifndef DDLA_COMM_TRAITS_H
 #define DDLA_COMM_TRAITS_H
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "mpi_datatype.h"
 #include <vector>

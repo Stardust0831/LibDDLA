@@ -3,14 +3,14 @@
 #include <cassert>
 #include <stdexcept>
 #include <string>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <ddla/ddla_config.h>
 #include <ddla/ddla_desc.h>
 #include "ddla_stream_impl.h"
 #include <vector>
-#include <ddla/transport_block.h>
-#include <ddla/gemm.h>
-#include <ddla/scal.h>
+#include "transport_block.h"
+#include "gemm.h"
+#include "scal.h"
 
 // CPU-only includes (no GPU vendor headers pulled in by these; safe in any
 // build -- DDLA_HAS_CPU below still gates whether the CPU pgemm/transport

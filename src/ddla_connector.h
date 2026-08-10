@@ -130,7 +130,13 @@ struct RuntimeTraits<DdlaBackend::GPU> {
 // deblas* / desolver* / derand* families: vendor BLAS/solver/RNG handle and
 // status types, unchanged by this refactor (already correctly namespaced,
 // not part of the runtime-abstraction rework).
+//
+// Shared with the public ddla.h via the DDLA_DEBLAS_TYPES_DEFINED guard:
+// whichever header is included first defines the block (identical content),
+// the other skips it.
 // ---------------------------------------------------------------------------
+#ifndef DDLA_DEBLAS_TYPES_DEFINED
+#define DDLA_DEBLAS_TYPES_DEFINED
 #ifdef DDLA_USE_CUDA
 using deblasStatus_t = cublasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::CUBLAS_STATUS_SUCCESS;
@@ -228,6 +234,7 @@ constexpr auto DEBLAS_OP_N = 'N';
 constexpr auto DEBLAS_OP_T = 'T';
 constexpr auto DEBLAS_OP_C = 'C';
 #endif
+#endif // DDLA_DEBLAS_TYPES_DEFINED
 
 // ---------------------------------------------------------------------------
 // Bare runtime type/constant names, resolved once per TU via RuntimeTraits

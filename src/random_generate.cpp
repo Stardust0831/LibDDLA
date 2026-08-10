@@ -1,4 +1,4 @@
-#include <ddla/random_generate.h>
+#include "random_generate.h"
 
 #include <chrono>
 #include <random>

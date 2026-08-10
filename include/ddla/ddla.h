@@ -3,12 +3,121 @@
 
 #include <ddla/ddla_config.h>
 #include "ddla_desc.h"
-#include "write_matrix.h"
-#include "random_generate.h"
-#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-#include "gemmVbatched.h"
-#endif
+#include <cstdint>
 #include <complex>
+
+// ---------------------------------------------------------------------------
+// Public deblas* type aliases and operation constants.
+//
+// These appear in public template signatures (e.g. gemmVbatched takes
+// deblasOperation_t), so they are part of the public interface. The
+// definition lives here and is shared with the private
+// src/ddla_connector.h via the DDLA_DEBLAS_TYPES_DEFINED guard: whichever
+// header is included first defines the block, the other skips it (the
+// aliases resolve to the same vendor types either way).
+#ifndef DDLA_DEBLAS_TYPES_DEFINED
+#define DDLA_DEBLAS_TYPES_DEFINED
+#ifdef DDLA_USE_CUDA
+#include <cublas_v2.h>
+#include <cusolverDn.h>
+#include <curand.h>
+using deblasStatus_t = cublasStatus_t;
+constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::CUBLAS_STATUS_SUCCESS;
+using deblasHandle_t = cublasHandle_t;
+using desolverHandle_t = cusolverDnHandle_t;
+using desolverStatus_t = cusolverStatus_t;
+constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::CUSOLVER_STATUS_SUCCESS;
+#define desolverGetStream cusolverDnGetStream
+using derandGenerator_t = curandGenerator_t;
+using derandStatus_t = curandStatus_t;
+constexpr auto DERAND_STATUS_SUCCESS = derandStatus_t::CURAND_STATUS_SUCCESS;
+#define derandCreateGenerator curandCreateGenerator
+#define derandSetPseudoRandomGeneratorSeed curandSetPseudoRandomGeneratorSeed
+#define derandGenerateUniform curandGenerateUniform
+#define derandGenerateUniformDouble curandGenerateUniformDouble
+#define derandDestroyGenerator curandDestroyGenerator
+using derandRngType = curandRngType;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = derandRngType::CURAND_RNG_PSEUDO_DEFAULT;
+using deblasSideMode_t = cublasSideMode_t;
+constexpr auto DEBLAS_SIDE_LEFT = deblasSideMode_t::CUBLAS_SIDE_LEFT;
+constexpr auto DEBLAS_SIDE_RIGHT = deblasSideMode_t::CUBLAS_SIDE_RIGHT;
+using deblasFillMode_t = cublasFillMode_t;
+constexpr auto DEBLAS_FILL_MODE_LOWER = deblasFillMode_t::CUBLAS_FILL_MODE_LOWER;
+constexpr auto DEBLAS_FILL_MODE_UPPER = deblasFillMode_t::CUBLAS_FILL_MODE_UPPER;
+using deblasDiagType_t = cublasDiagType_t;
+constexpr auto DEBLAS_DIAG_UNIT = deblasDiagType_t::CUBLAS_DIAG_UNIT;
+constexpr auto DEBLAS_DIAG_NON_UNIT = deblasDiagType_t::CUBLAS_DIAG_NON_UNIT;
+using deblasOperation_t = cublasOperation_t;
+constexpr auto DEBLAS_OP_N = deblasOperation_t::CUBLAS_OP_N;
+constexpr auto DEBLAS_OP_T = deblasOperation_t::CUBLAS_OP_T;
+constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
+#elif defined(DDLA_USE_HIP)
+#include <hipblas/hipblas.h>
+#include <hipsolver/hipsolver.h>
+#include <hiprand/hiprand.h>
+using deblasStatus_t = hipblasStatus_t;
+constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::HIPBLAS_STATUS_SUCCESS;
+using deblasHandle_t = hipblasHandle_t;
+using desolverHandle_t = hipsolverHandle_t;
+using desolverStatus_t = hipsolverStatus_t;
+constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::HIPSOLVER_STATUS_SUCCESS;
+#define desolverGetStream hipsolverGetStream
+using derandGenerator_t = hiprandGenerator_t;
+using derandStatus_t = hiprandStatus_t;
+constexpr auto DERAND_STATUS_SUCCESS = derandStatus_t::HIPRAND_STATUS_SUCCESS;
+#define derandCreateGenerator hiprandCreateGenerator
+#define derandSetPseudoRandomGeneratorSeed hiprandSetPseudoRandomGeneratorSeed
+#define derandGenerateUniform hiprandGenerateUniform
+#define derandGenerateUniformDouble hiprandGenerateUniformDouble
+#define derandDestroyGenerator hiprandDestroyGenerator
+using derandRngType = hiprandRngType;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = derandRngType::HIPRAND_RNG_PSEUDO_DEFAULT;
+using deblasSideMode_t = hipblasSideMode_t;
+constexpr auto DEBLAS_SIDE_LEFT = deblasSideMode_t::HIPBLAS_SIDE_LEFT;
+constexpr auto DEBLAS_SIDE_RIGHT = deblasSideMode_t::HIPBLAS_SIDE_RIGHT;
+using deblasFillMode_t = hipblasFillMode_t;
+constexpr auto DEBLAS_FILL_MODE_LOWER = deblasFillMode_t::HIPBLAS_FILL_MODE_LOWER;
+constexpr auto DEBLAS_FILL_MODE_UPPER = deblasFillMode_t::HIPBLAS_FILL_MODE_UPPER;
+using deblasDiagType_t = hipblasDiagType_t;
+constexpr auto DEBLAS_DIAG_UNIT = deblasDiagType_t::HIPBLAS_DIAG_UNIT;
+constexpr auto DEBLAS_DIAG_NON_UNIT = hipblasDiagType_t::HIPBLAS_DIAG_NON_UNIT;
+using deblasOperation_t = hipblasOperation_t;
+constexpr auto DEBLAS_OP_N = deblasOperation_t::HIPBLAS_OP_N;
+constexpr auto DEBLAS_OP_T = deblasOperation_t::HIPBLAS_OP_T;
+constexpr auto DEBLAS_OP_C = deblasOperation_t::HIPBLAS_OP_C;
+#elif defined(DDLA_USE_CPU)
+using deblasStatus_t = int;
+constexpr auto DEBLAS_STATUS_SUCCESS = 0;
+using deblasHandle_t = void*;
+using desolverHandle_t = void*;
+using desolverStatus_t = int;
+constexpr auto DESOLVER_STATUS_SUCCESS = 0;
+#define desolverGetStream(solverH, stream) ((void)0)
+using derandGenerator_t = void*;
+using derandStatus_t = int;
+constexpr auto DERAND_STATUS_SUCCESS = 0;
+#define derandCreateGenerator(gen, rng) ((void)0)
+#define derandSetPseudoRandomGeneratorSeed(gen, seed) ((void)0)
+#define derandGenerateUniform(gen, data, n) ((void)0)
+#define derandGenerateUniformDouble(gen, data, n) ((void)0)
+#define derandDestroyGenerator(gen) ((void)0)
+using derandRngType = int;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = 0;
+using deblasSideMode_t = int;
+constexpr auto DEBLAS_SIDE_LEFT = 0;
+constexpr auto DEBLAS_SIDE_RIGHT = 1;
+using deblasFillMode_t = int;
+constexpr auto DEBLAS_FILL_MODE_LOWER = 0;
+constexpr auto DEBLAS_FILL_MODE_UPPER = 1;
+using deblasDiagType_t = int;
+constexpr auto DEBLAS_DIAG_UNIT = 0;
+constexpr auto DEBLAS_DIAG_NON_UNIT = 1;
+using deblasOperation_t = char;
+constexpr auto DEBLAS_OP_N = 'N';
+constexpr auto DEBLAS_OP_T = 'T';
+constexpr auto DEBLAS_OP_C = 'C';
+#endif
+#endif // DDLA_DEBLAS_TYPES_DEFINED
 
 namespace ddla{
 
@@ -706,6 +815,100 @@ void pposv(
 );
 
 #endif // DDLA_HAS_GPU
+
+// ---------------------------------------------------------------------------
+// Single-GPU / backend-neutral template interfaces.
+//
+// Declarations consolidated here from the per-routine headers, which moved
+// to src/ (private). The definitions live in the corresponding src/*.cpp
+// files as explicit instantiations exported from the shared library, or in
+// the private headers for inline wrappers.
+// ---------------------------------------------------------------------------
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void gemm(
+    const DdlaHandle_t& handle,
+    char transa, char transb,
+    int m, int n, int k,
+    const T& alpha,
+    const T* A, int lda,
+    const T* B, int ldb,
+    const T& beta,
+    T* C, int ldc);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
+              const T& alpha, const T* A, int lda, T* B, int ldb);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
+            const T* src, int src_ld, int rows, int cols);
+
+template <typename T>
+void gemmVbatched(
+    deblasOperation_t transA, deblasOperation_t transB,
+    int* d_m, int* d_n, int* d_k,
+    T alpha,
+    const T* const* d_A_array, int* d_lda,
+    const T* const* d_B_array, int* d_ldb,
+    T beta,
+    T** d_C_array, int* d_ldc,
+    int batch_count,
+    const DdlaHandle_t& handle);
+
+template <typename T>
+void gemmVbatched2s(
+    deblasOperation_t transA_0, deblasOperation_t transB_0,
+    int* d_m_0, int* d_n_0, int* d_k_0,
+    T alpha_0,
+    const T* const* d_A_array_0, int* d_lda_0,
+    const T* const* d_B_array_0, int* d_ldb_0,
+    T beta_0,
+    T** d_C_array_0, int* d_ldc_0,
+    deblasOperation_t transA_1, deblasOperation_t transB_1,
+    int* d_m_1, int* d_n_1, int* d_k_1,
+    T alpha_1,
+    const T* const* d_AB_array_1,
+    int* d_lda_1, int* d_ldb_1,
+    T beta_1,
+    T** d_C_array_1, int* d_ldc_1,
+    bool C0_left,
+    int batch_count,
+    const int* segment_sizes,
+    const DdlaHandle_t& handle);
+
+template <typename T>
+void ptran(const T* d_A, const DdlaDesc& descA,
+           T* d_AT, const DdlaDesc& descAT,
+           bool conj = false);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void transport_block(
+    const char& sData, const char& trans,
+    const int& m, const int& n,
+    const T* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    T* d_block_A
+);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void random_generate(T* data, const int64_t& lengthOfData);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void write_matrix(const T* A, const int& m, const int& n, const char* filename);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
+          const T* x, int incx, T* y, int incy);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
+          const T* x, int incx, const T* y, int incy, T* A, int lda);
 
 } // namespace ddla
 

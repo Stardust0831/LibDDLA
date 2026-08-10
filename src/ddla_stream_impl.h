@@ -1,7 +1,7 @@
 #ifndef DDLA_STREAM_IMPL_H
 #define DDLA_STREAM_IMPL_H
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <ddla/ddla_handle_t.h>
 #include <ddla/ddla_config.h>
 #include <mpi.h>

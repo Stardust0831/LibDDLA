@@ -2,13 +2,13 @@
 #include <cassert>
 #include <vector>
 #include <algorithm>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include <ddla/gemm.h>
-#include <ddla/trsm.h>
-#include <ddla/getrf.h>
-#include <ddla/laswp.h>
+#include "gemm.h"
+#include "trsm.h"
+#include "getrf.h"
+#include "laswp.h"
 #include "comm_traits.h"
 
 namespace ddla {

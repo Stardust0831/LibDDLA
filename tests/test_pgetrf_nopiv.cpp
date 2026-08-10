@@ -6,8 +6,8 @@
 #include <vector>
 #include <complex>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/scal.h>
+#include "ddla_connector.h"
+#include "scal.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;

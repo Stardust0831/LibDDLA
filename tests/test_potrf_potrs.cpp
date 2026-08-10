@@ -9,7 +9,7 @@
 #include <complex>
 #include <string>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <random>
 #include "ddla_stream_impl.h"
 #include <fstream>

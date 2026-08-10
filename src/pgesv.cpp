@@ -1,7 +1,7 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <stdexcept>
 #include <string>
 #include "ddla_stream_impl.h"

@@ -1,11 +1,11 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <complex>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"
-#include <ddla/swap.h>
+#include "swap.h"
 
 #include "pgetf2_kernels.h"
 
