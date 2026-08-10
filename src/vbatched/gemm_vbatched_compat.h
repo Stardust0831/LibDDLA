@@ -16,7 +16,7 @@
 #error "Exactly one of DDLA_USE_CUDA or DDLA_USE_HIP must be defined"
 #endif
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 
 #include <thrust/complex.h>
 

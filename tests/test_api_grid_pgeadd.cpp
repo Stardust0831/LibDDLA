@@ -6,7 +6,7 @@ void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const Complex alpha(2.0, -0.5);
     const Complex beta(-0.75, 1.25);
     auto run_case = [&](char transa, char transb, int m, int n){

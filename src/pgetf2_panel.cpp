@@ -1,11 +1,11 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include <ddla/gemm.h>
-#include <ddla/trsm.h>
+#include "gemm.h"
+#include "trsm.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -52,7 +52,6 @@ void pgetf2_panel(
 
     info = 0;
 
-    int i_s = array_descA.indx_g2l_r(n_start);
     int j_s = array_descA.indx_g2l_c(n_start);
     
 
@@ -88,7 +87,6 @@ void pgetf2_panel(
                     d_A + i_loc + j_loc * lld, lld,
                     d_A + i_loc + mm_col_start * lld, lld)
                 );
-                // printf("before d_temp_U:%d, j_loc:%d, nb_real:%d, mm_col_start:%d\n", ddla_handle->myid, j_loc, nb_real, mm_col_start);
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_U, panel_real * sizeof(T),
                     d_A + i_loc + mm_col_start * lld, lld * sizeof(T),
@@ -98,7 +96,6 @@ void pgetf2_panel(
             } 
             commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
         }
-        // printf("myid:%d, n_s:%d, update trailing matrix mm_row_start:%d, mm_col_start:%d\n",mpi_comm_global_h.myid,n_s,mm_row_start,mm_col_start);
         if(mm_row_start<m_loc && mm_col_start<j_s + nb_real && j_loc>=0){
             gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, j_s + nb_real - mm_col_start, panel_real,

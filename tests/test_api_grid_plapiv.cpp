@@ -29,7 +29,9 @@ inline std::vector<Complex> apply_pivots_host(const std::vector<Complex>& G,
         const int target = g_ipiv[k] - 1;
         if(target == k) continue;
         if(rowcol == 'C'){
-            for(int i = 0; i < m; ++i)
+            // Swapping columns k and target moves the fixed segment length n
+            // (rows) of each column -- mirror plapiv's n = segment length.
+            for(int i = 0; i < n; ++i)
                 std::swap(R[static_cast<size_t>(i) * n + k],
                           R[static_cast<size_t>(i) * n + target]);
         }else{
@@ -99,13 +101,68 @@ inline void check_one_case(const ddla::DdlaHandle_t& handle, const ddla::DdlaDes
     require_close(handle, name, err, tol);
 }
 
+// Regression for the rowcol='C' segment length: with m pivots over columns of
+// an n_seg x m matrix (n_seg < m, e.g. pgetrs side='R' where B is nrhs x n),
+// each swapped column moves only the leading n_seg rows.  The device segment
+// length must be num_loc(n_seg, ...), NOT num_loc(m, ...).
+inline void check_nonsquare_col(const ddla::DdlaHandle_t& handle,
+                                int m, int n_seg, int nb, char direc,
+                                Complex (*value)(int, int), double tol)
+{
+    const std::string name = std::string("plapiv(") + direc + ",C,C) n_seg=" +
+                             std::to_string(n_seg) + " != m=" + std::to_string(m);
+    ddla::DdlaDesc descB(handle);
+    descB.init(n_seg, m, nb, nb, 0, 0);
+    ddla::DdlaDesc descIP(handle);
+    descIP.init(m, m, nb, nb, 0, 0);
+
+    const std::vector<int> g_ipiv = make_g_ipiv(m);
+    std::vector<int> ipiv(descIP.m_loc(), 0);
+    fill_ipiv(ipiv, descIP, g_ipiv);
+
+    const auto h_B = make_local<Complex>(descB, value);
+    DeviceBuffer<Complex> d_B(handle, h_B.size());
+    upload(handle, d_B.ptr, h_B);
+    check_ddla_sync(handle);
+
+    ddla::plapiv(direc, 'C', 'C', m, n_seg, d_B.ptr, descB, ipiv.data(), descIP, nullptr);
+    auto out = download(handle, d_B.ptr, h_B.size());
+
+    // Global column-swap reference over the n_seg x m matrix (row-major).
+    std::vector<Complex> G(static_cast<size_t>(n_seg) * m, Complex(0, 0));
+    for(int i = 0; i < n_seg; ++i)
+        for(int j = 0; j < m; ++j)
+            G[static_cast<size_t>(i) * m + j] = value(i, j);
+    const int begin = (direc == 'F') ? 0 : m - 2;
+    const int end   = (direc == 'F') ? m - 1 : -1;
+    const int step  = (direc == 'F') ? 1 : -1;
+    for(int k = begin; k != end; k += step){
+        const int target = g_ipiv[k] - 1;
+        if(target == k) continue;
+        for(int i = 0; i < n_seg; ++i)
+            std::swap(G[static_cast<size_t>(i) * m + k],
+                      G[static_cast<size_t>(i) * m + target]);
+    }
+
+    double err = 0.0;
+    for(int jloc = 0; jloc < descB.n_loc(); ++jloc){
+        const int j = descB.indx_l2g_c(jloc);
+        for(int iloc = 0; iloc < descB.m_loc(); ++iloc){
+            const int i = descB.indx_l2g_r(iloc);
+            err = std::max(err, static_cast<double>(
+                std::abs(out[iloc + jloc * descB.lld()] - G[static_cast<size_t>(i) * m + j])));
+        }
+    }
+    require_close(handle, name, err, tol);
+}
+
 } // namespace
 
 void check_plapiv(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     // Use a square matrix so the pivot count m equals both the number of rows
     // and columns: the pivot vector (distributed by rows of the descriptor)
     // has one entry per pivot in both the 'R' and 'C' cases.
@@ -120,6 +177,15 @@ void check_plapiv(const ddla::DdlaHandle_t& handle, const Shape& base)
     check_one_case(handle, desc, m, m, 'B', 'R', value, 1e-12);
     check_one_case(handle, desc, m, m, 'F', 'C', value, 1e-12);
     check_one_case(handle, desc, m, m, 'B', 'C', value, 1e-12);
+
+    // Non-square leading-block segment (rowcol='C'): B is n_seg x m with
+    // n_seg < m -- the pgetrs side='R' shape.  Regression-covers the
+    // length_rowcol_C fix (segment must be num_loc(n_seg), not num_loc(m)).
+    // n_seg = nb*nprows guarantees every rank owns a non-zero local row block,
+    // so the pivot exchange never issues a zero-length NCCL/MPI transfer.
+    const int n_seg = nb * nprows;
+    check_nonsquare_col(handle, m, n_seg, nb, 'F', value, 1e-12);
+    check_nonsquare_col(handle, m, n_seg, nb, 'B', value, 1e-12);
 }
 
 int main(int argc, char** argv)

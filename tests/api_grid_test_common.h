@@ -16,10 +16,10 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
-#include <ddla/ptran.h>
-#include <ddla/transport_block.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
+#include "ptran.h"
+#include "transport_block.h"
 
 namespace api_grid_test {
 
@@ -49,7 +49,7 @@ inline int g_test_icsrc = 0;
 inline std::string grid_name(const ddla::DdlaHandle_t& handle)
 {
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     std::ostringstream os;
     os << nprows << "x" << npcols;
     return os.str();
@@ -68,7 +68,7 @@ inline int round_up_for_grid(int value, int block, int procs)
 inline int square_size(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     return round_up_for_grid(base.m, base.nb, std::max(nprows, npcols));
 }
 
@@ -262,24 +262,24 @@ inline bool parse_options(int argc, char** argv, int nprocs, TestOptions& option
 inline void check_ddla_malloc(void** ptr, size_t bytes,
                               const ddla::DdlaHandle_t& handle)
 {
-    int rc = ddla_malloc(ptr, bytes, handle);
-    if (rc != 0) {
-        std::cerr << "ddla_malloc failed (rc=" << rc << ")" << std::endl;
-        MPI_Abort(ddla_get_communicator(handle), 1);
+    ddlaStatus_t rc = ddlaMalloc(ptr, bytes, handle);
+    if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        std::cerr << "ddlaMalloc failed (rc=" << rc << ")" << std::endl;
+        MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
     if (bytes > 0 && *ptr == nullptr) {
-        std::cerr << "ddla_malloc returned null for nonzero size" << std::endl;
-        MPI_Abort(ddla_get_communicator(handle), 1);
+        std::cerr << "ddlaMalloc returned null for nonzero size" << std::endl;
+        MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
 
 inline void check_ddla_free(void* ptr, const ddla::DdlaHandle_t& handle)
 {
     if (ptr == nullptr) return;
-    int rc = ddla_free(ptr, handle);
-    if (rc != 0) {
-        std::cerr << "ddla_free failed (rc=" << rc << ")" << std::endl;
-        MPI_Abort(ddla_get_communicator(handle), 1);
+    ddlaStatus_t rc = ddlaFree(ptr, handle);
+    if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        std::cerr << "ddlaFree failed (rc=" << rc << ")" << std::endl;
+        MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
 
@@ -287,19 +287,19 @@ inline void check_ddla_memcpy(void* dst, const void* src, size_t bytes,
                               ddla::DdlaMemoryCopyKind kind,
                               const ddla::DdlaHandle_t& handle)
 {
-    int rc = ddla_memcpy(dst, src, bytes, kind, handle);
-    if (rc != 0) {
-        std::cerr << "ddla_memcpy failed (rc=" << rc << ")" << std::endl;
-        MPI_Abort(ddla_get_communicator(handle), 1);
+    ddlaStatus_t rc = ddlaMemcpy(dst, src, bytes, kind, handle);
+    if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        std::cerr << "ddlaMemcpy failed (rc=" << rc << ")" << std::endl;
+        MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
 
 inline void check_ddla_sync(const ddla::DdlaHandle_t& handle)
 {
-    int rc = ddla_synchronize(handle);
-    if (rc != 0) {
-        std::cerr << "ddla_synchronize failed (rc=" << rc << ")" << std::endl;
-        MPI_Abort(ddla_get_communicator(handle), 1);
+    ddlaStatus_t rc = ddlaSynchronize(handle);
+    if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        std::cerr << "ddlaSynchronize failed (rc=" << rc << ")" << std::endl;
+        MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
 
@@ -382,9 +382,9 @@ inline void require_close(const ddla::DdlaHandle_t& handle, const std::string& n
                           double local_err, double tol)
 {
     double global_err = 0.0;
-    MPI_Comm comm = ddla_get_communicator(handle);
+    MPI_Comm comm = ddlaGetCommunicator(handle);
     MPI_Allreduce(&local_err, &global_err, 1, MPI_DOUBLE, MPI_MAX, comm);
-    int rank = ddla_get_rank(handle);
+    int rank = ddlaGetRank(handle);
     if(rank == 0){
         std::cout << "[grid " << grid_name(handle) << "] " << name
                   << " max_err=" << global_err << std::endl;
@@ -502,9 +502,9 @@ inline void check_solution(const ddla::DdlaHandle_t& handle, const ddla::DdlaDes
 inline bool skip_non_square_grid(const ddla::DdlaHandle_t& handle, const std::string& name)
 {
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     if(nprows == npcols) return false;
-    int rank = ddla_get_rank(handle);
+    int rank = ddlaGetRank(handle);
     if(rank == 0){
         std::cout << "[grid " << grid_name(handle) << "] skip " << name
                   << " on non-square process grid" << std::endl;
@@ -537,9 +537,9 @@ int run_grid_test(int argc, char** argv, const std::string& test_name, Body body
 
     for(auto [nprows, npcols] : options.grids){
         ddla::DdlaHandle_t handle = nullptr;
-        ddla::ddla_init(handle);
-        ddla::ddla_set(handle, MPI_COMM_WORLD, nprows, npcols);
-        int myid = ddla_get_rank(handle);
+        ddla::ddlaInit(handle);
+        ddla::ddlaSet(handle, MPI_COMM_WORLD, nprows, npcols);
+        int myid = ddlaGetRank(handle);
         if(myid == 0){
             std::cout << "=== grid " << grid_name(handle) << " ===" << std::endl;
         }
@@ -549,7 +549,7 @@ int run_grid_test(int argc, char** argv, const std::string& test_name, Body body
         }
 
         check_ddla_sync(handle);
-        ddla::ddla_destroy(handle);
+        ddla::ddlaDestroy(handle);
     }
 
     if(rank == 0){

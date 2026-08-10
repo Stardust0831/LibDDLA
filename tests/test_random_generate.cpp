@@ -12,7 +12,7 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;
@@ -158,8 +158,8 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
 
     DdlaHandle_t handle;
-    ddla_init(handle);
-    ddla_set(handle);
+    ddlaInit(handle);
+    ddlaSet(handle);
 
     int myid;
     MPI_Comm_rank(handle->comm, &myid);
@@ -210,7 +210,7 @@ int main(int argc, char* argv[])
     int global_ok = 0;
     MPI_Allreduce(&local_ok, &global_ok, 1, MPI_INT, MPI_MIN, handle->comm);
 
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
 
     if (myid == 0) {
         if (!global_ok) {

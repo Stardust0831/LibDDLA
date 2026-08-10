@@ -29,6 +29,7 @@ void pgesv_nopiv(
 {
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "pgesv_nopiv");
+    assert(n <= array_descA.m() && n <= array_descA.n());
     int info = 1;
     pgetrf_nopiv(n, n, d_A, array_descA, info);
     if (info != 0) {

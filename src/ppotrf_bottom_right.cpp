@@ -8,14 +8,14 @@
 #include <vector>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"
-#include <ddla/gemmBatched.h>
-#include <ddla/herk.h>
-#include <ddla/syrk.h>
-#include <ddla/trsm.h>
+#include "gemmBatched.h"
+#include "herk.h"
+#include "syrk.h"
+#include "trsm.h"
 
 namespace ddla{
 
@@ -113,41 +113,26 @@ void ppotrf_bottom_right(
     const std::size_t max_batch_count =
         static_cast<std::size_t>(max_row_blocks) * max_col_blocks;
 
-    auto device_malloc_if_nonzero = [&](void** ptr, const std::size_t bytes)
-    {
-        if(bytes == 0){
-            *ptr = nullptr;
-            return;
-        }
-        RUNTIME_CHECK(runtimeMallocAsync(ptr, bytes, stream));
-    };
-    auto device_free_if_nonnull = [&](void* ptr)
-    {
-        if(ptr != nullptr){
-            RUNTIME_CHECK(runtimeFreeAsync(ptr, stream));
-        }
-    };
-
-    device_malloc_if_nonzero(
+    RUNTIME_CHECK(runtimeMallocAsync(
         reinterpret_cast<void**>(&d_diag),
-        static_cast<std::size_t>(nb) * nb * sizeof(T));
-    device_malloc_if_nonzero(
+        static_cast<std::size_t>(nb) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(
         reinterpret_cast<void**>(&d_row_panel),
-        static_cast<std::size_t>(max_local_rows) * nb * sizeof(T));
-    device_malloc_if_nonzero(
+        static_cast<std::size_t>(max_local_rows) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(
         reinterpret_cast<void**>(&d_col_panel),
-        static_cast<std::size_t>(max_local_cols) * nb * sizeof(T));
-    device_malloc_if_nonzero(
-        reinterpret_cast<void**>(&d_info), sizeof(int));
+        static_cast<std::size_t>(max_local_cols) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync(
+        reinterpret_cast<void**>(&d_info), sizeof(int), stream));
 
     const std::size_t pointer_buffer_bytes =
         max_batch_count * sizeof(T*);
-    device_malloc_if_nonzero(
-        reinterpret_cast<void**>(&d_left_array), pointer_buffer_bytes);
-    device_malloc_if_nonzero(
-        reinterpret_cast<void**>(&d_right_array), pointer_buffer_bytes);
-    device_malloc_if_nonzero(
-        reinterpret_cast<void**>(&d_target_array), pointer_buffer_bytes);
+    RUNTIME_CHECK(runtimeMallocAsync(
+        reinterpret_cast<void**>(&d_left_array), pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync(
+        reinterpret_cast<void**>(&d_right_array), pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync(
+        reinterpret_cast<void**>(&d_target_array), pointer_buffer_bytes, stream));
 
     std::vector<T*> h_left_array(max_batch_count);
     std::vector<T*> h_right_array(max_batch_count);
@@ -155,13 +140,13 @@ void ppotrf_bottom_right(
 
     auto cleanup = [&]()
     {
-        device_free_if_nonnull(d_left_array);
-        device_free_if_nonnull(d_right_array);
-        device_free_if_nonnull(d_target_array);
-        device_free_if_nonnull(d_diag);
-        device_free_if_nonnull(d_row_panel);
-        device_free_if_nonnull(d_col_panel);
-        device_free_if_nonnull(d_info);
+        RUNTIME_CHECK(runtimeFreeAsync(d_left_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_right_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_target_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_diag, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_row_panel, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_col_panel, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(stream));
     };
 

@@ -35,6 +35,15 @@ void pgetrs_nopiv(
     detail::require_gpu_backend(ddla_handle, "pgetrs_nopiv");
     assert(side == 'L' || side == 'R');
     assert(trans == 'N' || trans == 'T' || trans == 'C');
+    // Leading-block sub-matrix: descriptors may be larger than the logical
+    // sub-matrix (anchored at global (0,0)).
+    if(side == 'L'){
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.m());
+    }else{
+        assert(n <= array_descA.m() && n <= array_descA.n());
+        assert(n <= array_descB.n());
+    }
     const int b_rows = (side == 'L') ? n : nrhs;
     const int b_cols = (side == 'L') ? nrhs : n;
 

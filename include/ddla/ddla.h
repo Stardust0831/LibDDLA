@@ -3,14 +3,140 @@
 
 #include <ddla/ddla_config.h>
 #include "ddla_desc.h"
-#include "write_matrix.h"
-#include "random_generate.h"
-#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-#include "gemmVbatched.h"
-#endif
+#include <cstdint>
 #include <complex>
+#include <stdexcept>
+#include <string>
+
+// ---------------------------------------------------------------------------
+// Public deblas* type aliases and operation constants.
+//
+// These appear in public template signatures (e.g. gemmVbatched takes
+// deblasOperation_t), so they are part of the public interface. The
+// definition lives here and is shared with the private
+// src/ddla_connector.h via the DDLA_DEBLAS_TYPES_DEFINED guard: whichever
+// header is included first defines the block, the other skips it (the
+// aliases resolve to the same vendor types either way).
+#ifndef DDLA_DEBLAS_TYPES_DEFINED
+#define DDLA_DEBLAS_TYPES_DEFINED
+#ifdef DDLA_USE_CUDA
+#include <cublas_v2.h>
+#include <cusolverDn.h>
+#include <curand.h>
+using deblasStatus_t = cublasStatus_t;
+constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::CUBLAS_STATUS_SUCCESS;
+using deblasHandle_t = cublasHandle_t;
+using desolverHandle_t = cusolverDnHandle_t;
+using desolverStatus_t = cusolverStatus_t;
+constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::CUSOLVER_STATUS_SUCCESS;
+#define desolverGetStream cusolverDnGetStream
+using derandGenerator_t = curandGenerator_t;
+using derandStatus_t = curandStatus_t;
+constexpr auto DERAND_STATUS_SUCCESS = derandStatus_t::CURAND_STATUS_SUCCESS;
+#define derandCreateGenerator curandCreateGenerator
+#define derandSetPseudoRandomGeneratorSeed curandSetPseudoRandomGeneratorSeed
+#define derandGenerateUniform curandGenerateUniform
+#define derandGenerateUniformDouble curandGenerateUniformDouble
+#define derandDestroyGenerator curandDestroyGenerator
+using derandRngType = curandRngType;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = derandRngType::CURAND_RNG_PSEUDO_DEFAULT;
+using deblasSideMode_t = cublasSideMode_t;
+constexpr auto DEBLAS_SIDE_LEFT = deblasSideMode_t::CUBLAS_SIDE_LEFT;
+constexpr auto DEBLAS_SIDE_RIGHT = deblasSideMode_t::CUBLAS_SIDE_RIGHT;
+using deblasFillMode_t = cublasFillMode_t;
+constexpr auto DEBLAS_FILL_MODE_LOWER = deblasFillMode_t::CUBLAS_FILL_MODE_LOWER;
+constexpr auto DEBLAS_FILL_MODE_UPPER = deblasFillMode_t::CUBLAS_FILL_MODE_UPPER;
+using deblasDiagType_t = cublasDiagType_t;
+constexpr auto DEBLAS_DIAG_UNIT = deblasDiagType_t::CUBLAS_DIAG_UNIT;
+constexpr auto DEBLAS_DIAG_NON_UNIT = deblasDiagType_t::CUBLAS_DIAG_NON_UNIT;
+using deblasOperation_t = cublasOperation_t;
+constexpr auto DEBLAS_OP_N = deblasOperation_t::CUBLAS_OP_N;
+constexpr auto DEBLAS_OP_T = deblasOperation_t::CUBLAS_OP_T;
+constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
+#elif defined(DDLA_USE_HIP)
+#include <hipblas/hipblas.h>
+#include <hipsolver/hipsolver.h>
+#include <hiprand/hiprand.h>
+using deblasStatus_t = hipblasStatus_t;
+constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::HIPBLAS_STATUS_SUCCESS;
+using deblasHandle_t = hipblasHandle_t;
+using desolverHandle_t = hipsolverHandle_t;
+using desolverStatus_t = hipsolverStatus_t;
+constexpr auto DESOLVER_STATUS_SUCCESS = desolverStatus_t::HIPSOLVER_STATUS_SUCCESS;
+#define desolverGetStream hipsolverGetStream
+using derandGenerator_t = hiprandGenerator_t;
+using derandStatus_t = hiprandStatus_t;
+constexpr auto DERAND_STATUS_SUCCESS = derandStatus_t::HIPRAND_STATUS_SUCCESS;
+#define derandCreateGenerator hiprandCreateGenerator
+#define derandSetPseudoRandomGeneratorSeed hiprandSetPseudoRandomGeneratorSeed
+#define derandGenerateUniform hiprandGenerateUniform
+#define derandGenerateUniformDouble hiprandGenerateUniformDouble
+#define derandDestroyGenerator hiprandDestroyGenerator
+using derandRngType = hiprandRngType;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = derandRngType::HIPRAND_RNG_PSEUDO_DEFAULT;
+using deblasSideMode_t = hipblasSideMode_t;
+constexpr auto DEBLAS_SIDE_LEFT = deblasSideMode_t::HIPBLAS_SIDE_LEFT;
+constexpr auto DEBLAS_SIDE_RIGHT = deblasSideMode_t::HIPBLAS_SIDE_RIGHT;
+using deblasFillMode_t = hipblasFillMode_t;
+constexpr auto DEBLAS_FILL_MODE_LOWER = deblasFillMode_t::HIPBLAS_FILL_MODE_LOWER;
+constexpr auto DEBLAS_FILL_MODE_UPPER = deblasFillMode_t::HIPBLAS_FILL_MODE_UPPER;
+using deblasDiagType_t = hipblasDiagType_t;
+constexpr auto DEBLAS_DIAG_UNIT = deblasDiagType_t::HIPBLAS_DIAG_UNIT;
+constexpr auto DEBLAS_DIAG_NON_UNIT = hipblasDiagType_t::HIPBLAS_DIAG_NON_UNIT;
+using deblasOperation_t = hipblasOperation_t;
+constexpr auto DEBLAS_OP_N = deblasOperation_t::HIPBLAS_OP_N;
+constexpr auto DEBLAS_OP_T = deblasOperation_t::HIPBLAS_OP_T;
+constexpr auto DEBLAS_OP_C = deblasOperation_t::HIPBLAS_OP_C;
+#elif defined(DDLA_USE_CPU)
+using deblasStatus_t = int;
+constexpr auto DEBLAS_STATUS_SUCCESS = 0;
+using deblasHandle_t = void*;
+using desolverHandle_t = void*;
+using desolverStatus_t = int;
+constexpr auto DESOLVER_STATUS_SUCCESS = 0;
+#define desolverGetStream(solverH, stream) ((void)0)
+using derandGenerator_t = void*;
+using derandStatus_t = int;
+constexpr auto DERAND_STATUS_SUCCESS = 0;
+#define derandCreateGenerator(gen, rng) ((void)0)
+#define derandSetPseudoRandomGeneratorSeed(gen, seed) ((void)0)
+#define derandGenerateUniform(gen, data, n) ((void)0)
+#define derandGenerateUniformDouble(gen, data, n) ((void)0)
+#define derandDestroyGenerator(gen) ((void)0)
+using derandRngType = int;
+constexpr auto DERAND_RNG_PSEUDO_DEFAULT = 0;
+using deblasSideMode_t = int;
+constexpr auto DEBLAS_SIDE_LEFT = 0;
+constexpr auto DEBLAS_SIDE_RIGHT = 1;
+using deblasFillMode_t = int;
+constexpr auto DEBLAS_FILL_MODE_LOWER = 0;
+constexpr auto DEBLAS_FILL_MODE_UPPER = 1;
+using deblasDiagType_t = int;
+constexpr auto DEBLAS_DIAG_UNIT = 0;
+constexpr auto DEBLAS_DIAG_NON_UNIT = 1;
+using deblasOperation_t = char;
+constexpr auto DEBLAS_OP_N = 'N';
+constexpr auto DEBLAS_OP_T = 'T';
+constexpr auto DEBLAS_OP_C = 'C';
+#endif
+#endif // DDLA_DEBLAS_TYPES_DEFINED
 
 namespace ddla{
+
+/// Check a ddlaStatus_t returned by a public API function.
+///
+/// Throws std::runtime_error with file:line context when @p status is not
+/// DDLA_STATUS_SUCCESS, mirroring the private CHECK-family style.
+inline void DDLA_CHECK(ddlaStatus_t status,
+                       const char* file = __builtin_FILE(),
+                       int line = __builtin_LINE())
+{
+    if (status != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        throw std::runtime_error(std::string("ddla error ") +
+            std::to_string(static_cast<int>(status)) + " at " + file + ":" +
+            std::to_string(line));
+    }
+}
 
 #if DDLA_HAS_GPU
 
@@ -19,7 +145,8 @@ namespace ddla{
  *                                     B := B * op(A)^{-1}    (side='R').
  *
  * Solves a triangular system on a distributed GPU matrix using block-cyclic
- * data distribution and NCCL/RCCL communication.  Corresponds to the
+ * data distribution and MPI/NCCL/RCCL communication (per the DDLA_USE_CCL /
+ * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Corresponds to the
  * ScaLAPACK PZTRTRS / PDTRTRS routine.
  *
  * @tparam T  Scalar type (float, double, complex<float>, complex<double>).
@@ -91,8 +218,6 @@ void plapiv(
  * Communication occurs only when the source and target rows/columns reside on
  * different processes.
  *
- * @tparam Backend  Compile-time execution backend. The build default is CPU
- *                  for CPU-only builds and GPU otherwise.
  * @tparam T        Scalar type.
  * @param N     Length of the segment to swap.
  * @param A     Device pointer to distributed matrix A.
@@ -213,7 +338,7 @@ void pgetrf(
  * @param n        Number of columns of A.
  * @param d_A      Device pointer to matrix A (input/output -- L+U factors).
  * @param array_descA  DdlaDesc for A (mb == nb required).
- * @param ipiv     device pivot array (output, 1-based block-local offsets,
+ * @param d_ipiv   device pivot array (output, 1-based block-local offsets,
  *                 length >= m_loc).
  * @param info     host info 0 on success, >0 if singular. 
  */
@@ -439,8 +564,9 @@ void pgesv_bpiv(
  * @brief Distributed matrix-matrix multiplication:
  *        C := alpha * op(A) * op(B) + beta * C.
  *
- * Uses a 2D block-cyclic data distribution and NCCL/RCCL broadcast of
- * panel columns of A and panel rows of B (AB-path).  Supports all standard
+ * Uses a 2D block-cyclic data distribution and broadcast of panel columns of
+ * A and panel rows of B (AB-path) over MPI/NCCL/RCCL (per the DDLA_USE_CCL /
+ * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Supports all standard
  * transpose options:
  *   - 'N': op(X) = X
  *   - 'T': op(X) = X^T
@@ -536,7 +662,8 @@ void pgeadd(
  * @tparam T2  Element type of the distributed matrix A.
  * @param alpha  Scalar to add to each diagonal element.
  * @param d_A    Device pointer to distributed matrix A (input/output).
- * @param array_descA  DdlaDesc for A (must be square).
+ * @param array_descA  DdlaDesc for A (may describe a matrix larger than the
+ *                     leading n x n sub-matrix touched).
  * @param n      Logical order of the leading sub-matrix (<= desc.m());
  *               n < 0 means the whole matrix.  Default -1.
  */
@@ -552,14 +679,13 @@ void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA, const int& n = 
  * submatrix via gemm/herk.  With uplo='L', computes A = L * L^H.
  * With uplo='U', computes A = U^H * U.
  *
- * @note Only complex<float> and complex<double> are instantiated.
- *
- * @tparam T   Scalar type (complex<float> or complex<double>).
+ * @tparam T   Scalar type (float, double, complex<float>, complex<double>).
  * @param uplo     'L' or 'U' -- triangle of A to store and factor.
  * @param n        Order of A (<= desc.m(), desc.n()).
  * @param A        Device pointer to A (input: Hermitian pos-def; output: Cholesky factor).
- * @param ia       Global starting row (1-based).
- * @param ja       Global starting col (1-based).
+ * @param ia       Reserved; must be 1 (1-based).  The factor operates on the
+ *                 leading n x n sub-matrix anchored at global (0,0).
+ * @param ja       Reserved; must be 1 (1-based).
  * @param array_descA  DdlaDesc for A (mb == nb required).
  * @param info     0 on success, >0 if not positive-definite.
  * @param is_head  Internal flag for multi-head Cholesky (default false).
@@ -683,12 +809,13 @@ void ppotrs(
  * @param n        Order of A.
  * @param nrhs     Number of right-hand sides.
  * @param d_A      Device pointer to A (input: pos-def; output: Cholesky factor).
- * @param ia       Global starting row of A (1-based).
- * @param ja       Global starting col of A (1-based).
+ * @param ia       Reserved; must be 1 (1-based).  Solves operate on the
+ *                 leading n x n / n x nrhs sub-matrices anchored at (0,0).
+ * @param ja       Reserved; must be 1 (1-based).
  * @param array_descA  DdlaDesc for A.
  * @param d_B      Device pointer to RHS / solution B (input/output).
- * @param ib       Global starting row of B (1-based).
- * @param jb       Global starting col of B (1-based).
+ * @param ib       Reserved; must be 1 (1-based).
+ * @param jb       Reserved; must be 1 (1-based).
  * @param array_descB  DdlaDesc for B.
  * @param info     Output: 0 on success, >0 if not positive-definite.
  * @param is_head  Forwarded to ppotrf.
@@ -705,6 +832,100 @@ void pposv(
 );
 
 #endif // DDLA_HAS_GPU
+
+// ---------------------------------------------------------------------------
+// Single-GPU / backend-neutral template interfaces.
+//
+// Declarations consolidated here from the per-routine headers, which moved
+// to src/ (private). The definitions live in the corresponding src/*.cpp
+// files as explicit instantiations exported from the shared library, or in
+// the private headers for inline wrappers.
+// ---------------------------------------------------------------------------
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void gemm(
+    const DdlaHandle_t& handle,
+    char transa, char transb,
+    int m, int n, int k,
+    const T& alpha,
+    const T* A, int lda,
+    const T* B, int ldb,
+    const T& beta,
+    T* C, int ldc);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
+              const T& alpha, const T* A, int lda, T* B, int ldb);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
+            const T* src, int src_ld, int rows, int cols);
+
+template <typename T>
+void gemmVbatched(
+    deblasOperation_t transA, deblasOperation_t transB,
+    int* d_m, int* d_n, int* d_k,
+    T alpha,
+    const T* const* d_A_array, int* d_lda,
+    const T* const* d_B_array, int* d_ldb,
+    T beta,
+    T** d_C_array, int* d_ldc,
+    int batch_count,
+    const DdlaHandle_t& handle);
+
+template <typename T>
+void gemmVbatched2s(
+    deblasOperation_t transA_0, deblasOperation_t transB_0,
+    int* d_m_0, int* d_n_0, int* d_k_0,
+    T alpha_0,
+    const T* const* d_A_array_0, int* d_lda_0,
+    const T* const* d_B_array_0, int* d_ldb_0,
+    T beta_0,
+    T** d_C_array_0, int* d_ldc_0,
+    deblasOperation_t transA_1, deblasOperation_t transB_1,
+    int* d_m_1, int* d_n_1, int* d_k_1,
+    T alpha_1,
+    const T* const* d_AB_array_1,
+    int* d_lda_1, int* d_ldb_1,
+    T beta_1,
+    T** d_C_array_1, int* d_ldc_1,
+    bool C0_left,
+    int batch_count,
+    const int* segment_sizes,
+    const DdlaHandle_t& handle);
+
+template <typename T>
+void ptran(const T* d_A, const DdlaDesc& descA,
+           T* d_AT, const DdlaDesc& descAT,
+           bool conj = false);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void transport_block(
+    const char& sData, const char& trans,
+    const int& m, const int& n,
+    const T* d_A, const int& ia, const int& ja, const DdlaDesc& array_descA,
+    T* d_block_A
+);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void random_generate(T* data, const int64_t& lengthOfData);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void write_matrix(const T* A, const int& m, const int& n, const char* filename);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
+          const T* x, int incx, T* y, int incy);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result);
+
+template <DdlaBackend Backend = default_backend_v, typename T>
+void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
+          const T* x, int incx, const T* y, int incy, T* A, int lda);
 
 } // namespace ddla
 

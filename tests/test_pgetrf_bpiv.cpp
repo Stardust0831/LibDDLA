@@ -8,8 +8,8 @@
 #include <complex>
 #include <string>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/scal.h>
+#include "ddla_connector.h"
+#include "scal.h"
 #include <random>
 #include "ddla_stream_impl.h"
 
@@ -130,8 +130,8 @@ int main(int argc, char* argv[]) {
     MPI_Init(&argc, &argv);
     printf("before stream init\n");
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle);
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle);
     // RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     printf("after stream init\n");
     check_pzgetrf(5000, ddla_handle);
@@ -141,7 +141,7 @@ int main(int argc, char* argv[]) {
         printf("testing matrix size: %d\n",i);
         check_pzgetrf(i, ddla_handle);
     }
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

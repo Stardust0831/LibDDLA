@@ -8,7 +8,7 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;
@@ -113,8 +113,8 @@ int main(int argc, char** argv)
     }
 
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle);
-    ddla_set(handle, MPI_COMM_WORLD, 2, 2);
+    ddlaInit(handle);
+    ddlaSet(handle, MPI_COMM_WORLD, 2, 2);
 
     std::vector<int> sizes = {500, 5000, 10000, 15000};
     if(argc > 1){
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
         benchmark_plapiv('B', 'C', n, n, handle);
     }
 
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

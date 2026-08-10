@@ -1,18 +1,18 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <cstddef>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include <vector>
 #include <type_traits>
 #include <cmath>
 #include <algorithm>
-#include <ddla/trsm.h>
-#include <ddla/potrf.h>
-#include <ddla/gemmBatched.h>
-#include <ddla/herk.h>
-#include <ddla/gemm.h>
+#include "trsm.h"
+#include "potrf.h"
+#include "gemmBatched.h"
+#include "herk.h"
+#include "gemm.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -30,6 +30,9 @@ bool ppotrf(
     assert(array_descA.mb() == array_descA.nb());
     assert(n > 0);
     assert(n <= array_descA.m() && n <= array_descA.n());
+    // The factorization operates on the leading n x n sub-matrix anchored at
+    // global (0,0); ia/ja are reserved and must be 1 (1-based).
+    assert(ia == 1 && ja == 1);
     DdlaHandle_t ddla_handle = array_descA.ddla_handle();
     detail::require_gpu_backend(ddla_handle, "ppotrf");
     if(is_head)
@@ -77,32 +80,17 @@ bool ppotrf(
     deblasOperation_t trans_device = DEBLAS_OP_C;
     deblasSideMode_t side_device = (uplo == 'U') ?DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
 
-    auto device_malloc_if_nonzero = [&](void** ptr, const std::size_t bytes)
-    {
-        if(bytes == 0){
-            *ptr = nullptr;
-            return;
-        }
-        RUNTIME_CHECK(runtimeMallocAsync(ptr, bytes, stream));
-    };
-    auto device_free_if_nonnull = [&](void* ptr)
-    {
-        if(ptr != nullptr){
-            RUNTIME_CHECK(runtimeFreeAsync(ptr, stream));
-        }
-    };
-
     T* d_block_diag = nullptr;
     T* d_block_row = nullptr;
     T* d_block_col = nullptr;
-    device_malloc_if_nonzero((void**)&d_block_diag,
-                             static_cast<std::size_t>(nb) * nb * sizeof(T));
-    device_malloc_if_nonzero((void**)&d_block_row,
-                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T));
-    device_malloc_if_nonzero((void**)&d_block_col,
-                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_diag,
+                             static_cast<std::size_t>(nb) * nb * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_row,
+                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T), stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_col,
+                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T), stream));
     int *d_info = nullptr;
-    device_malloc_if_nonzero((void**)&d_info, sizeof(int));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_info, sizeof(int), stream));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -118,18 +106,18 @@ bool ppotrf(
     std::vector<T*> h_A_array(batchCount), h_B_array(batchCount), h_C_array(batchCount);
 
     const std::size_t pointer_buffer_bytes = static_cast<std::size_t>(batchCount) * sizeof(T*);
-    device_malloc_if_nonzero((void**)&d_A_array, pointer_buffer_bytes);
-    device_malloc_if_nonzero((void**)&d_B_array, pointer_buffer_bytes);
-    device_malloc_if_nonzero((void**)&d_C_array, pointer_buffer_bytes);
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_array, pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_B_array, pointer_buffer_bytes, stream));
+    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_C_array, pointer_buffer_bytes, stream));
     auto cleanup_device_buffers = [&]()
     {
-        device_free_if_nonnull(d_A_array);
-        device_free_if_nonnull(d_B_array);
-        device_free_if_nonnull(d_C_array);
-        device_free_if_nonnull(d_block_diag);
-        device_free_if_nonnull(d_block_row);
-        device_free_if_nonnull(d_block_col);
-        device_free_if_nonnull(d_info);
+        RUNTIME_CHECK(runtimeFreeAsync(d_A_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_B_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_C_array, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_diag, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_row, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_block_col, stream));
+        RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(stream));
     };
     int h_info;
@@ -137,7 +125,6 @@ bool ppotrf(
     for(int n_s = 0; n_s < n; n_s += nb)
     {
         nb_real = std::min(nb, n - n_s);
-        // printf("myid:%d, n_s:%d, nb_real:%d\n",ddla_handle->myid, n_s, nb_real);
         mm_row_start = num_loc(n_s, nb, myprow, array_descA.irsrc(), nprows);
         mm_col_start = num_loc(n_s, nb, mypcol, array_descA.icsrc(), npcols);
 
@@ -317,7 +304,6 @@ bool ppotrf(
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - length_row_real) + (length_col - col_remain) * lldA, lldA
                     );
             }
-            // printf("1-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             for(;row_s <= num_row_block * nb; row_s += nb){
                 int g_row_s = array_descA.indx_l2g_r(m_loc_A - row_s);
                 int g_col_s;
@@ -326,18 +312,13 @@ bool ppotrf(
                     col_s += nb;
                     g_col_s = array_descA.indx_l2g_c(n_loc_A - col_s);
                 }while(g_row_s < g_col_s);
-                // printf("myid:%d, col_s:%d\n", ddla_handle->myid, col_s);
                 for(; col_s <= num_col_block * nb; col_s += nb){
-                    // printf("myid:%d, before h_A\n", ddla_handle->myid);
                     h_A_array[i_batch_count] = d_block_col + length_row - row_s;
-                    // printf("myid:%d, before h_B\n", ddla_handle->myid);
                     h_B_array[i_batch_count] = d_block_row + length_col - col_s;
-                    // printf("myid:%d, before h_C\n", ddla_handle->myid);
                     h_C_array[i_batch_count] = A + m_loc_A - row_s + (n_loc_A - col_s) * lldA;
                     i_batch_count++;
                 }
             }
-            // printf("2-myid:%d, length_row:%d, length_col:%d, i_batch_count:%d\n", ddla_handle->myid, length_row, length_col, i_batch_count);
             if(i_batch_count == 0) continue;
             RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
             RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
@@ -478,7 +459,6 @@ bool ppotrf(
         }
         RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     }
-    // printf("myid:%d, end\n", ddla_handle->myid);
     cleanup_device_buffers();
     return is_nega;
 

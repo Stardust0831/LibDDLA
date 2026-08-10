@@ -1,5 +1,5 @@
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include <thrust/complex.h>
@@ -63,7 +63,6 @@ __global__ void pdam_kernel(const T1* alpha, T2* A,
 template <typename T1, typename T2>
 void pdam(const T1& alpha, T2* d_A, const DdlaDesc& array_descA, const int& n)
 {
-    assert(array_descA.m() == array_descA.n());
     // Logical sub-matrix order: n < 0 means the whole matrix (descriptor dims).
     const int n_eff = (n < 0) ? array_descA.m() : n;
     assert(n_eff >= 0);

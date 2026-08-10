@@ -6,10 +6,10 @@
 #include <vector>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include <ddla/getrf.h>
-#include <ddla/scal.h>
+#include "getrf.h"
+#include "scal.h"
 
 #include <iomanip>
 #include <magma_v2.h>
@@ -141,8 +141,8 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
 
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle, MPI_COMM_WORLD);
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle, MPI_COMM_WORLD);
 
     magma_init();
 
@@ -165,7 +165,7 @@ int main(int argc, char* argv[])
     }
 
     magma_finalize();
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

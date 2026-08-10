@@ -7,7 +7,7 @@
 #include <vector>
 #include <complex>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <random>
 #include "ddla_stream_impl.h"
 
@@ -175,11 +175,11 @@ int main(int argc, char* argv[])
 
     for(const auto& grid : grids){
         DdlaHandle_t ddla_handle;
-        ddla_init(ddla_handle);
+        ddlaInit(ddla_handle);
         if(grid.first < 0){
-            ddla_set(ddla_handle);
+            ddlaSet(ddla_handle);
         }else{
-            ddla_set(ddla_handle, MPI_COMM_WORLD, grid.first, grid.second);
+            ddlaSet(ddla_handle, MPI_COMM_WORLD, grid.first, grid.second);
         }
 
         int m = 100, n = 100, k = 100;
@@ -191,7 +191,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        ddla_destroy(ddla_handle);
+        ddlaDestroy(ddla_handle);
     }
 
     MPI_Finalize();

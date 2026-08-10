@@ -1,6 +1,6 @@
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <ddla/ddla_handle_t.h>
-#include <ddla/gemmVbatched.h>
+#include "gemmVbatched.h"
 
 #include <mpi.h>
 
@@ -288,7 +288,7 @@ double run_standard_case(
             beta, d_C.data(), d_ldc.data(), 3, handle);
         ddla::RUNTIME_CHECK(ddla::runtimeStreamSynchronize(
             static_cast<ddla::runtimeStream_t>(
-                ddla::ddla_get_stream(handle))));
+                ddla::ddlaGetStream(handle))));
 
         const auto actual = d_C.download(c_sizes);
         for (int batch = 0; batch < 3; ++batch)
@@ -419,7 +419,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
     invoke(T{}, segments);
     ddla::RUNTIME_CHECK(
         ddla::runtimeStreamSynchronize(
-            static_cast<ddla::runtimeStream_t>(ddla::ddla_get_stream(handle))));
+            static_cast<ddla::runtimeStream_t>(ddla::ddlaGetStream(handle))));
 
     if constexpr (std::is_same_v<T, double>)
     {
@@ -539,8 +539,8 @@ int main(int argc, char** argv)
     try
     {
         ddla::DdlaHandle_t handle = nullptr;
-        ddla::ddla_init(handle);
-        ddla::ddla_set(handle, MPI_COMM_WORLD);
+        ddla::ddlaInit(handle);
+        ddla::ddlaSet(handle, MPI_COMM_WORLD);
 
         int case_count = 0;
         const double float_error = std::max(
@@ -549,7 +549,7 @@ int main(int argc, char** argv)
         const double double_error = std::max(
             run_type<double>(handle, case_count),
             run_type<std::complex<double>>(handle, case_count));
-        ddla::ddla_destroy(handle);
+        ddla::ddlaDestroy(handle);
 
         if (float_error > 1.0e-5 || double_error > 1.0e-12)
         {

@@ -10,9 +10,9 @@
 #include "benchmark_grid_options.h"
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include <ddla/scal.h>
+#include "scal.h"
 
 using namespace ddla;
 
@@ -124,8 +124,8 @@ int main(int argc, char** argv)
     }
 
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle);
-    ddla_set(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
+    ddlaInit(handle);
+    ddlaSet(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
 
     if(handle->myid == 0){
         std::cout << "=== pgetrf benchmark: complex<double>, " << nprocs
@@ -138,7 +138,7 @@ int main(int argc, char** argv)
         benchmark_pgetrf(options.sizes[i], handle, options, warmup);
     }
 
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

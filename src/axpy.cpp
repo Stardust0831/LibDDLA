@@ -1,4 +1,4 @@
-#include <ddla/axpy.h>
+#include "axpy.h"
 
 #include <complex>
 #include <stdexcept>
@@ -68,7 +68,7 @@ void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
     if (handle == nullptr) {
         throw std::runtime_error("axpy: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("axpy: template backend ") + axpy_backend_name(Backend) +

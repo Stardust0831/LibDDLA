@@ -9,7 +9,7 @@
 #include <complex>
 #include <string>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <random>
 #include "ddla_stream_impl.h"
 #include <fstream>
@@ -168,8 +168,8 @@ int main(int argc, char* argv[]){
     MPI_Init(&argc, &argv);
     printf("before stream init\n");
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle, MPI_COMM_WORLD, 'R');
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle, MPI_COMM_WORLD, 'R');
     printf("after stream init\n");
     // std::ofstream outfile;
     // filename += "_" + std::to_string(ddla_handle->nprocs) + ".dat";
@@ -190,7 +190,7 @@ int main(int argc, char* argv[]){
         printf("testing matrix size: %d\n",i);
         check_ppotrf(i, ddla_handle, false);
     }
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

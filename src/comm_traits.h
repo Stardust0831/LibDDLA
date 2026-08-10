@@ -1,7 +1,7 @@
 #ifndef DDLA_COMM_TRAITS_H
 #define DDLA_COMM_TRAITS_H
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "mpi_datatype.h"
 #include <vector>
@@ -187,14 +187,14 @@ inline void commBcast(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_
         T* host = detail::tunnel_staging<T>(h, 0, count);
         RUNTIME_CHECK(runtimeMemcpyAsync(host, buf, count * sizeof(T), runtimeMemcpyDeviceToHost, h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Bcast(host, count * sizeof(T), MPI_BYTE, root, CommTraits<Backend>::comm(h, scope)));
+        MPI_CHECK(MPI_Bcast(host, (int)count, detail::mpi_datatype<T>(), root, CommTraits<Backend>::comm(h, scope)));
         RUNTIME_CHECK(runtimeMemcpyAsync(buf, host, count * sizeof(T), runtimeMemcpyHostToDevice, h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #elif defined(DDLA_USE_CCL)
         CCL_CHECK(ncclBcast(buf, count * sizeof(T), ncclInt8, root, CommTraits<Backend>::comm(h, scope), h->stream));
 #else
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Bcast(buf, count * sizeof(T), MPI_BYTE, root, CommTraits<Backend>::comm(h, scope)));
+        MPI_CHECK(MPI_Bcast(buf, (int)count, detail::mpi_datatype<T>(), root, CommTraits<Backend>::comm(h, scope)));
 #endif
     }
 }
@@ -210,12 +210,12 @@ inline void commSend(const DdlaHandle_t& h, CommScope scope, const T* buf, std::
         T* host = detail::tunnel_staging<T>(h, 0, count);
         RUNTIME_CHECK(runtimeMemcpyAsync(host, buf, count * sizeof(T), runtimeMemcpyDeviceToHost, h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Send(host, count * sizeof(T), MPI_BYTE, peer, 0, CommTraits<Backend>::comm(h, scope)));
+        MPI_CHECK(MPI_Send(host, (int)count, detail::mpi_datatype<T>(), peer, 0, CommTraits<Backend>::comm(h, scope)));
 #elif defined(DDLA_USE_CCL)
         CCL_CHECK(ncclSend(buf, count * sizeof(T), ncclInt8, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #else
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Send(buf, count * sizeof(T), MPI_BYTE, peer, 0, CommTraits<Backend>::comm(h, scope)));
+        MPI_CHECK(MPI_Send(buf, (int)count, detail::mpi_datatype<T>(), peer, 0, CommTraits<Backend>::comm(h, scope)));
 #endif
     }
 }
@@ -230,14 +230,14 @@ inline void commRecv(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_t
 #if defined(DDLA_USE_GPU_CPU_TUNNEL)
         T* host = detail::tunnel_staging<T>(h, 0, count);
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Recv(host, count * sizeof(T), MPI_BYTE, peer, 0, CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+        MPI_CHECK(MPI_Recv(host, (int)count, detail::mpi_datatype<T>(), peer, 0, CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
         RUNTIME_CHECK(runtimeMemcpyAsync(buf, host, count * sizeof(T), runtimeMemcpyHostToDevice, h->stream));
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
 #elif defined(DDLA_USE_CCL)
         CCL_CHECK(ncclRecv(buf, count * sizeof(T), ncclInt8, peer, CommTraits<Backend>::comm(h, scope), h->stream));
 #else
         RUNTIME_CHECK(runtimeStreamSynchronize(h->stream));
-        MPI_CHECK(MPI_Recv(buf, count * sizeof(T), MPI_BYTE, peer, 0, CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+        MPI_CHECK(MPI_Recv(buf, (int)count, detail::mpi_datatype<T>(), peer, 0, CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
 #endif
     }
 }

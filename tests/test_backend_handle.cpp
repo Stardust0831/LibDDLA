@@ -6,7 +6,7 @@
  *  - Default resolution to the compile-time default backend
  *  - Explicit available backend
  *  - Explicit unavailable backend (throws)
- *  - Backend query (ddla_get_backend)
+ *  - Backend query (ddlaGetBackend)
  *  - CPU stream returns nullptr (when CPU)
  *  - Two handles created from the same original MPI communicator
  *  - Cleanup in both orders
@@ -21,8 +21,8 @@
 #include <vector>
 #include <mpi.h>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
 
 using namespace ddla;
 
@@ -50,39 +50,39 @@ int main(int argc, char** argv)
     // ---- 1. Default backend resolution --------------------------------
     {
         DdlaHandle_t h1 = nullptr;
-        ddla_init(h1);
+        ddlaInit(h1);
         TEST("Default resolves to compile-time default backend",
-             ddla_get_backend(h1) == default_backend_v);
+             ddlaGetBackend(h1) == default_backend_v);
         TEST("Resolved backend is available",
-             ddla_backend_available(ddla_get_backend(h1)));
-        ddla_destroy(h1);
+             ddlaBackendAvailable(ddlaGetBackend(h1)));
+        ddlaDestroy(h1);
     }
 
     // ---- 2. Explicit available backend ---------------------------------
     {
         // Determine which backends are available
-        bool cpu_avail = ddla_backend_available(DdlaBackend::CPU);
-        bool gpu_avail = ddla_backend_available(DdlaBackend::GPU);
+        bool cpu_avail = ddlaBackendAvailable(DdlaBackend::CPU);
+        bool gpu_avail = ddlaBackendAvailable(DdlaBackend::GPU);
         TEST("At least one backend available", cpu_avail || gpu_avail);
 
         DdlaBackend explicit_be = cpu_avail ? DdlaBackend::CPU : DdlaBackend::GPU;
         DdlaHandle_t h2 = nullptr;
-        ddla_init(h2, explicit_be);
+        ddlaInit(h2, explicit_be);
         TEST("Explicit available backend matches request",
-             ddla_get_backend(h2) == explicit_be);
-        ddla_destroy(h2);
+             ddlaGetBackend(h2) == explicit_be);
+        ddlaDestroy(h2);
     }
 
     // ---- 3. Explicit unavailable backend (must throw) ------------------
     {
-        DdlaBackend unavailable = ddla_backend_available(DdlaBackend::CPU)
+        DdlaBackend unavailable = ddlaBackendAvailable(DdlaBackend::CPU)
                                       ? DdlaBackend::GPU
                                       : DdlaBackend::CPU;
-        if (!ddla_backend_available(unavailable)) {
+        if (!ddlaBackendAvailable(unavailable)) {
             bool threw = false;
             DdlaHandle_t h3 = nullptr;
             try {
-                ddla_init(h3, unavailable);
+                ddlaInit(h3, unavailable);
             } catch (const std::runtime_error&) {
                 threw = true;
             }
@@ -102,46 +102,46 @@ int main(int argc, char** argv)
         DdlaHandle_t null_h = nullptr;
         bool threw = false;
         try {
-            ddla_get_backend(null_h);
+            ddlaGetBackend(null_h);
         } catch (const std::runtime_error&) {
             threw = true;
         }
-        TEST("ddla_get_backend(nullptr) throws std::runtime_error", threw);
-        TEST("ddla_get_stream(nullptr) returns nullptr",
-             ddla_get_stream(null_h) == nullptr);
+        TEST("ddlaGetBackend(nullptr) throws std::runtime_error", threw);
+        TEST("ddlaGetStream(nullptr) returns nullptr",
+             ddlaGetStream(null_h) == nullptr);
     }
 
     // ---- 5. CPU stream = nullptr (when CPU backend is available) -------
-    if (ddla_backend_available(DdlaBackend::CPU)) {
+    if (ddlaBackendAvailable(DdlaBackend::CPU)) {
         DdlaHandle_t h_cpu = nullptr;
-        ddla_init(h_cpu, DdlaBackend::CPU);
-        ddla_set(h_cpu, MPI_COMM_WORLD, 'R');
-        void* s = ddla_get_stream(h_cpu);
+        ddlaInit(h_cpu, DdlaBackend::CPU);
+        ddlaSet(h_cpu, MPI_COMM_WORLD, 'R');
+        void* s = ddlaGetStream(h_cpu);
 #if DDLA_HAS_CPU
         TEST("CPU handle stream is nullptr", s == nullptr);
 #else
         // In a GPU-only build, CPU backend shouldn't be available
         (void)s;
 #endif
-        ddla_destroy(h_cpu);
+        ddlaDestroy(h_cpu);
     } else {
         if (myid == 0)
             std::cout << "  SKIP: CPU backend not available" << std::endl;
     }
 
-    // ---- 6. Public accessors after ddla_set ----------------------------
+    // ---- 6. Public accessors after ddlaSet ----------------------------
     {
         DdlaHandle_t h = nullptr;
-        ddla_init(h);
-        ddla_set(h, MPI_COMM_WORLD, 'R');
+        ddlaInit(h);
+        ddlaSet(h, MPI_COMM_WORLD, 'R');
 
-        int rank = ddla_get_rank(h);
-        int size = ddla_get_size(h);
-        TEST("ddla_get_rank in range", rank >= 0 && rank < size);
-        TEST("ddla_get_size matches nprocs", size == nprocs);
+        int rank = ddlaGetRank(h);
+        int size = ddlaGetSize(h);
+        TEST("ddlaGetRank in range", rank >= 0 && rank < size);
+        TEST("ddlaGetSize matches nprocs", size == nprocs);
 
-        MPI_Comm comm = ddla_get_communicator(h);
-        TEST("ddla_get_communicator != MPI_COMM_NULL", comm != MPI_COMM_NULL);
+        MPI_Comm comm = ddlaGetCommunicator(h);
+        TEST("ddlaGetCommunicator != MPI_COMM_NULL", comm != MPI_COMM_NULL);
         int comm_rank, comm_size;
         MPI_Comm_rank(comm, &comm_rank);
         MPI_Comm_size(comm, &comm_size);
@@ -149,39 +149,39 @@ int main(int argc, char** argv)
         TEST("communicator size matches", comm_size == size);
 
         int myprow = -1, mypcol = -1;
-        ddla_get_grid_coords(h, myprow, mypcol);
+        ddlaGetGridCoords(h, myprow, mypcol);
         TEST("grid coords in range",
              myprow >= 0 && mypcol >= 0);
 
         int nprows = 0, npcols = 0;
-        ddla_get_grid_dims(h, nprows, npcols);
+        ddlaGetGridDims(h, nprows, npcols);
         TEST("grid dims product matches nprocs", nprows * npcols == nprocs);
 
         // rank_to_rc / rc_to_rank roundtrip
         for (int r = 0; r < nprocs; ++r) {
             int rr, rc;
-            ddla_rank_to_rc(h, r, rr, rc);
-            int back = ddla_rc_to_rank(h, rr, rc);
+            ddlaRankToRc(h, r, rr, rc);
+            int back = ddlaRcToRank(h, rr, rc);
             TEST("rank_to_rc/rc_to_rank roundtrip", back == r);
         }
 
-        ddla_destroy(h);
+        ddlaDestroy(h);
     }
 
     // ---- 7. Two handles from the same original communicator ------------
     {
         DdlaHandle_t ha = nullptr, hb = nullptr;
-        ddla_init(ha);
-        ddla_init(hb);
-        ddla_set(ha, MPI_COMM_WORLD, 'R');
-        ddla_set(hb, MPI_COMM_WORLD, 'R');
+        ddlaInit(ha);
+        ddlaInit(hb);
+        ddlaSet(ha, MPI_COMM_WORLD, 'R');
+        ddlaSet(hb, MPI_COMM_WORLD, 'R');
 
         TEST("Both handles initialized", ha != nullptr && hb != nullptr);
         TEST("Both handles have same backend",
-             ddla_get_backend(ha) == ddla_get_backend(hb));
+             ddlaGetBackend(ha) == ddlaGetBackend(hb));
 
-        MPI_Comm ca = ddla_get_communicator(ha);
-        MPI_Comm cb = ddla_get_communicator(hb);
+        MPI_Comm ca = ddlaGetCommunicator(ha);
+        MPI_Comm cb = ddlaGetCommunicator(hb);
         int cmp_result = MPI_UNEQUAL;
         MPI_Comm_compare(ca, cb, &cmp_result);
         TEST("Duplicated communicators are congruent (not identical)",
@@ -193,73 +193,73 @@ int main(int argc, char** argv)
         TEST("Same rank in both communicators", ra == rb);
 
         // Clean up in reverse order
-        ddla_destroy(hb);
-        ddla_destroy(ha);
+        ddlaDestroy(hb);
+        ddlaDestroy(ha);
     }
 
     // ---- 8. Cleanup in both orders --------------------------------------
     {
         DdlaHandle_t hx = nullptr, hy = nullptr;
-        ddla_init(hx);
-        ddla_init(hy);
-        ddla_set(hx, MPI_COMM_WORLD, 'R');
-        ddla_set(hy, MPI_COMM_WORLD, 'R');
+        ddlaInit(hx);
+        ddlaInit(hy);
+        ddlaSet(hx, MPI_COMM_WORLD, 'R');
+        ddlaSet(hy, MPI_COMM_WORLD, 'R');
 
         // Destroy in same order as creation
-        ddla_destroy(hx);
-        ddla_destroy(hy);
+        ddlaDestroy(hx);
+        ddlaDestroy(hy);
         TEST("Same-order destroy: handles null", hx == nullptr && hy == nullptr);
     }
 
     // ---- 9. Idempotent double-destroy -----------------------------------
     {
         DdlaHandle_t h = nullptr;
-        ddla_init(h);
-        ddla_set(h, MPI_COMM_WORLD, 'R');
-        ddla_destroy(h);
-        ddla_destroy(h);  // should be safe
+        ddlaInit(h);
+        ddlaSet(h, MPI_COMM_WORLD, 'R');
+        ddlaDestroy(h);
+        ddlaDestroy(h);  // should be safe
         TEST("Double destroy is safe", h == nullptr);
     }
 
-    // ---- 9b. Repeated ddla_set (reinit lifecycle) -----------------------
+    // ---- 9b. Repeated ddlaSet (reinit lifecycle) -----------------------
     {
         DdlaHandle_t h = nullptr;
-        ddla_init(h);
-        ddla_set(h, MPI_COMM_WORLD, 'R');
-        int rank1 = ddla_get_rank(h);
-        int size1 = ddla_get_size(h);
-        MPI_Comm comm1 = ddla_get_communicator(h);
+        ddlaInit(h);
+        ddlaSet(h, MPI_COMM_WORLD, 'R');
+        int rank1 = ddlaGetRank(h);
+        int size1 = ddlaGetSize(h);
+        MPI_Comm comm1 = ddlaGetCommunicator(h);
         MPI_Comm comm1_copy = MPI_COMM_NULL;
         MPI_Comm_dup(comm1, &comm1_copy);
 
-        // Second ddla_set on the same handle — must clean and reinitialize
-        ddla_set(h, MPI_COMM_WORLD, 'R');
-        int rank2 = ddla_get_rank(h);
-        int size2 = ddla_get_size(h);
-        MPI_Comm comm2 = ddla_get_communicator(h);
+        // Second ddlaSet on the same handle — must clean and reinitialize
+        ddlaSet(h, MPI_COMM_WORLD, 'R');
+        int rank2 = ddlaGetRank(h);
+        int size2 = ddlaGetSize(h);
+        MPI_Comm comm2 = ddlaGetCommunicator(h);
 
-        TEST("Repeated ddla_set preserves rank", rank1 == rank2);
-        TEST("Repeated ddla_set preserves size", size1 == size2);
-        TEST("Repeated ddla_set creates new communicator", comm2 != MPI_COMM_NULL);
+        TEST("Repeated ddlaSet preserves rank", rank1 == rank2);
+        TEST("Repeated ddlaSet preserves size", size1 == size2);
+        TEST("Repeated ddlaSet creates new communicator", comm2 != MPI_COMM_NULL);
 
         int cmp_result = MPI_UNEQUAL;
         MPI_Comm_compare(comm1_copy, comm2, &cmp_result);
-        TEST("Repeated ddla_set communicators are congruent",
+        TEST("Repeated ddlaSet communicators are congruent",
              cmp_result == MPI_CONGRUENT);
 
         MPI_Comm_free(&comm1_copy);
-        ddla_destroy(h);
+        ddlaDestroy(h);
     }
 
     // ---- 10. Memory helpers smoke test ----------------------------------
     {
         DdlaHandle_t h = nullptr;
-        ddla_init(h);
-        ddla_set(h, MPI_COMM_WORLD, 'R');
+        ddlaInit(h);
+        ddlaSet(h, MPI_COMM_WORLD, 'R');
 
         void* ptr = nullptr;
-        int rc = ddla_malloc(&ptr, 1024, h);
-        TEST("ddla_malloc succeeds", rc == 0 && ptr != nullptr);
+        ddlaStatus_t rc = ddlaMalloc(&ptr, 1024, h);
+        TEST("ddlaMalloc succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS && ptr != nullptr);
 
         // Create host pattern buffer and fill
         std::vector<char> host_src(1024, 0);
@@ -267,22 +267,22 @@ int main(int argc, char** argv)
             host_src[i] = static_cast<char>(i & 0xFF);
 
         // Copy host -> device
-        rc = ddla_memcpy(ptr, host_src.data(), 1024,
+        rc = ddlaMemcpy(ptr, host_src.data(), 1024,
                          DdlaMemoryCopyKind::HostToDevice, h);
-        TEST("ddla_memcpy H2D succeeds", rc == 0);
-        rc = ddla_synchronize(h);
-        TEST("ddla_synchronize after H2D succeeds", rc == 0);
+        TEST("ddlaMemcpy H2D succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+        rc = ddlaSynchronize(h);
+        TEST("ddlaSynchronize after H2D succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
         // Allocate host buffer for readback
         std::vector<char> host(1024, 0);
 
         // Copy device -> host
-        rc = ddla_memcpy(host.data(), ptr, 1024,
+        rc = ddlaMemcpy(host.data(), ptr, 1024,
                          DdlaMemoryCopyKind::DeviceToHost, h);
-        TEST("ddla_memcpy D2H succeeds", rc == 0);
+        TEST("ddlaMemcpy D2H succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
-        rc = ddla_synchronize(h);
-        TEST("ddla_synchronize after D2H succeeds", rc == 0);
+        rc = ddlaSynchronize(h);
+        TEST("ddlaSynchronize after D2H succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
         // Verify pattern
         bool pattern_ok = true;
@@ -295,17 +295,17 @@ int main(int argc, char** argv)
         }
         TEST("Memory pattern preserved", pattern_ok);
 
-        rc = ddla_free(ptr, h);
-        TEST("ddla_free succeeds", rc == 0);
+        rc = ddlaFree(ptr, h);
+        TEST("ddlaFree succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
-        ddla_destroy(h);
+        ddlaDestroy(h);
     }
 
     // ---- 11. Boundary tests for every compiled/available backend ---------
     // Test zero-byte allocation, zero-byte copy, invalid args, and enum validation.
     {
-        bool cpu_avail = ddla_backend_available(DdlaBackend::CPU);
-        bool gpu_avail = ddla_backend_available(DdlaBackend::GPU);
+        bool cpu_avail = ddlaBackendAvailable(DdlaBackend::CPU);
+        bool gpu_avail = ddlaBackendAvailable(DdlaBackend::GPU);
         DdlaBackend backends_to_test[2];
         int nb = 0;
         if (cpu_avail) backends_to_test[nb++] = DdlaBackend::CPU;
@@ -316,60 +316,60 @@ int main(int argc, char** argv)
             const char* be_name = (be == DdlaBackend::CPU) ? "CPU" : "GPU";
 
             DdlaHandle_t h = nullptr;
-            ddla_init(h, be);
-            ddla_set(h, MPI_COMM_WORLD, 'R');
+            ddlaInit(h, be);
+            ddlaSet(h, MPI_COMM_WORLD, 'R');
 
             // 11a. Zero-byte allocation succeeds, returns nullptr
             {
                 void* zp = reinterpret_cast<void*>(0x1); // non-null sentinel
-                int rc = ddla_malloc(&zp, 0, h);
-                TEST(std::string(be_name) + " zero-byte malloc succeeds", rc == 0);
+                ddlaStatus_t rc = ddlaMalloc(&zp, 0, h);
+                TEST(std::string(be_name) + " zero-byte malloc succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
                 TEST(std::string(be_name) + " zero-byte malloc returns nullptr",
                      zp == nullptr);
             }
 
             // 11b. Zero-byte copy with null pointers succeeds
             {
-                int rc = ddla_memcpy(nullptr, nullptr, 0,
+                ddlaStatus_t rc = ddlaMemcpy(nullptr, nullptr, 0,
                                      DdlaMemoryCopyKind::HostToDevice, h);
                 TEST(std::string(be_name) + " zero-byte memcpy(null,null) succeeds",
-                     rc == 0);
+                     rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
             }
 
             // 11c. Nonzero copy with null source fails
             {
                 char buf[1] = {0};
-                int rc = ddla_memcpy(buf, nullptr, 1,
+                ddlaStatus_t rc = ddlaMemcpy(buf, nullptr, 1,
                                      DdlaMemoryCopyKind::HostToDevice, h);
                 TEST(std::string(be_name) + " nonzero memcpy null src fails",
-                     rc != 0);
+                     rc != ddlaStatus_t::DDLA_STATUS_SUCCESS);
             }
 
             // 11d. Nonzero copy with null destination fails
             {
                 char buf[1] = {0};
-                int rc = ddla_memcpy(nullptr, buf, 1,
+                ddlaStatus_t rc = ddlaMemcpy(nullptr, buf, 1,
                                      DdlaMemoryCopyKind::HostToDevice, h);
                 TEST(std::string(be_name) + " nonzero memcpy null dst fails",
-                     rc != 0);
+                     rc != ddlaStatus_t::DDLA_STATUS_SUCCESS);
             }
 
             // 11e. Invalid copy kind returns failure
             {
                 char buf1[1] = {0}, buf2[1] = {0};
-                int rc = ddla_memcpy(buf1, buf2, 1,
+                ddlaStatus_t rc = ddlaMemcpy(buf1, buf2, 1,
                                      static_cast<DdlaMemoryCopyKind>(999), h);
                 TEST(std::string(be_name) + " invalid copy kind fails",
-                     rc != 0);
+                     rc != ddlaStatus_t::DDLA_STATUS_SUCCESS);
             }
 
             // Cleanup: free nullptr (valid no-op)
             {
-                int rc = ddla_free(nullptr, h);
-                TEST(std::string(be_name) + " free nullptr succeeds", rc == 0);
+                ddlaStatus_t rc = ddlaFree(nullptr, h);
+                TEST(std::string(be_name) + " free nullptr succeeds", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
             }
 
-            ddla_destroy(h);
+            ddlaDestroy(h);
         }
     }
 

@@ -24,6 +24,12 @@ runtime. All functions live in the `ddla` namespace.
 - **Supported scalar types** are `float`, `double`, `std::complex<float>`, and
   `std::complex<double>`. The distributed Cholesky family (`ppotrf` /
   `ppotrs` / `pposv`) is instantiated for all four types.
+- **Leading-block sub-matrix support.** Most factorization/solve routines
+  accept descriptors larger than the logical sub-matrix and operate only on
+  the leading block anchored at global (0,0) (the same convention as
+  `pgemm`); local extents are derived from the logical dimensions, not the
+  descriptor's full size. `pdam` takes an optional `n` (default `-1` = the
+  whole matrix), and `pgetf2` / `pgetf2_panel` take an explicit `n`.
 - **Matrix storage is caller-owned.** LibDDLA routines operate on device pointers
   supplied by the caller. Individual routines may allocate and release temporary
   device workspaces internally.
@@ -167,6 +173,11 @@ The library selects one of three communication paths at compile time:
 All ranks must execute collectives in the same order regardless of the chosen
 path.
 
+All three paths are implemented once in `src/comm_traits.h` (`commSend`,
+`commRecv`, `commBcast`, `commAlltoallv`), selected by the same
+`DDLA_USE_CCL` / `DDLA_USE_GPU_CPU_TUNNEL` macros. This replaced the former
+per-file `include/ddla/ddla_comm.h` idiom.
+
 ## Data model and lifecycle
 
 ### Handle
@@ -225,23 +236,24 @@ int main(int argc, char** argv) {
     descA.init_square_blk(n, n, 0, 0);
     descB.init_square_blk(n, nrhs, 0, 0);
 
-    double *d_A, *d_B;
-    ddla::deviceMalloc(&d_A, descA.m_loc() * descA.n_loc() * sizeof(double));
-    ddla::deviceMalloc(&d_B, descB.m_loc() * descB.n_loc() * sizeof(double));
+    double *d_A = nullptr, *d_B = nullptr;
+    ddla::ddla_malloc(&d_A, descA.m_loc() * descA.n_loc() * sizeof(double), handle);
+    ddla::ddla_malloc(&d_B, descB.m_loc() * descB.n_loc() * sizeof(double), handle);
 
     // ... fill matrices, call ddla routines ...
 
-    ddla::deviceFree(d_A);
-    ddla::deviceFree(d_B);
+    ddla::ddla_free(d_A, handle);
+    ddla::ddla_free(d_B, handle);
     ddla::ddla_destroy(handle);
     MPI_Finalize();
     return 0;
 }
 ```
 
-The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
-`<ddla/ddla_connector.h>` are convenience wrappers over `cudaMalloc` /
-`hipMalloc` that safely handle zero-byte requests.
+The `ddla::ddla_malloc` / `ddla::ddla_free` helpers declared in
+`<ddla/ddla_handle_t.h>` dispatch to the handle's backend (host memory for
+CPU handles, device memory on the handle's stream for GPU handles) and safely
+handle zero-byte requests (zero bytes sets `*ptr = nullptr`).
 
 ## API overview
 
@@ -265,7 +277,7 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 |----------|-------------|
 | `pgemm` | `C = α·op(A)·op(B) + β·C` (SUMMA algorithm) |
 | `pgeadd` | `C = α·op(A) + β·op(B)` |
-| `pdam` | Add scalar to diagonal of distributed square matrix |
+| `pdam` | Add scalar to the diagonal of a distributed matrix (leading-block, optional `n`; default `-1` = whole matrix) |
 | `ptran` | Out-of-place distributed transpose (with optional conjugate) |
 | `transport_block` | Extract/transpose a contiguous block from a distributed matrix into a local buffer |
 
@@ -281,8 +293,10 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 | `getrf_nopiv` | Local (single-process) LU without pivoting |
 | `pgetrs` | Solve using pivoted LU factors: `op(A)·X = B` (side='L') or `X·op(A) = B` (side='R'), trans='N'/'T'/'C' |
 | `pgetrs_nopiv` | Solve using no-pivot LU factors (same side/trans options) |
+| `pgetrs_bpiv` | Solve using block-LU factors from `pgetrf_bpiv` (side, trans) |
 | `pgesv` | Driver: LU + solve with pivoting (side, trans) |
 | `pgesv_nopiv` | Driver: LU + solve without pivoting (side, trans) |
+| `pgesv_bpiv` | Driver: block-LU + solve (side, trans) |
 | `ptrtrs` | Distributed triangular solve (side × uplo × trans × diag) |
 | `plapiv` | Apply pivot permutation to rows or columns, forward or backward |
 | `pswap` | Swap rows or columns between two distributed matrices |
@@ -291,7 +305,7 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 
 | Function | Description |
 |----------|-------------|
-| `ppotrf` | Standard Cholesky factorization (complex-only) |
+| `ppotrf` | Standard Cholesky factorization (all four scalar types) |
 | `ppotrs` | Solve using Cholesky factor (side='L'/'R'; trans='N'/'C') |
 | `pposv` | Driver: Cholesky + solve (side='L'/'R'; trans='N'/'C') |
 | `potrf_bottom_right` | Local bottom-right Cholesky (all four scalar types) |
@@ -299,8 +313,8 @@ The `ddla::deviceMalloc` / `ddla::deviceFree` helpers declared in
 
 **Solve semantics.** For `side='L'` the right-hand side B is `n × nrhs` and
 the system is `op(A)·X = B`; for `side='R'` B is `nrhs × n` and the system is
-`X·op(A) = B`.  The LU-family solves (`pgetrs`, `pgetrs_nopiv`, `pgesv`,
-`pgesv_nopiv`) accept `trans` = 'N', 'T' or 'C'.  The Cholesky solves
+`X·op(A) = B`.  The LU-family solves (`pgetrs`, `pgetrs_nopiv`, `pgetrs_bpiv`,
+`pgesv`, `pgesv_nopiv`, `pgesv_bpiv`) accept `trans` = 'N', 'T' or 'C'.  The Cholesky solves
 (`ppotrs`, `pposv`) accept `trans` = 'N' or 'C', which are equivalent for a
 Hermitian matrix ('T' is not supported).  `plapiv` applies the pivot
 permutation to either rows (`rowcol`='R') or columns (`rowcol`='C'), in
@@ -316,9 +330,11 @@ columns for side='R') when given the same `location` passed to `ppotrf`.
 | `gemmVbatched2s` | Two-stage variable-batch GEMM with reusable temporary |
 | `random_generate` | Fill device buffer with uniform random values |
 
-`random_generate<T>` is declared in `<ddla/ddla_connector.h>` as a template,
-implemented in `src/ddla_utils.cpp`, and explicitly instantiated for `float`,
-`double`, `std::complex<float>`, and `std::complex<double>`.
+`random_generate<Backend, T>` is declared in `<ddla/random_generate.h>` as a
+backend-templated function (the same shape as `gemm` / `scal` /
+`write_matrix`), implemented in `src/random_generate.cpp`, and explicitly
+instantiated for `float`, `double`, `std::complex<float>`, and
+`std::complex<double>`.
 
 ## Testing
 
@@ -345,18 +361,21 @@ particular machines; adapt their module/partition settings to your own cluster.
 LibDDLA/
 ├── include/ddla/         Public headers
 │   ├── ddla.h            Main API declarations (all Doxygen comments)
-│   ├── ddla_handle_t.h   Handle type and init/set/destroy
+│   ├── ddla_handle_t.h   Handle type, init/set/destroy, ddla_malloc/ddla_free
 │   ├── ddla_desc.h       DdlaDesc descriptor and index mapping helpers
-│   ├── ddla_comm.h       Communication primitives (bcast, send/recv, allreduce)
-│   ├── ddla_connector.h  CUDA/HIP type aliases, macros, CHECK utilities, malloc wrappers, random_generate
+│   ├── ddla_connector.h  CUDA/HIP type aliases, macros, CHECK utilities, runtime alloc/copy wrappers
 │   ├── ddla_stream.h     DdlaStream (internal)
 │   ├── transport_block.h Distributed-to-local block extraction
 │   ├── ptran.h           Distributed matrix transpose
+│   ├── random_generate.h Uniform random fill (backend-templated)
 │   ├── gemmVbatched.h    Variable-size batched GEMM
 │   └── Backend wrappers  gemm.h, trsm.h, scal.h, axpy.h, swap.h, geru.h,
 │                         iamax.h, geam.h, herk.h, syrk.h, trmm.h,
 │                         gemmBatched.h, getrf.h, potrf.h, laswp.h
 ├── src/                  Implementation (one routine per .cpp)
+│   └── comm_traits.h     Unified communication layer (commSend/commRecv/
+│                         commBcast/commAlltoallv; replaces the former
+│                         include/ddla/ddla_comm.h idiom)
 ├── tests/                Integration tests (MPI executables)
 ├── benchmarks/           Benchmark data and supporting artifacts
 ├── install_scripts/      Backend-specific build/install scripts

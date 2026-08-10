@@ -1,4 +1,4 @@
-#include <ddla/write_matrix.h>
+#include "write_matrix.h"
 
 #include <cmath>
 #include <complex>

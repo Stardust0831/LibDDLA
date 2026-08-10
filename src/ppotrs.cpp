@@ -22,6 +22,13 @@ void ppotrs(
     assert(trans == 'N' || trans == 'C');
     assert(side == 'L' || side == 'R');
     assert(uplo == 'L' || uplo == 'U');
+    // Leading-block sub-matrix: descriptors may be larger than the logical
+    // sub-matrix (anchored at global (0,0)).
+    assert(n <= array_descA.m() && n <= array_descA.n());
+    if(side == 'L')
+        assert(n <= array_descB.m());
+    else
+        assert(n <= array_descB.n());
 
     // Head correction: when ppotrf was called with is_head=true and a
     // location != -1 (and != n), it relocated the head element to the last

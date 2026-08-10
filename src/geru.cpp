@@ -1,4 +1,4 @@
-#include <ddla/geru.h>
+#include "geru.h"
 
 #include <complex>
 #include <stdexcept>
@@ -78,7 +78,7 @@ void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
     if (handle == nullptr) {
         throw std::runtime_error("geru: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("geru: template backend ") + geru_backend_name(Backend) +

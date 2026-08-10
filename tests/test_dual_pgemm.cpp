@@ -19,9 +19,9 @@
 #include <vector>
 #include <mpi.h>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
-#include <ddla/transport_block.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
+#include "transport_block.h"
 
 using namespace ddla;
 
@@ -65,7 +65,7 @@ static int check_one(
     bool use_default_gpu = false)
 {
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(h_cpu, nprows, npcols);
+    ddlaGetGridDims(h_cpu, nprows, npcols);
 
     int rowsA = (transa == 'N') ? M : K;
     int colsA = (transa == 'N') ? K : M;
@@ -118,23 +118,23 @@ static int check_one(
 
     // --- GPU device allocation and upload ---
     T *d_A = nullptr, *d_B = nullptr, *d_C = nullptr;
-    TEST("GPU malloc A", ddla_malloc(reinterpret_cast<void**>(&d_A),
-                                     std::max<std::size_t>(1, szDA) * sizeof(T), h_gpu) == 0);
-    TEST("GPU malloc B", ddla_malloc(reinterpret_cast<void**>(&d_B),
-                                     std::max<std::size_t>(1, szDB) * sizeof(T), h_gpu) == 0);
-    TEST("GPU malloc C", ddla_malloc(reinterpret_cast<void**>(&d_C),
-                                     std::max<std::size_t>(1, szDC) * sizeof(T), h_gpu) == 0);
+    TEST("GPU malloc A", ddlaMalloc(reinterpret_cast<void**>(&d_A),
+                                     std::max<std::size_t>(1, szDA) * sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+    TEST("GPU malloc B", ddlaMalloc(reinterpret_cast<void**>(&d_B),
+                                     std::max<std::size_t>(1, szDB) * sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+    TEST("GPU malloc C", ddlaMalloc(reinterpret_cast<void**>(&d_C),
+                                     std::max<std::size_t>(1, szDC) * sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
     // Transfer sizes must match the CPU-side storage
     std::size_t xferA = szA * sizeof(T);
     std::size_t xferB = szB * sizeof(T);
     std::size_t xferC = szC * sizeof(T);
     int ret = 0;
-    ret |= ddla_memcpy(d_A, h_A.data(), xferA, DdlaMemoryCopyKind::HostToDevice, h_gpu);
-    ret |= ddla_memcpy(d_B, h_B.data(), xferB, DdlaMemoryCopyKind::HostToDevice, h_gpu);
-    ret |= ddla_memcpy(d_C, h_C_gpu.data(), xferC, DdlaMemoryCopyKind::HostToDevice, h_gpu);
+    ret |= ddlaMemcpy(d_A, h_A.data(), xferA, DdlaMemoryCopyKind::HostToDevice, h_gpu);
+    ret |= ddlaMemcpy(d_B, h_B.data(), xferB, DdlaMemoryCopyKind::HostToDevice, h_gpu);
+    ret |= ddlaMemcpy(d_C, h_C_gpu.data(), xferC, DdlaMemoryCopyKind::HostToDevice, h_gpu);
     TEST("GPU memcpy upload", ret == 0);
-    TEST("GPU sync after upload", ddla_synchronize(h_gpu) == 0);
+    TEST("GPU sync after upload", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
     // --- Compute in requested order ---
     auto run_cpu = [&]() {
@@ -152,7 +152,7 @@ static int check_one(
                 transa, transb, M, N, K, alpha,
                 d_A, descA_gpu, d_B, descB_gpu, beta, d_C, descC_gpu);
         }
-        int ret_dl = ddla_memcpy(h_C_gpu.data(), d_C, xferC, DdlaMemoryCopyKind::DeviceToHost, h_gpu);
+        int ret_dl = ddlaMemcpy(h_C_gpu.data(), d_C, xferC, DdlaMemoryCopyKind::DeviceToHost, h_gpu);
         TEST("GPU download after compute", ret_dl == 0);
     };
 
@@ -164,12 +164,12 @@ static int check_one(
         run_cpu();
     }
 
-    TEST("GPU sync after download", ddla_synchronize(h_gpu) == 0);
+    TEST("GPU sync after download", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
     int mf = 0;
-    mf |= ddla_free(d_A, h_gpu);
-    mf |= ddla_free(d_B, h_gpu);
-    mf |= ddla_free(d_C, h_gpu);
+    mf |= ddlaFree(d_A, h_gpu);
+    mf |= ddlaFree(d_B, h_gpu);
+    mf |= ddlaFree(d_C, h_gpu);
     TEST("GPU free", mf == 0);
 
     // --- Compare CPU vs GPU results ---
@@ -193,7 +193,7 @@ static int check_one(
     }
     {
         int global_nonfinite = 0;
-        MPI_Comm comm = ddla_get_communicator(h_cpu);
+        MPI_Comm comm = ddlaGetCommunicator(h_cpu);
         MPI_Allreduce(&rank_nonfinite_flag, &global_nonfinite, 1, MPI_INT, MPI_MAX, comm);
         if (global_nonfinite != 0) {
             if (myid == 0)
@@ -216,7 +216,7 @@ static int check_one(
 
     double global_ref = 0.0, global_err = 0.0;
     {
-        MPI_Comm comm = ddla_get_communicator(h_cpu);
+        MPI_Comm comm = ddlaGetCommunicator(h_cpu);
         MPI_Allreduce(&max_ref, &global_ref, 1, MPI_DOUBLE, MPI_MAX, comm);
         MPI_Allreduce(&max_err, &global_err, 1, MPI_DOUBLE, MPI_MAX, comm);
     }
@@ -277,27 +277,27 @@ static int check_k_zero(DdlaHandle_t h_cpu, DdlaHandle_t h_gpu)
                             beta, h_C_cpu.data(), descC_cpu);
 
     T *d_A = nullptr, *d_B = nullptr, *d_C = nullptr;
-    TEST("k=0 GPU malloc A", ddla_malloc(reinterpret_cast<void**>(&d_A), sizeof(T), h_gpu) == 0);
-    TEST("k=0 GPU malloc B", ddla_malloc(reinterpret_cast<void**>(&d_B), sizeof(T), h_gpu) == 0);
-    TEST("k=0 GPU malloc C", ddla_malloc(reinterpret_cast<void**>(&d_C),
-                                        std::max<std::size_t>(1, szC) * sizeof(T), h_gpu) == 0);
-    int up = ddla_memcpy(d_C, h_C_gpu.data(), szC * sizeof(T),
+    TEST("k=0 GPU malloc A", ddlaMalloc(reinterpret_cast<void**>(&d_A), sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+    TEST("k=0 GPU malloc B", ddlaMalloc(reinterpret_cast<void**>(&d_B), sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+    TEST("k=0 GPU malloc C", ddlaMalloc(reinterpret_cast<void**>(&d_C),
+                                        std::max<std::size_t>(1, szC) * sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+    int up = ddlaMemcpy(d_C, h_C_gpu.data(), szC * sizeof(T),
                          DdlaMemoryCopyKind::HostToDevice, h_gpu);
     TEST("k=0 GPU upload C", up == 0);
-    TEST("k=0 GPU sync after upload", ddla_synchronize(h_gpu) == 0);
+    TEST("k=0 GPU sync after upload", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
     pgemm<DdlaBackend::GPU>('N', 'N', M, N, 0, alpha,
                             d_A, descA_gpu, d_B, descB_gpu,
                             beta, d_C, descC_gpu);
-    int dl = ddla_memcpy(h_C_gpu.data(), d_C, szC * sizeof(T),
+    int dl = ddlaMemcpy(h_C_gpu.data(), d_C, szC * sizeof(T),
                         DdlaMemoryCopyKind::DeviceToHost, h_gpu);
     TEST("k=0 GPU download", dl == 0);
-    TEST("k=0 GPU sync after download", ddla_synchronize(h_gpu) == 0);
+    TEST("k=0 GPU sync after download", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
     int mf = 0;
-    mf |= ddla_free(d_A, h_gpu);
-    mf |= ddla_free(d_B, h_gpu);
-    mf |= ddla_free(d_C, h_gpu);
+    mf |= ddlaFree(d_A, h_gpu);
+    mf |= ddlaFree(d_B, h_gpu);
+    mf |= ddlaFree(d_C, h_gpu);
     TEST("k=0 GPU free", mf == 0);
 
     constexpr bool is_single = std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>;
@@ -320,7 +320,7 @@ static int check_k_zero(DdlaHandle_t h_cpu, DdlaHandle_t h_gpu)
         }
     }
 
-    MPI_Comm comm = ddla_get_communicator(h_cpu);
+    MPI_Comm comm = ddlaGetCommunicator(h_cpu);
     double global_max_err = 0.0;
     int global_failed = 0;
     MPI_Allreduce(&local_max_err, &global_max_err, 1, MPI_DOUBLE, MPI_MAX, comm);
@@ -377,16 +377,16 @@ int main(int argc, char** argv)
 
     if (myid == 0) std::cout << "=== Dual CPU+GPU pgemm Test ===" << std::endl;
 
-    TEST("Both backends available", ddla_backend_available(DdlaBackend::CPU) &&
-                                    ddla_backend_available(DdlaBackend::GPU));
+    TEST("Both backends available", ddlaBackendAvailable(DdlaBackend::CPU) &&
+                                    ddlaBackendAvailable(DdlaBackend::GPU));
 
     // --- Test descriptor-handle mismatch rejection ---
     {
         DdlaHandle_t h_c = nullptr, h_g = nullptr;
-        ddla_init(h_c, DdlaBackend::CPU);
-        ddla_init(h_g, DdlaBackend::GPU);
-        ddla_set(h_c, MPI_COMM_WORLD, nprows, npcols, 'R');
-        ddla_set(h_g, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaInit(h_c, DdlaBackend::CPU);
+        ddlaInit(h_g, DdlaBackend::GPU);
+        ddlaSet(h_c, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaSet(h_g, MPI_COMM_WORLD, nprows, npcols, 'R');
 
         DdlaDesc descA_g(h_g); descA_g.init(10, 10, 4, 4, 0, 0);
         DdlaDesc descB_g(h_g); descB_g.init(10, 10, 4, 4, 0, 0);
@@ -402,15 +402,15 @@ int main(int argc, char** argv)
         std::vector<float> bufA(locA, 0.0f), bufB(locB, 0.0f), bufC(locC, 0.0f);
         float *dA = nullptr, *dB = nullptr;
         int mv = 0;
-        mv |= ddla_malloc(reinterpret_cast<void**>(&dA), locA * sizeof(float), h_g);
-        mv |= ddla_malloc(reinterpret_cast<void**>(&dB), locB * sizeof(float), h_g);
+        mv |= ddlaMalloc(reinterpret_cast<void**>(&dA), locA * sizeof(float), h_g);
+        mv |= ddlaMalloc(reinterpret_cast<void**>(&dB), locB * sizeof(float), h_g);
         TEST("Mismatch-test malloc", mv == 0);
 
         // Upload A, B as device pointers (matching GPU handle)
         int mr = 0;
-        mr |= ddla_memcpy(dA, bufA.data(), rawA * sizeof(float), DdlaMemoryCopyKind::HostToDevice, h_g);
-        mr |= ddla_memcpy(dB, bufB.data(), rawB * sizeof(float), DdlaMemoryCopyKind::HostToDevice, h_g);
-        mr |= ddla_synchronize(h_g);
+        mr |= ddlaMemcpy(dA, bufA.data(), rawA * sizeof(float), DdlaMemoryCopyKind::HostToDevice, h_g);
+        mr |= ddlaMemcpy(dB, bufB.data(), rawB * sizeof(float), DdlaMemoryCopyKind::HostToDevice, h_g);
+        mr |= ddlaSynchronize(h_g);
         TEST("Mismatch-test memcpy/sync", mr == 0);
 
         bool mismatch_caught = false;
@@ -447,11 +447,11 @@ int main(int argc, char** argv)
              backend_mismatch_caught && backend_mismatch_msg_ok);
 
         int mf = 0;
-        mf |= ddla_free(dA, h_g);
-        mf |= ddla_free(dB, h_g);
+        mf |= ddlaFree(dA, h_g);
+        mf |= ddlaFree(dB, h_g);
         TEST("Mismatch-test free", mf == 0);
-        ddla_destroy(h_c);
-        ddla_destroy(h_g);
+        ddlaDestroy(h_c);
+        ddlaDestroy(h_g);
     }
 
     // --- Test transport_block<DdlaBackend::CPU> succeeds on a CPU handle ---
@@ -467,8 +467,8 @@ int main(int argc, char** argv)
     // writes.)
     {
         DdlaHandle_t h_cpu_tb = nullptr;
-        ddla_init(h_cpu_tb, DdlaBackend::CPU);
-        ddla_set(h_cpu_tb, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaInit(h_cpu_tb, DdlaBackend::CPU);
+        ddlaSet(h_cpu_tb, MPI_COMM_WORLD, nprows, npcols, 'R');
 
         DdlaDesc desc_tb(h_cpu_tb);
         desc_tb.init(8, 8, 4, 4, 0, 0);
@@ -510,28 +510,28 @@ int main(int argc, char** argv)
         TEST("transport_block<DdlaBackend::CPU> succeeds and returns uniform input unchanged",
              tb_ok && tb_err < 1e-12);
 
-        ddla_destroy(h_cpu_tb);
+        ddlaDestroy(h_cpu_tb);
     }
 
     // --- Create CPU and GPU handles from same MPI_COMM_WORLD ---
     DdlaHandle_t h_cpu = nullptr, h_gpu = nullptr;
-    ddla_init(h_cpu, DdlaBackend::CPU);
-    ddla_init(h_gpu, DdlaBackend::GPU);
-    ddla_set(h_cpu, MPI_COMM_WORLD, nprows, npcols, 'R');
-    ddla_set(h_gpu, MPI_COMM_WORLD, nprows, npcols, 'R');
+    ddlaInit(h_cpu, DdlaBackend::CPU);
+    ddlaInit(h_gpu, DdlaBackend::GPU);
+    ddlaSet(h_cpu, MPI_COMM_WORLD, nprows, npcols, 'R');
+    ddlaSet(h_gpu, MPI_COMM_WORLD, nprows, npcols, 'R');
 
-    TEST("CPU backend resolves", ddla_get_backend(h_cpu) == DdlaBackend::CPU);
-    TEST("GPU backend resolves", ddla_get_backend(h_gpu) == DdlaBackend::GPU);
-    TEST("CPU stream is null", ddla_get_stream(h_cpu) == nullptr);
+    TEST("CPU backend resolves", ddlaGetBackend(h_cpu) == DdlaBackend::CPU);
+    TEST("GPU backend resolves", ddlaGetBackend(h_gpu) == DdlaBackend::GPU);
+    TEST("CPU stream is null", ddlaGetStream(h_cpu) == nullptr);
     TEST("GPU stream is non-null after set",
-         ddla_get_stream(h_gpu) != nullptr);
+         ddlaGetStream(h_gpu) != nullptr);
 
     // Memory round-trip per backend
     {
         void* cpu_ptr = nullptr;
         void* gpu_ptr = nullptr;
-        TEST("CPU malloc", ddla_malloc(&cpu_ptr, 256, h_cpu) == 0);
-        TEST("GPU malloc", ddla_malloc(&gpu_ptr, 256, h_gpu) == 0);
+        TEST("CPU malloc", ddlaMalloc(&cpu_ptr, 256, h_cpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+        TEST("GPU malloc", ddlaMalloc(&gpu_ptr, 256, h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
         char pattern[256], readback[256];
         for (int i = 0; i < 256; ++i) pattern[i] = static_cast<char>(i);
@@ -539,72 +539,72 @@ int main(int argc, char** argv)
 
         // CPU round-trip
         int rc = 0;
-        rc |= ddla_memcpy(cpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_cpu);
-        rc |= ddla_memcpy(readback, cpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_cpu);
-        TEST("CPU memcpy round-trip", rc == 0);
+        rc |= ddlaMemcpy(cpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_cpu);
+        rc |= ddlaMemcpy(readback, cpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_cpu);
+        TEST("CPU memcpy round-trip", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
         bool cpu_ok = (std::memcmp(pattern, readback, 256) == 0);
         TEST("CPU memory round-trip", cpu_ok);
 
         // GPU round-trip
         std::memset(readback, 0, 256);
         rc = 0;
-        rc |= ddla_memcpy(gpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_gpu);
-        rc |= ddla_memcpy(readback, gpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_gpu);
-        rc |= ddla_synchronize(h_gpu);
-        TEST("GPU memcpy round-trip", rc == 0);
+        rc |= ddlaMemcpy(gpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_gpu);
+        rc |= ddlaMemcpy(readback, gpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_gpu);
+        rc |= ddlaSynchronize(h_gpu);
+        TEST("GPU memcpy round-trip", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
         bool gpu_ok = (std::memcmp(pattern, readback, 256) == 0);
         TEST("GPU memory round-trip", gpu_ok);
 
         int mf = 0;
-        mf |= ddla_free(cpu_ptr, h_cpu);
-        mf |= ddla_free(gpu_ptr, h_gpu);
+        mf |= ddlaFree(cpu_ptr, h_cpu);
+        mf |= ddlaFree(gpu_ptr, h_gpu);
         TEST("Round-trip free", mf == 0);
     }
 
     // Destroy the memory-roundtrip handle pair before creating execution handles
-    ddla_destroy(h_cpu);
-    ddla_destroy(h_gpu);
+    ddlaDestroy(h_cpu);
+    ddlaDestroy(h_gpu);
 
     // --- Section 1: GPU→CPU execution order, destroy GPU first ---
     int nf = 0;
     {
         DdlaHandle_t h_cpu_s1 = nullptr, h_gpu_s1 = nullptr;
-        ddla_init(h_cpu_s1, DdlaBackend::CPU);
-        ddla_init(h_gpu_s1, DdlaBackend::GPU);
-        ddla_set(h_cpu_s1, MPI_COMM_WORLD, nprows, npcols, 'R');
-        ddla_set(h_gpu_s1, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaInit(h_cpu_s1, DdlaBackend::CPU);
+        ddlaInit(h_gpu_s1, DdlaBackend::GPU);
+        ddlaSet(h_cpu_s1, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaSet(h_gpu_s1, MPI_COMM_WORLD, nprows, npcols, 'R');
         nf += run_type<float>("float (GPU->CPU)", h_cpu_s1, h_gpu_s1, false);
         nf += run_type<double>("double (GPU->CPU)", h_cpu_s1, h_gpu_s1, false);
         nf += run_type<std::complex<float>>("cfloat (GPU->CPU)", h_cpu_s1, h_gpu_s1, false);
         nf += run_type<std::complex<double>>("cdouble (GPU->CPU)", h_cpu_s1, h_gpu_s1, false);
         // Destroy GPU first, then CPU
-        ddla_destroy(h_gpu_s1);
-        ddla_destroy(h_cpu_s1);
+        ddlaDestroy(h_gpu_s1);
+        ddlaDestroy(h_cpu_s1);
     }
 
     // --- Section 2: CPU→GPU execution order, destroy CPU first ---
     {
         DdlaHandle_t h_cpu_s2 = nullptr, h_gpu_s2 = nullptr;
-        ddla_init(h_cpu_s2, DdlaBackend::CPU);
-        ddla_init(h_gpu_s2, DdlaBackend::GPU);
-        ddla_set(h_cpu_s2, MPI_COMM_WORLD, nprows, npcols, 'R');
-        ddla_set(h_gpu_s2, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaInit(h_cpu_s2, DdlaBackend::CPU);
+        ddlaInit(h_gpu_s2, DdlaBackend::GPU);
+        ddlaSet(h_cpu_s2, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaSet(h_gpu_s2, MPI_COMM_WORLD, nprows, npcols, 'R');
         nf += run_type<float>("float (CPU->GPU)", h_cpu_s2, h_gpu_s2, true);
         nf += run_type<double>("double (CPU->GPU)", h_cpu_s2, h_gpu_s2, true);
         nf += run_type<std::complex<float>>("cfloat (CPU->GPU)", h_cpu_s2, h_gpu_s2, true);
         nf += run_type<std::complex<double>>("cdouble (CPU->GPU)", h_cpu_s2, h_gpu_s2, true);
         // Destroy CPU first, then GPU
-        ddla_destroy(h_cpu_s2);
-        ddla_destroy(h_gpu_s2);
+        ddlaDestroy(h_cpu_s2);
+        ddlaDestroy(h_gpu_s2);
     }
 
     // --- Section 3: k==0 CPU/GPU parity (F2 regression) ---
     {
         DdlaHandle_t h_cpu_s3 = nullptr, h_gpu_s3 = nullptr;
-        ddla_init(h_cpu_s3, DdlaBackend::CPU);
-        ddla_init(h_gpu_s3, DdlaBackend::GPU);
-        ddla_set(h_cpu_s3, MPI_COMM_WORLD, nprows, npcols, 'R');
-        ddla_set(h_gpu_s3, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaInit(h_cpu_s3, DdlaBackend::CPU);
+        ddlaInit(h_gpu_s3, DdlaBackend::GPU);
+        ddlaSet(h_cpu_s3, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaSet(h_gpu_s3, MPI_COMM_WORLD, nprows, npcols, 'R');
         int nf3 = 0;
         nf3 += check_k_zero<float>(h_cpu_s3, h_gpu_s3);
         nf3 += check_k_zero<double>(h_cpu_s3, h_gpu_s3);
@@ -617,8 +617,8 @@ int main(int argc, char** argv)
                 std::cout << "  [k=0 parity] " << nf3 << " FAILED" << std::endl;
         }
         nf += nf3;
-        ddla_destroy(h_cpu_s3);
-        ddla_destroy(h_gpu_s3);
+        ddlaDestroy(h_cpu_s3);
+        ddlaDestroy(h_gpu_s3);
     }
 
     if (myid == 0) {

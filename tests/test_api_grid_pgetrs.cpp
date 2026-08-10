@@ -31,7 +31,7 @@ void check_pgetrs(const ddla::DdlaHandle_t& handle, const Shape& base)
         std::vector<int> ipiv(descA.m_loc());
         int info = -1;
         ddla::pgetrf(n, n, d_A.ptr, descA, ipiv.data(), info);
-        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
         ddla::pgetrs(side, trans, n, nrhs, d_A.ptr, descA, ipiv.data(), d_B.ptr, descB);
         check_solution(handle, descB, d_B.ptr, h_B.size(), name, 5e-9);
     };

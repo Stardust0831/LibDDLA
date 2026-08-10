@@ -7,10 +7,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "comm_traits.h"
-#include <ddla/geam.h>
+#include "geam.h"
 
 namespace ddla {
 
@@ -50,7 +50,7 @@ void transport_block(
     if (h == nullptr) {
         throw std::runtime_error("transport_block: null handle");
     }
-    const DdlaBackend actual_backend = ddla_get_backend(h);
+    const DdlaBackend actual_backend = ddlaGetBackend(h);
     if (actual_backend != Backend) {
         throw std::runtime_error(
             std::string("transport_block: template backend ") +

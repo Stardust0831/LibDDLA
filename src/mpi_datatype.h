@@ -18,6 +18,7 @@ namespace detail {
 template <typename T>
 static inline MPI_Datatype mpi_datatype();
 
+template <> inline MPI_Datatype mpi_datatype<int>() { return MPI_INT; }
 template <> inline MPI_Datatype mpi_datatype<float>() { return MPI_FLOAT; }
 template <> inline MPI_Datatype mpi_datatype<double>() { return MPI_DOUBLE; }
 template <> inline MPI_Datatype mpi_datatype<std::complex<float>>() { return MPI_CXX_FLOAT_COMPLEX; }

@@ -6,8 +6,8 @@
 #include <vector>
 #include <complex>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/scal.h>
+#include "ddla_connector.h"
+#include "scal.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;
@@ -139,8 +139,8 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
     printf("before stream init\n");
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle);
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle);
     printf("after stream init\n");
 
     std::vector<int> sizes = {500, 1000, 5000, 10000, 15000, 20000};
@@ -158,7 +158,7 @@ int main(int argc, char* argv[])
         check_pgetrf_nopiv(n, ddla_handle);
     }
 
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

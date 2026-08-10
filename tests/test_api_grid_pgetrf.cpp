@@ -40,7 +40,7 @@ void check_pgetrf(const ddla::DdlaHandle_t& handle, const Shape& base)
     std::vector<int> ipiv(descA.m_loc());
     int info = -1;
     ddla::pgetrf(n, n, d_A.ptr, descA, ipiv.data(), info);
-    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+    if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
     ddla::pgetrs('L', 'N', n, nrhs, d_A.ptr, descA, ipiv.data(), d_B.ptr, descB);
     check_solution(handle, descB, d_B.ptr, h_B.size(), "pgetrf", 5e-9);
 }

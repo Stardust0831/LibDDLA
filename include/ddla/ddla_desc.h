@@ -90,7 +90,7 @@ public:
     
 };
 
-} // end of namespace DDLA
+} // namespace ddla
 
 
 #endif // DDLA_DESC_H

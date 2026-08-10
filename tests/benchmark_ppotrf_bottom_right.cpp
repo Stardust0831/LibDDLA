@@ -12,7 +12,7 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 namespace {
@@ -568,8 +568,8 @@ int main(int argc, char** argv)
     }
 
     ddla::DdlaHandle_t handle = nullptr;
-    ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
+    ddla::ddlaInit(handle);
+    ddla::ddlaSet(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
 
     if(handle->myid == 0){
         std::cout << "=== distributed Cholesky benchmark: complex<double> ===\n"
@@ -587,7 +587,7 @@ int main(int argc, char** argv)
         benchmark_size(n, options, handle);
     }
 
-    ddla::ddla_destroy(handle);
+    ddla::ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

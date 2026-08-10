@@ -1,4 +1,4 @@
-#include <ddla/iamax.h>
+#include "iamax.h"
 
 #include <complex>
 #include <stdexcept>
@@ -59,7 +59,7 @@ void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result)
     if (handle == nullptr) {
         throw std::runtime_error("iamax: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("iamax: template backend ") + iamax_backend_name(Backend) +

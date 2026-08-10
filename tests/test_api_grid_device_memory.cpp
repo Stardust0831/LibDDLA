@@ -4,7 +4,7 @@ using namespace api_grid_test;
 
 void check_device_memory(const ddla::DdlaHandle_t& handle, const Shape&)
 {
-    runtimeStream_t stream = reinterpret_cast<runtimeStream_t>(ddla_get_stream(handle));
+    runtimeStream_t stream = reinterpret_cast<runtimeStream_t>(ddlaGetStream(handle));
     double host_value = 0.0;
 
     double* typed_sync = &host_value;

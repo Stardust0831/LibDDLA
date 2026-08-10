@@ -5,7 +5,7 @@
 #include <iomanip>
 #include <algorithm>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;
@@ -94,8 +94,8 @@ int main(int argc, char* argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle, MPI_COMM_WORLD, 2, 2);
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle, MPI_COMM_WORLD, 2, 2);
 
     if (myid == 0) {
         std::cout << "=== pgemm benchmark (complex<double>, " << nprocs
@@ -159,7 +159,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

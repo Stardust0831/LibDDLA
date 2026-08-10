@@ -18,8 +18,8 @@
 #include <vector>
 #include <mpi.h>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
 
 using namespace ddla;
 
@@ -101,9 +101,9 @@ static int check_one(
     bool use_default_backend = false)
 {
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
-    int myid = ddla_get_rank(handle);
-    int nprocs = ddla_get_size(handle);
+    ddlaGetGridDims(handle, nprows, npcols);
+    int myid = ddlaGetRank(handle);
+    int nprocs = ddlaGetSize(handle);
 
     int rowsA = (transa == 'N') ? M : K;
     int colsA = (transa == 'N') ? K : M;
@@ -217,7 +217,7 @@ static int check_one(
             // scatter received segments back to global (contiguous) layout
             for (int r = 0; r < nprocs; ++r) {
                 int r_row, r_col;
-                ddla_rank_to_rc(handle, r, r_row, r_col);
+                ddlaRankToRc(handle, r, r_row, r_col);
                 int r_loc_m = num_loc(mg, desc.mb(), r_row, desc.irsrc(), desc.nprows());
                 int r_loc_n = num_loc(ng, desc.nb(), r_col, desc.icsrc(), desc.npcols());
                 // byte offset -> element offset
@@ -391,12 +391,12 @@ static int run_tests_for_type(const char* type_name,
         }
         if (!k_zero_ok) {
             nfailed += 1;
-            if (ddla_get_rank(handle) == 0)
+            if (ddlaGetRank(handle) == 0)
                 std::cout << "  FAIL [" << type_name << "] K=0 scaling check" << std::endl;
         }
     }
 
-    int myid = ddla_get_rank(handle);
+    int myid = ddlaGetRank(handle);
     if (nfailed == 0) {
         if (myid == 0)
             std::cout << "  [" << type_name << "] ALL PASSED" << std::endl;
@@ -432,20 +432,20 @@ int main(int argc, char** argv)
     }
 
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle, DdlaBackend::CPU);
+    ddlaInit(handle, DdlaBackend::CPU);
     if (nprows > 0 && npcols > 0)
-        ddla_set(handle, MPI_COMM_WORLD, nprows, npcols, 'R');
+        ddlaSet(handle, MPI_COMM_WORLD, nprows, npcols, 'R');
     else
-        ddla_set(handle, MPI_COMM_WORLD, 'R');
+        ddlaSet(handle, MPI_COMM_WORLD, 'R');
 
-    int myid = ddla_get_rank(handle);
+    int myid = ddlaGetRank(handle);
     int g_nprows = 0, g_npcols = 0;
-    ddla_get_grid_dims(handle, g_nprows, g_npcols);
+    ddlaGetGridDims(handle, g_nprows, g_npcols);
 
     if (myid == 0) {
         std::cout << "=== CPU pgemm correctness test ===" << std::endl;
         std::cout << "Grid: " << g_nprows << "x" << g_npcols << std::endl;
-        std::cout << "Procs: " << ddla_get_size(handle) << std::endl;
+        std::cout << "Procs: " << ddlaGetSize(handle) << std::endl;
     }
 
     int total_failed = 0;
@@ -462,7 +462,7 @@ int main(int argc, char** argv)
         }
     }
 
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return (total_failed > 0) ? 1 : 0;
 }
