@@ -58,7 +58,7 @@ void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx)
     if (handle == nullptr) {
         throw std::runtime_error("scal: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("scal: template backend ") + scal_backend_name(Backend) +

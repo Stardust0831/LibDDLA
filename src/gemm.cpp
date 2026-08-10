@@ -52,7 +52,7 @@ void gemm(
     if (handle == nullptr) {
         throw std::runtime_error("gemm: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("gemm: template backend ") + backend_name(Backend) +

@@ -107,7 +107,7 @@ void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
     if (handle == nullptr) {
         throw std::runtime_error("omatcopy: null handle");
     }
-    const DdlaBackend actual = ddla_get_backend(handle);
+    const DdlaBackend actual = ddlaGetBackend(handle);
     if (actual != Backend) {
         throw std::runtime_error(
             std::string("omatcopy: template backend ") + omatcopy_backend_name(Backend) +

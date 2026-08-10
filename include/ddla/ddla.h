@@ -5,6 +5,8 @@
 #include "ddla_desc.h"
 #include <cstdint>
 #include <complex>
+#include <stdexcept>
+#include <string>
 
 // ---------------------------------------------------------------------------
 // Public deblas* type aliases and operation constants.
@@ -120,6 +122,21 @@ constexpr auto DEBLAS_OP_C = 'C';
 #endif // DDLA_DEBLAS_TYPES_DEFINED
 
 namespace ddla{
+
+/// Check a ddlaStatus_t returned by a public API function.
+///
+/// Throws std::runtime_error with file:line context when @p status is not
+/// DDLA_STATUS_SUCCESS, mirroring the private CHECK-family style.
+inline void DDLA_CHECK(ddlaStatus_t status,
+                       const char* file = __builtin_FILE(),
+                       int line = __builtin_LINE())
+{
+    if (status != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+        throw std::runtime_error(std::string("ddla error ") +
+            std::to_string(static_cast<int>(status)) + " at " + file + ":" +
+            std::to_string(line));
+    }
+}
 
 #if DDLA_HAS_GPU
 

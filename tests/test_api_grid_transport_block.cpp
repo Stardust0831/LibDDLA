@@ -11,9 +11,9 @@ void check_non_square_block_transpose(
     const int mb = std::max(2, base.nb);
     const int nb = mb + 1;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     int myprow = 0, mypcol = 0;
-    ddla_get_grid_coords(handle, myprow, mypcol);
+    ddlaGetGridCoords(handle, myprow, mypcol);
     const int m = round_up_for_grid(base.m, mb, nprows);
     const int n = round_up_for_grid(base.n, nb, npcols);
     const int irsrc = nprows - 1;
@@ -112,7 +112,7 @@ void check_host_tunnel_workspace(const ddla::DdlaHandle_t& handle)
     constexpr int local_columns = 128;
     constexpr int tag = 29;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int m = mb * nprows;
     const int n = local_columns * npcols;
 
@@ -149,9 +149,9 @@ void check_transport_block(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     int myprow = 0, mypcol = 0;
-    ddla_get_grid_coords(handle, myprow, mypcol);
+    ddlaGetGridCoords(handle, myprow, mypcol);
     const int m = round_up_for_grid(base.m, nb, nprows);
     const int n = round_up_for_grid(base.n, nb, npcols);
     ddla::DdlaDesc desc(handle);

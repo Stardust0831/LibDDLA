@@ -19,8 +19,8 @@ int main(int argc, char* argv[])
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     DdlaHandle_t handle;
-    ddla_init(handle);
-    ddla_set(handle, MPI_COMM_WORLD, 2, 3);
+    ddlaInit(handle);
+    ddlaSet(handle, MPI_COMM_WORLD, 2, 3);
 
     int m = 12, n = 12;
     int nb = 4;
@@ -106,7 +106,7 @@ int main(int argc, char* argv[])
 
     RUNTIME_CHECK(runtimeFree(d_A));
     RUNTIME_CHECK(runtimeFree(d_AT));
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

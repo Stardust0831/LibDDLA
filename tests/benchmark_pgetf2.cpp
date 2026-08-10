@@ -128,8 +128,8 @@ int main(int argc, char** argv)
     }
 
     ddla::DdlaHandle_t handle = nullptr;
-    ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
+    ddla::ddlaInit(handle);
+    ddla::ddlaSet(handle, MPI_COMM_WORLD, options.nprows, options.npcols);
 
     if(handle->myid == 0){
         std::cout << "=== pgetf2 benchmark: complex<double>, " << nprocs
@@ -155,7 +155,7 @@ int main(int argc, char** argv)
         }
     }
 
-    ddla::ddla_destroy(handle);
+    ddla::ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

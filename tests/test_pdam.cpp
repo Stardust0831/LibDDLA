@@ -84,8 +84,8 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
 
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle);
-    ddla_set(handle, MPI_COMM_WORLD);
+    ddlaInit(handle);
+    ddlaSet(handle, MPI_COMM_WORLD);
 
     // Real scalar added to real matrix.
     check_pdam<double, double>(100, handle, 3.14);
@@ -98,7 +98,7 @@ int main(int argc, char* argv[])
     // Complex scalar added to complex matrix.
     check_pdam<std::complex<double>, std::complex<double>>(100, handle, std::complex<double>(1.0, 2.0));
 
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return 0;
 }

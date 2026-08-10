@@ -333,8 +333,8 @@ int main(int argc, char** argv)
     }
 
     ddla::DdlaHandle_t handle = nullptr;
-    ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD);
+    ddla::ddlaInit(handle);
+    ddla::ddlaSet(handle, MPI_COMM_WORLD);
 
     bool passed = true;
     passed = run_type<float>(handle) && passed;
@@ -343,7 +343,7 @@ int main(int argc, char** argv)
     passed = run_type<std::complex<double>>(handle) && passed;
 
     RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
-    ddla::ddla_destroy(handle);
+    ddla::ddlaDestroy(handle);
     MPI_Finalize();
     return passed ? 0 : 1;
 }

@@ -6,7 +6,7 @@ void check_pgemm(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int m = round_up_for_grid(base.m, nb, nprows);
     const int n = round_up_for_grid(base.n, nb, npcols);
     const int k = std::max(base.k, nb * std::max(nprows, npcols) + 1);
@@ -62,7 +62,7 @@ void check_pgemm_k_zero(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int m = round_up_for_grid(base.m, nb, nprows);
     const int n = round_up_for_grid(base.n, nb, npcols);
     const Complex alpha(0.8, -0.2);
