@@ -1,6 +1,6 @@
-#include <ddla/ptran.h>
+#include "ptran.h"
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"

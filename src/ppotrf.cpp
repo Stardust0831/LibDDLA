@@ -1,18 +1,18 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <cstddef>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include <vector>
 #include <type_traits>
 #include <cmath>
 #include <algorithm>
-#include <ddla/trsm.h>
-#include <ddla/potrf.h>
-#include <ddla/gemmBatched.h>
-#include <ddla/herk.h>
-#include <ddla/gemm.h>
+#include "trsm.h"
+#include "potrf.h"
+#include "gemmBatched.h"
+#include "herk.h"
+#include "gemm.h"
 #include "comm_traits.h"
 
 namespace ddla{

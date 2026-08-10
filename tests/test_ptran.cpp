@@ -5,9 +5,9 @@
 #include <vector>
 #include <complex>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include <ddla/ptran.h>
+#include "ptran.h"
 
 using namespace ddla;
 

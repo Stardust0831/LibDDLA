@@ -7,7 +7,7 @@
 #include <vector>
 #include <complex>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <random>
 #include "ddla_stream_impl.h"
 

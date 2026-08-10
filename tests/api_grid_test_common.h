@@ -16,10 +16,10 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
-#include <ddla/ptran.h>
-#include <ddla/transport_block.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
+#include "ptran.h"
+#include "transport_block.h"
 
 namespace api_grid_test {
 

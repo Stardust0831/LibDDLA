@@ -19,9 +19,9 @@
 #include <vector>
 #include <mpi.h>
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
-#include <ddla/ddla_stream.h>
-#include <ddla/transport_block.h>
+#include "ddla_connector.h"
+#include "ddla_stream.h"
+#include "transport_block.h"
 
 using namespace ddla;
 

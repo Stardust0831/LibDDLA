@@ -1,7 +1,7 @@
 #ifndef DDLA_POTRF_BOTTOM_RIGHT_TRANSFORM_H
 #define DDLA_POTRF_BOTTOM_RIGHT_TRANSFORM_H
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 
 namespace ddla::detail {
 

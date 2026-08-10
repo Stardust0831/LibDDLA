@@ -7,13 +7,13 @@
 #include <complex>
 #include <type_traits>
 
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include <ddla/herk.h>
-#include <ddla/potrf.h>
-#include <ddla/syrk.h>
-#include <ddla/trsm.h>
+#include "herk.h"
+#include "potrf.h"
+#include "syrk.h"
+#include "trsm.h"
 
 namespace ddla{
 

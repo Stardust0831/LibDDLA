@@ -1,12 +1,12 @@
 #include <ddla/ddla.h>
 #include <cassert>
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include <ddla/trsm.h>
-#include <ddla/transport_block.h>
+#include "trsm.h"
+#include "transport_block.h"
 #include "comm_traits.h"
-#include <ddla/gemm.h>
+#include "gemm.h"
 namespace ddla{
 
 

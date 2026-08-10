@@ -1,4 +1,4 @@
-#include <ddla/scal.h>
+#include "scal.h"
 
 #include <complex>
 #include <stdexcept>

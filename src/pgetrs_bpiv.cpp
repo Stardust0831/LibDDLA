@@ -1,7 +1,7 @@
 #include <ddla/ddla.h>
 #include <cassert>
 #include <vector>
-#include <ddla/swap.h>
+#include "swap.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 

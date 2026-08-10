@@ -1,4 +1,4 @@
-#include <ddla/axpy.h>
+#include "axpy.h"
 
 #include <complex>
 #include <stdexcept>

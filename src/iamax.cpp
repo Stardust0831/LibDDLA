@@ -1,4 +1,4 @@
-#include <ddla/iamax.h>
+#include "iamax.h"
 
 #include <complex>
 #include <stdexcept>

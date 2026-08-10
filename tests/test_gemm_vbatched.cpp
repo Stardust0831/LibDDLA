@@ -1,6 +1,6 @@
-#include <ddla/ddla_connector.h>
+#include "ddla_connector.h"
 #include <ddla/ddla_handle_t.h>
-#include <ddla/gemmVbatched.h>
+#include "gemmVbatched.h"
 
 #include <mpi.h>
 
