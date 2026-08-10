@@ -24,7 +24,7 @@ namespace ddla {
  *
  * Supported T: float, double, std::complex<float>, std::complex<double>.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void random_generate(T* data, const int64_t& lengthOfData);
 
 } // namespace ddla

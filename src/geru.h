@@ -54,7 +54,7 @@ inline deblasStatus_t deblasGeru(deblasHandle_t handle, int m, int n, const std:
  * host loop; GPU specializations consume device pointers and call
  * cuBLAS/hipBLAS via deblasGeru.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
           const T* x, int incx, const T* y, int incy, T* A, int lda);
 

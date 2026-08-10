@@ -82,7 +82,7 @@ inline deblasStatus_t deblasScal(deblasHandle_t handle, int64_t n, const std::co
  * The mixed real-alpha/complex-x variants (csscal/zdscal) are still reached
  * only through the raw deblasScal overloads above.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx);
 
 } // namespace ddla

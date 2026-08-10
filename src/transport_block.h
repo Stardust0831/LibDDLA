@@ -15,7 +15,7 @@ namespace ddla{
 // default_backend_v) exactly like gemm<Backend,T>/pgemm<Backend,T> -- the
 // same bracket-free call sites (ptrtrs.cpp, the API-grid tests) keep working
 // unchanged, resolving Backend from the default in any GPU/dual build.
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void transport_block(
     const char& sData, const char& trans,
     const int& m, const int& n,

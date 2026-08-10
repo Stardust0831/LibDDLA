@@ -402,7 +402,7 @@ inline deblasStatus_t deblasOmatcopy(
  *
  * `rows`/`cols` describe A's shape *before* the transpose in `trans`.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
               const T& alpha, const T* A, int lda, T* B, int ldb);
 
@@ -418,7 +418,7 @@ void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
  * geam kernel, because a pure strided copy is bandwidth-bound and a memcpy
  * beats a scaling kernel for it.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
             const T* src, int src_ld, int rows, int cols);
 

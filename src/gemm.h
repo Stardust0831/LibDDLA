@@ -13,7 +13,7 @@ namespace ddla{
  * interface. CPU specializations consume host pointers; GPU specializations
  * consume device pointers.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void gemm(
     const DdlaHandle_t& handle,
     char transa, char transb,

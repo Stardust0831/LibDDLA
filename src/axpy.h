@@ -54,7 +54,7 @@ inline deblasStatus_t deblasAxpy(deblasHandle_t handle, const int64_t& n, const 
  * host loop; GPU specializations consume device pointers and call
  * cuBLAS/hipBLAS via deblasAxpy. Mirrors ddla::scal's shape.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
           const T* x, int incx, T* y, int incy);
 

@@ -22,7 +22,7 @@ namespace ddla{
 template <typename T>
 void ptran(const T* d_A, const DdlaDesc& descA,
            T* d_AT, const DdlaDesc& descAT,
-           bool conj = false);
+           bool conj);
 
 } // namespace ddla
 

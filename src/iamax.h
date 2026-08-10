@@ -56,7 +56,7 @@ inline deblasStatus_t deblasIamax(deblasHandle_t handle, int n, const std::compl
  * host loop; GPU specializations consume device pointers and call
  * cuBLAS/hipBLAS via deblasIamax.
  */
-template <DdlaBackend Backend = default_backend_v, typename T>
+template <DdlaBackend Backend, typename T>
 void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result);
 
 } // namespace ddla
