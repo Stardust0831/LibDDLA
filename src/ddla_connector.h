@@ -32,7 +32,7 @@
 #include <type_traits>
 #include <stdexcept>
 #include <string>
-#include "ddla_handle_t.h"
+#include <ddla/ddla_handle_t.h>
 
 namespace ddla{
 

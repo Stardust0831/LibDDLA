@@ -1,8 +1,8 @@
 #ifndef TRANSPORT_BLOCK_H
 #define TRANSPORT_BLOCK_H
 
-#include "ddla_desc.h"
-#include "ddla_handle_t.h"   // DdlaBackend, default_backend_v
+#include <ddla/ddla_desc.h>
+#include <ddla/ddla_handle_t.h>   // DdlaBackend, default_backend_v
 #include <complex>
 
 namespace ddla{

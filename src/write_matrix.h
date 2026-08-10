@@ -2,7 +2,7 @@
 #define DDLA_WRITE_MATRIX_H
 
 #include "ddla_connector.h"
-#include "ddla_handle_t.h"
+#include <ddla/ddla_handle_t.h>
 
 namespace ddla {
 
