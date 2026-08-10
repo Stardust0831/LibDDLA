@@ -23,6 +23,8 @@ cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
     -DCMAKE_CUDA_ARCHITECTURES=70 \
     -DCUDAToolkit_ROOT=/opt/devtools/nvidia/hpc_sdk/Linux_x86_64/26.3/cuda/12.9 \
     -DCMAKE_CUDA_COMPILER=/opt/devtools/nvidia/hpc_sdk/Linux_x86_64/26.3/cuda/12.9/bin/nvcc \
+    -DCMAKE_CXX_FLAGS=-I@SOURCE@/include/ddla \
+    -DCMAKE_CUDA_FLAGS=-I@SOURCE@/include/ddla \
     -DDDLA_USE_CUDA=ON \
     -DDDLA_USE_CCL=ON \
     -DBUILD_TESTS=ON \
