@@ -244,7 +244,9 @@ ddlaStatus_t ddlaSetStream(const DdlaHandle_t& handle, void* stream)
         throw std::runtime_error(
             "ddlaSetStream: setting a stream requires a GPU handle");
     }
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
     handle->stream = static_cast<runtimeStream_t>(stream);
+#endif
     // Re-bind the BLAS/solver handles so subsequent calls honor the new
     // stream (mirrors what DdlaStream::init does at creation time).
 #if defined(DDLA_USE_CUDA)
