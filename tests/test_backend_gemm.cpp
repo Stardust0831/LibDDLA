@@ -115,16 +115,16 @@ int check_case(const DdlaHandle_t& handle, char transa, char transb, bool use_de
     T* b = nullptr;
     T* c = nullptr;
     int status = 0;
-    status |= ddlaMalloc(reinterpret_cast<void**>(&a), h_a.size() * sizeof(T), handle);
-    status |= ddlaMalloc(reinterpret_cast<void**>(&b), h_b.size() * sizeof(T), handle);
-    status |= ddlaMalloc(reinterpret_cast<void**>(&c), h_c.size() * sizeof(T), handle);
-    status |= ddlaMemcpy(a, h_a.data(), h_a.size() * sizeof(T),
+    status |= static_cast<int>(ddlaMalloc(reinterpret_cast<void**>(&a), h_a.size() * sizeof(T), handle));
+    status |= static_cast<int>(ddlaMalloc(reinterpret_cast<void**>(&b), h_b.size() * sizeof(T), handle));
+    status |= static_cast<int>(ddlaMalloc(reinterpret_cast<void**>(&c), h_c.size() * sizeof(T), handle));
+    status |= static_cast<int>(ddlaMemcpy(a, h_a.data(), h_a.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddlaMemcpy(b, h_b.data(), h_b.size() * sizeof(T),
+    status |= static_cast<int>(ddlaMemcpy(b, h_b.data(), h_b.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddlaMemcpy(c, h_c.data(), h_c.size() * sizeof(T),
+    status |= static_cast<int>(ddlaMemcpy(c, h_c.data(), h_c.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddlaSynchronize(handle);
+    status |= static_cast<int>(ddlaSynchronize(handle));
     if (status != 0) return 1;
 
     if (use_default) {
@@ -134,13 +134,13 @@ int check_case(const DdlaHandle_t& handle, char transa, char transb, bool use_de
         gemm<Backend>(handle, transa, transb, m, n, k,
                       alpha, a, lda, b, ldb, beta, c, ldc);
     }
-    status |= ddlaSynchronize(handle);
-    status |= ddlaMemcpy(h_c.data(), c, h_c.size() * sizeof(T),
+    status |= static_cast<int>(ddlaSynchronize(handle));
+    status |= static_cast<int>(ddlaMemcpy(h_c.data(), c, h_c.size() * sizeof(T),
                           DdlaMemoryCopyKind::DeviceToHost, handle);
-    status |= ddlaSynchronize(handle);
-    status |= ddlaFree(a, handle);
-    status |= ddlaFree(b, handle);
-    status |= ddlaFree(c, handle);
+    status |= static_cast<int>(ddlaSynchronize(handle));
+    status |= static_cast<int>(ddlaFree(a, handle));
+    status |= static_cast<int>(ddlaFree(b, handle));
+    status |= static_cast<int>(ddlaFree(c, handle));
     if (status != 0) return 1;
 
     double local_error = 0.0;
