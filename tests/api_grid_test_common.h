@@ -264,7 +264,7 @@ inline void check_ddla_malloc(void** ptr, size_t bytes,
 {
     ddlaStatus_t rc = ddlaMalloc(ptr, bytes, handle);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
-        std::cerr << "ddlaMalloc failed (rc=" << rc << ")" << std::endl;
+        std::cerr << "ddlaMalloc failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
     if (bytes > 0 && *ptr == nullptr) {
@@ -278,7 +278,7 @@ inline void check_ddla_free(void* ptr, const ddla::DdlaHandle_t& handle)
     if (ptr == nullptr) return;
     ddlaStatus_t rc = ddlaFree(ptr, handle);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
-        std::cerr << "ddlaFree failed (rc=" << rc << ")" << std::endl;
+        std::cerr << "ddlaFree failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
@@ -289,7 +289,7 @@ inline void check_ddla_memcpy(void* dst, const void* src, size_t bytes,
 {
     ddlaStatus_t rc = ddlaMemcpy(dst, src, bytes, kind, handle);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
-        std::cerr << "ddlaMemcpy failed (rc=" << rc << ")" << std::endl;
+        std::cerr << "ddlaMemcpy failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
@@ -298,7 +298,7 @@ inline void check_ddla_sync(const ddla::DdlaHandle_t& handle)
 {
     ddlaStatus_t rc = ddlaSynchronize(handle);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
-        std::cerr << "ddlaSynchronize failed (rc=" << rc << ")" << std::endl;
+        std::cerr << "ddlaSynchronize failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
     }
 }
