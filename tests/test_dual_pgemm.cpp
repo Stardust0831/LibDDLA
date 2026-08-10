@@ -281,8 +281,8 @@ static int check_k_zero(DdlaHandle_t h_cpu, DdlaHandle_t h_gpu)
     TEST("k=0 GPU malloc B", ddlaMalloc(reinterpret_cast<void**>(&d_B), sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
     TEST("k=0 GPU malloc C", ddlaMalloc(reinterpret_cast<void**>(&d_C),
                                         std::max<std::size_t>(1, szC) * sizeof(T), h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
-    int up = ddlaMemcpy(d_C, h_C_gpu.data(), szC * sizeof(T),
-                         DdlaMemoryCopyKind::HostToDevice, h_gpu);
+    int up = static_cast<int>(ddlaMemcpy(d_C, h_C_gpu.data(), szC * sizeof(T),
+                         DdlaMemoryCopyKind::HostToDevice, h_gpu));
     TEST("k=0 GPU upload C", up == 0);
     TEST("k=0 GPU sync after upload", ddlaSynchronize(h_gpu) == ddlaStatus_t::DDLA_STATUS_SUCCESS);
 
@@ -541,7 +541,7 @@ int main(int argc, char** argv)
         int rc = 0;
         rc |= static_cast<int>(ddlaMemcpy(cpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_cpu));
         rc |= static_cast<int>(ddlaMemcpy(readback, cpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_cpu));
-        TEST("CPU memcpy round-trip", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+        TEST("CPU memcpy round-trip", rc == 0);
         bool cpu_ok = (std::memcmp(pattern, readback, 256) == 0);
         TEST("CPU memory round-trip", cpu_ok);
 
@@ -551,7 +551,7 @@ int main(int argc, char** argv)
         rc |= static_cast<int>(ddlaMemcpy(gpu_ptr, pattern, 256, DdlaMemoryCopyKind::HostToDevice, h_gpu));
         rc |= static_cast<int>(ddlaMemcpy(readback, gpu_ptr, 256, DdlaMemoryCopyKind::DeviceToHost, h_gpu));
         rc |= static_cast<int>(ddlaSynchronize(h_gpu));
-        TEST("GPU memcpy round-trip", rc == ddlaStatus_t::DDLA_STATUS_SUCCESS);
+        TEST("GPU memcpy round-trip", rc == 0);
         bool gpu_ok = (std::memcmp(pattern, readback, 256) == 0);
         TEST("GPU memory round-trip", gpu_ok);
 
