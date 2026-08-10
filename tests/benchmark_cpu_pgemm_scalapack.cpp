@@ -162,8 +162,8 @@ int main(int argc, char** argv)
 
     /* ---- DDLA handle 2x2 row-major grid ----------------------------- */
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle, DdlaBackend::CPU);
-    ddla_set(handle, MPI_COMM_WORLD, 2, 2, 'R');
+    ddlaInit(handle, DdlaBackend::CPU);
+    ddlaSet(handle, MPI_COMM_WORLD, 2, 2, 'R');
 
     /* ---- BLACS grid 2x2 row-major ------------------------------------ */
     int ictxt;
@@ -176,8 +176,8 @@ int main(int argc, char** argv)
 
     /* verify coordinates match */
     int ddla_nprows = 0, ddla_npcols = 0, ddla_myrow = 0, ddla_mycol = 0;
-    ddla_get_grid_dims(handle, ddla_nprows, ddla_npcols);
-    ddla_get_grid_coords(handle, ddla_myrow, ddla_mycol);
+    ddlaGetGridDims(handle, ddla_nprows, ddla_npcols);
+    ddlaGetGridCoords(handle, ddla_myrow, ddla_mycol);
     int grid_mismatch =
         ddla_nprows != blacs_nprow || ddla_npcols != blacs_npcol ||
         ddla_myrow != blacs_myrow || ddla_mycol != blacs_mycol;
@@ -188,7 +188,7 @@ int main(int argc, char** argv)
                   << ddla_myrow << "," << ddla_mycol << ") vs BLACS("
                   << blacs_myrow << "," << blacs_mycol << ")\n";
         Cblacs_gridexit(ictxt);
-        ddla_destroy(handle);
+        ddlaDestroy(handle);
         MPI_Finalize();
         return 1;
     }
@@ -479,7 +479,7 @@ int main(int argc, char** argv)
     }
 
     Cblacs_gridexit(ictxt);
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     MPI_Finalize();
     return exit_status;
 }

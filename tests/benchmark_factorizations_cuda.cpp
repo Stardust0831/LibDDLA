@@ -841,8 +841,8 @@ int main(int argc, char** argv)
     }
 
     ddla::DdlaHandle_t handle = nullptr;
-    ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD, kProcessRows, kProcessCols, 'R');
+    ddla::ddlaInit(handle);
+    ddla::ddlaSet(handle, MPI_COMM_WORLD, kProcessRows, kProcessCols, 'R');
 
     MPI_Comm cal_mpi_comm = MPI_COMM_WORLD;
     cal_comm_create_params_t cal_params{};
@@ -888,7 +888,7 @@ int main(int argc, char** argv)
     BENCH_CUSOLVERMP_CHECK(cusolverMpDestroy(vendor_context.handle));
     BENCH_CAL_CHECK(cal_comm_destroy(vendor_context.cal_comm));
 
-    ddla::ddla_destroy(handle);
+    ddla::ddlaDestroy(handle);
     BENCH_MPI_CHECK(MPI_Finalize());
     return EXIT_SUCCESS;
 }

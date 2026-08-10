@@ -130,7 +130,7 @@ void check_ptrtrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape& base)
     const int n = square_size(handle, base);
     const int nrhs = nrhs_size(base, 4);
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int P = padded_size(n, nb, nprows, npcols);
 
     for(char side : {'L', 'R'}){
@@ -218,7 +218,7 @@ void check_pgetrf_pgetrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape
     const int n = square_size(handle, base);
     const int nrhs = nrhs_size(base);
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int P = padded_size(n, nb, nprows, npcols);
 
     // --- pgetrf: A in-place LU factors ---
@@ -239,7 +239,7 @@ void check_pgetrf_pgetrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape
             std::vector<int> ipiv(descA_ex.m_loc());
             int info = -1;
             ddla::pgetrf(n, n, d_A.ptr, descA_ex, ipiv.data(), info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             exact_out = download(handle, d_A.ptr, h_A.size());
         }
         {
@@ -250,7 +250,7 @@ void check_pgetrf_pgetrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape
             std::vector<int> ipiv(descA_p.m_loc());
             int info = -1;
             ddla::pgetrf(n, n, d_A.ptr, descA_p, ipiv.data(), info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             auto out = download(handle, d_A.ptr, h_A.size());
             check_leading_block(handle, name, descA_ex, descA_p,
                                 exact_out, out, n, n, 1e-10);
@@ -291,7 +291,7 @@ void check_pgetrf_pgetrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape
             std::vector<int> ipiv(descA_ex.m_loc());
             int info = -1;
             ddla::pgetrf(n, n, d_A.ptr, descA_ex, ipiv.data(), info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             ddla::pgetrs(side, 'N', n, nrhs, d_A.ptr, descA_ex, ipiv.data(), d_B.ptr, descB_ex);
             exact_out = download(handle, d_B.ptr, h_B.size());
         }
@@ -306,7 +306,7 @@ void check_pgetrf_pgetrs_submatrix(const ddla::DdlaHandle_t& handle, const Shape
             std::vector<int> ipiv(descA_p.m_loc());
             int info = -1;
             ddla::pgetrf(n, n, d_A.ptr, descA_p, ipiv.data(), info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             ddla::pgetrs(side, 'N', n, nrhs, d_A.ptr, descA_p, ipiv.data(), d_B.ptr, descB_p);
             auto out = download(handle, d_B.ptr, h_B.size());
             check_leading_block(handle, name, descB_ex, descB_p,
@@ -325,7 +325,7 @@ void check_ppotrf_pposv_submatrix(const ddla::DdlaHandle_t& handle, const Shape&
     const int n = square_size(handle, base);
     const int nrhs = nrhs_size(base);
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int P = padded_size(n, nb, nprows, npcols);
 
     // --- ppotrf ---
@@ -344,7 +344,7 @@ void check_ppotrf_pposv_submatrix(const ddla::DdlaHandle_t& handle, const Shape&
             check_ddla_sync(handle);
             int info = -1;
             ddla::ppotrf('L', n, d_A.ptr, 1, 1, descA_ex, info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             exact_out = download(handle, d_A.ptr, h_A.size());
         }
         {
@@ -354,7 +354,7 @@ void check_ppotrf_pposv_submatrix(const ddla::DdlaHandle_t& handle, const Shape&
             check_ddla_sync(handle);
             int info = -1;
             ddla::ppotrf('L', n, d_A.ptr, 1, 1, descA_p, info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             auto out = download(handle, d_A.ptr, h_A.size());
             check_leading_block(handle, name, descA_ex, descA_p,
                                 exact_out, out, n, n, 1e-9);
@@ -384,7 +384,7 @@ void check_ppotrf_pposv_submatrix(const ddla::DdlaHandle_t& handle, const Shape&
             int info = -1;
             ddla::pposv('L', 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA_ex,
                         d_B.ptr, 1, 1, descB_ex, info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             exact_out = download(handle, d_B.ptr, B.size());
         }
         {
@@ -403,7 +403,7 @@ void check_ppotrf_pposv_submatrix(const ddla::DdlaHandle_t& handle, const Shape&
             int info = -1;
             ddla::pposv('L', 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA_p,
                         d_B.ptr, 1, 1, descB_p, info);
-            if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+            if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
             auto out = download(handle, d_B.ptr, h_B.size());
             check_leading_block(handle, name, descB_ex, descB_p,
                                 exact_out, out, n, nrhs, 5e-9);
@@ -420,7 +420,7 @@ void check_ppotrf_br_submatrix(const ddla::DdlaHandle_t& handle, const Shape& ba
     const int nb = base.nb;
     const int n = square_size(handle, base);
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int P = padded_size(n, nb, nprows, npcols);
 
     const std::string name = "ppotrf_bottom_right-sub";
@@ -438,7 +438,7 @@ void check_ppotrf_br_submatrix(const ddla::DdlaHandle_t& handle, const Shape& ba
         check_ddla_sync(handle);
         int info = -1;
         ddla::ppotrf_bottom_right('U', n, d_A.ptr, descA_ex, info);
-        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
         exact_out = download(handle, d_A.ptr, h_A.size());
     }
     {
@@ -448,7 +448,7 @@ void check_ppotrf_br_submatrix(const ddla::DdlaHandle_t& handle, const Shape& ba
         check_ddla_sync(handle);
         int info = -1;
         ddla::ppotrf_bottom_right('U', n, d_A.ptr, descA_p, info);
-        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
         auto out = download(handle, d_A.ptr, h_A.size());
         check_leading_block(handle, name, descA_ex, descA_p,
                             exact_out, out, n, n, 1e-9);
@@ -462,7 +462,7 @@ void check_plapiv_submatrix(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int m = round_up_for_grid(base.m, nb, std::max(nprows, npcols));
     const int P = padded_size(m, nb, nprows, npcols);
 
@@ -521,7 +521,7 @@ void check_pdam_submatrix(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int P = padded_size(base.m, nb, nprows, npcols);
     const int n = base.m;
 

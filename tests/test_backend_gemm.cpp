@@ -115,16 +115,16 @@ int check_case(const DdlaHandle_t& handle, char transa, char transb, bool use_de
     T* b = nullptr;
     T* c = nullptr;
     int status = 0;
-    status |= ddla_malloc(reinterpret_cast<void**>(&a), h_a.size() * sizeof(T), handle);
-    status |= ddla_malloc(reinterpret_cast<void**>(&b), h_b.size() * sizeof(T), handle);
-    status |= ddla_malloc(reinterpret_cast<void**>(&c), h_c.size() * sizeof(T), handle);
-    status |= ddla_memcpy(a, h_a.data(), h_a.size() * sizeof(T),
+    status |= ddlaMalloc(reinterpret_cast<void**>(&a), h_a.size() * sizeof(T), handle);
+    status |= ddlaMalloc(reinterpret_cast<void**>(&b), h_b.size() * sizeof(T), handle);
+    status |= ddlaMalloc(reinterpret_cast<void**>(&c), h_c.size() * sizeof(T), handle);
+    status |= ddlaMemcpy(a, h_a.data(), h_a.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddla_memcpy(b, h_b.data(), h_b.size() * sizeof(T),
+    status |= ddlaMemcpy(b, h_b.data(), h_b.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddla_memcpy(c, h_c.data(), h_c.size() * sizeof(T),
+    status |= ddlaMemcpy(c, h_c.data(), h_c.size() * sizeof(T),
                           DdlaMemoryCopyKind::HostToDevice, handle);
-    status |= ddla_synchronize(handle);
+    status |= ddlaSynchronize(handle);
     if (status != 0) return 1;
 
     if (use_default) {
@@ -134,13 +134,13 @@ int check_case(const DdlaHandle_t& handle, char transa, char transb, bool use_de
         gemm<Backend>(handle, transa, transb, m, n, k,
                       alpha, a, lda, b, ldb, beta, c, ldc);
     }
-    status |= ddla_synchronize(handle);
-    status |= ddla_memcpy(h_c.data(), c, h_c.size() * sizeof(T),
+    status |= ddlaSynchronize(handle);
+    status |= ddlaMemcpy(h_c.data(), c, h_c.size() * sizeof(T),
                           DdlaMemoryCopyKind::DeviceToHost, handle);
-    status |= ddla_synchronize(handle);
-    status |= ddla_free(a, handle);
-    status |= ddla_free(b, handle);
-    status |= ddla_free(c, handle);
+    status |= ddlaSynchronize(handle);
+    status |= ddlaFree(a, handle);
+    status |= ddlaFree(b, handle);
+    status |= ddlaFree(c, handle);
     if (status != 0) return 1;
 
     double local_error = 0.0;
@@ -175,14 +175,14 @@ template <DdlaBackend Backend>
 int run_backend()
 {
     DdlaHandle_t handle = nullptr;
-    ddla_init(handle, Backend);
-    ddla_set(handle, MPI_COMM_WORLD);
+    ddlaInit(handle, Backend);
+    ddlaSet(handle, MPI_COMM_WORLD);
     int failures = 0;
     failures += run_type<Backend, float>(handle);
     failures += run_type<Backend, double>(handle);
     failures += run_type<Backend, std::complex<float>>(handle);
     failures += run_type<Backend, std::complex<double>>(handle);
-    ddla_destroy(handle);
+    ddlaDestroy(handle);
     return failures;
 }
 
@@ -191,10 +191,10 @@ int check_backend_mismatch()
 {
     DdlaHandle_t cpu = nullptr;
     DdlaHandle_t gpu = nullptr;
-    ddla_init(cpu, DdlaBackend::CPU);
-    ddla_init(gpu, DdlaBackend::GPU);
-    ddla_set(cpu, MPI_COMM_WORLD);
-    ddla_set(gpu, MPI_COMM_WORLD);
+    ddlaInit(cpu, DdlaBackend::CPU);
+    ddlaInit(gpu, DdlaBackend::GPU);
+    ddlaSet(cpu, MPI_COMM_WORLD);
+    ddlaSet(gpu, MPI_COMM_WORLD);
     float data = 1.0f;
     bool cpu_rejected_gpu = false;
     bool gpu_rejected_cpu = false;
@@ -210,8 +210,8 @@ int check_backend_mismatch()
     } catch (const std::runtime_error& e) {
         gpu_rejected_cpu = std::string(e.what()).find("does not match") != std::string::npos;
     }
-    ddla_destroy(cpu);
-    ddla_destroy(gpu);
+    ddlaDestroy(cpu);
+    ddlaDestroy(gpu);
     return cpu_rejected_gpu && gpu_rejected_cpu ? 0 : 1;
 }
 #endif

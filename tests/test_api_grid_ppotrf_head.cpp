@@ -83,7 +83,7 @@ void check_head_case(const ddla::DdlaHandle_t& handle, int n, int nrhs, int nb,
 
     int info = -1;
     const bool is_nega = ddla::ppotrf('L', n, d_A.ptr, 1, 1, descA, info, true, location);
-    if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+    if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
     // The construction is diagonally dominant everywhere except at
     // head_idx, so the head correction must fire for this test to be
     // meaningful; if this ever flips to false, head_value's diagonal

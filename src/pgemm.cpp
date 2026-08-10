@@ -56,7 +56,7 @@ void pgemm(
         throw std::runtime_error("pgemm: uninitialized descriptor");
     }
 
-    const DdlaBackend actual_backend = ddla_get_backend(h);
+    const DdlaBackend actual_backend = ddlaGetBackend(h);
     if (actual_backend != Backend) {
         throw std::runtime_error(
             std::string("pgemm: template backend ") + pgemm_backend_name(Backend) +

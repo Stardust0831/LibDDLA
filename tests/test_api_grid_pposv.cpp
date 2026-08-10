@@ -33,7 +33,7 @@ void check_pposv(const ddla::DdlaHandle_t& handle, const Shape& base)
         int info = -1;
         ddla::pposv(side, 'L', trans, n, nrhs, d_A.ptr, 1, 1, descA,
                     d_B.ptr, 1, 1, descB, info);
-        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
         check_solution(handle, descB, d_B.ptr, h_B.size(), name, 5e-9);
     };
 
@@ -119,7 +119,7 @@ void check_pposv_head(const ddla::DdlaHandle_t& handle, const Shape& base)
         int info = -1;
         ddla::pposv(side, 'L', 'N', n, nrhs, d_A.ptr, 1, 1, descA,
                     d_B.ptr, 1, 1, descB, info, true, head_idx_1based);
-        if(info != 0) MPI_Abort(ddla_get_communicator(handle), 1);
+        if(info != 0) MPI_Abort(ddlaGetCommunicator(handle), 1);
         check_solution(handle, descB, d_B.ptr, h_B.size(), name, 5e-9);
     };
 

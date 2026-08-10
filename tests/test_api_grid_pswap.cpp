@@ -6,7 +6,7 @@ void check_pswap(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     const int m = round_up_for_grid(base.m, nb, nprows);
     const int n = round_up_for_grid(base.n, nb, npcols);
     ddla::DdlaDesc desc(handle);

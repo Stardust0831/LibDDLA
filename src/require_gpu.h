@@ -3,7 +3,7 @@
 
 // ---------------------------------------------------------------------------
 // Internal helper: reject CPU handles for accelerator-only routines.
-// Uses the public backend query (ddla_get_backend), not private handle layout.
+// Uses the public backend query (ddlaGetBackend), not private handle layout.
 // ---------------------------------------------------------------------------
 
 #include <stdexcept>
@@ -18,7 +18,7 @@ inline void require_gpu_backend(const DdlaHandle_t& handle, const char* routine_
     if (handle == nullptr) {
         throw std::runtime_error(std::string(routine_name) + ": null handle");
     }
-    DdlaBackend backend = ddla_get_backend(handle);
+    DdlaBackend backend = ddlaGetBackend(handle);
     if (backend == DdlaBackend::CPU) {
         throw std::runtime_error(
             std::string(routine_name) + " is not supported on CPU backend handles");

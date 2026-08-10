@@ -66,7 +66,7 @@ int main(int argc, char** argv)
 
     if(is_active){
         ddla::DdlaHandle_t handle = nullptr;
-        ddla::ddla_init(handle);
+        ddla::ddlaInit(handle);
 
         int device_count = 0;
         RUNTIME_CHECK(runtimeGetDeviceCount(&device_count));
@@ -74,7 +74,7 @@ int main(int argc, char** argv)
             MPI_Abort(MPI_COMM_WORLD, 1);
         }
         handle->set_local_device(local_rank % device_count);
-        ddla::ddla_set(handle, role_comm, 1, active_size);
+        ddla::ddlaSet(handle, role_comm, 1, active_size);
 
         run_factorization_case(handle, "subcomm pgetrf",
             [](Complex* d_A, const ddla::DdlaDesc& descA, int& info){
@@ -95,7 +95,7 @@ int main(int argc, char** argv)
             });
 
         check_ddla_sync(handle);
-        ddla::ddla_destroy(handle);
+        ddla::ddlaDestroy(handle);
 
         if(world_rank == 0){
             completion = 1;

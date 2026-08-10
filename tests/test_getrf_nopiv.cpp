@@ -112,8 +112,8 @@ int main(int argc, char* argv[])
     MPI_Init(&argc, &argv);
 
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle, MPI_COMM_WORLD);
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle, MPI_COMM_WORLD);
     check_getrf_nopiv(100, ddla_handle);
     std::cout << "Testing getrf_nopiv against cuSOLVER/hipSOLVER LU" << std::endl;
 
@@ -124,7 +124,7 @@ int main(int argc, char* argv[])
         check_getrf_nopiv(n, ddla_handle);
     }
 
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

@@ -264,8 +264,8 @@ int main(int argc, char* argv[]) {
     MPI_Init(&argc, &argv);
     printf("before stream init\n");
     DdlaHandle_t ddla_handle = nullptr;
-    ddla_init(ddla_handle);
-    ddla_set(ddla_handle, MPI_COMM_WORLD, 'R');
+    ddlaInit(ddla_handle);
+    ddlaSet(ddla_handle, MPI_COMM_WORLD, 'R');
     // RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
     printf("after stream init\n");
     check_ppotrf(5000, ddla_handle);
@@ -275,7 +275,7 @@ int main(int argc, char* argv[]) {
         printf("testing matrix size: %d\n",i);
         check_ppotrf(i,ddla_handle);
     }
-    ddla_destroy(ddla_handle);
+    ddlaDestroy(ddla_handle);
     MPI_Finalize();
     return 0;
 }

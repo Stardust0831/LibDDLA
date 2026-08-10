@@ -162,7 +162,7 @@ void check_plapiv(const ddla::DdlaHandle_t& handle, const Shape& base)
 {
     const int nb = base.nb;
     int nprows = 0, npcols = 0;
-    ddla_get_grid_dims(handle, nprows, npcols);
+    ddlaGetGridDims(handle, nprows, npcols);
     // Use a square matrix so the pivot count m equals both the number of rows
     // and columns: the pivot vector (distributed by rows of the descriptor)
     // has one entry per pivot in both the 'R' and 'C' cases.

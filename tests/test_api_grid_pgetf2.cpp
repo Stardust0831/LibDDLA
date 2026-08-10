@@ -57,7 +57,7 @@ void run_case(const ddla::DdlaHandle_t& handle, const ddla::DdlaDesc& desc,
     require_close(handle, label + " info", std::abs(info - expected_info), 0.0);
     if(expected_pivot >= 0){
         int myprow = 0, mypcol_unused = 0;
-        ddla_get_grid_coords(handle, myprow, mypcol_unused);
+        ddlaGetGridCoords(handle, myprow, mypcol_unused);
         const double pivot_error = myprow == 0
                                  ? std::abs(ipiv[0] - expected_pivot) : 0.0;
         require_close(handle, label + " pivot", pivot_error, 0.0);
@@ -69,7 +69,7 @@ void check_scalar_type(const ddla::DdlaHandle_t& handle,
                        const ddla::DdlaDesc& desc, int n, int nb)
 {
     int nprows = 0, npcols_unused = 0;
-    ddla_get_grid_dims(handle, nprows, npcols_unused);
+    ddlaGetGridDims(handle, nprows, npcols_unused);
 
     run_case<T>(handle, desc, "normal", std::min(nb, n), [=](int i, int j){
         if(i == j){

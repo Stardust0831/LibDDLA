@@ -264,8 +264,8 @@ void check_failure_case(const ddla::DdlaHandle_t& handle, char uplo, int n, int 
 
     int info_min = 0;
     int info_max = 0;
-    MPI_Allreduce(&info, &info_min, 1, MPI_INT, MPI_MIN, ddla_get_communicator(handle));
-    MPI_Allreduce(&info, &info_max, 1, MPI_INT, MPI_MAX, ddla_get_communicator(handle));
+    MPI_Allreduce(&info, &info_min, 1, MPI_INT, MPI_MIN, ddlaGetCommunicator(handle));
+    MPI_Allreduce(&info, &info_max, 1, MPI_INT, MPI_MAX, ddlaGetCommunicator(handle));
     const int expected_info = failed_pivot + 1;
     double info_error = static_cast<double>(std::abs(info - expected_info));
     info_error = std::max(info_error, static_cast<double>(info_max - info_min));
@@ -323,14 +323,14 @@ void check_zero_local_blocks(const ddla::DdlaHandle_t& handle, int nb,
                              int irsrc, int icsrc)
 {
     int nprows = 0, npcols_unused = 0;
-    ddla_get_grid_dims(handle, nprows, npcols_unused);
+    ddlaGetGridDims(handle, nprows, npcols_unused);
     if(nprows == 1) return;
 
     ddla::DdlaDesc desc(handle);
     desc.init(nb - 1, nb - 1, nb, nb, irsrc, icsrc);
     const int local_has_zero = desc.m_loc() == 0 || desc.n_loc() == 0 ? 1 : 0;
     int zero_ranks = 0;
-    MPI_Allreduce(&local_has_zero, &zero_ranks, 1, MPI_INT, MPI_SUM, ddla_get_communicator(handle));
+    MPI_Allreduce(&local_has_zero, &zero_ranks, 1, MPI_INT, MPI_SUM, ddlaGetCommunicator(handle));
     require_close(handle, "ppotrf_bottom_right zero-local-block coverage",
                   zero_ranks > 0 ? 0.0 : 1.0, 0.0);
 }
@@ -448,8 +448,8 @@ int main(int argc, char** argv)
     }
 
     ddla::DdlaHandle_t handle = nullptr;
-    ddla::ddla_init(handle);
-    ddla::ddla_set(handle, MPI_COMM_WORLD, grid_dim, grid_dim);
+    ddla::ddlaInit(handle);
+    ddla::ddlaSet(handle, MPI_COMM_WORLD, grid_dim, grid_dim);
 
     constexpr int nb = 16;
     const bool use_quick_sizes = options.quick || grid_dim == 3;
@@ -476,7 +476,7 @@ int main(int argc, char** argv)
     run_type_cases<std::complex<double>>(handle, sizes, nb, sources);
 
     check_ddla_sync(handle);
-    ddla::ddla_destroy(handle);
+    ddla::ddlaDestroy(handle);
 
     if(rank == 0){
         std::cout << "test_api_grid_ppotrf_bottom_right passed" << std::endl;
