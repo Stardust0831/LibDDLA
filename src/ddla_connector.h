@@ -137,7 +137,7 @@ struct RuntimeTraits<DdlaBackend::GPU> {
 // ---------------------------------------------------------------------------
 #ifndef DDLA_DEBLAS_TYPES_DEFINED
 #define DDLA_DEBLAS_TYPES_DEFINED
-#ifdef DDLA_USE_CUDA
+#if defined(DDLA_USE_CUDA) || defined(DDLA_VENDOR_CUDA)
 using deblasStatus_t = cublasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::CUBLAS_STATUS_SUCCESS;
 using deblasHandle_t = cublasHandle_t;
@@ -170,7 +170,7 @@ constexpr auto DEBLAS_OP_T = deblasOperation_t::CUBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
 
 #endif
-#ifdef DDLA_USE_HIP
+#if defined(DDLA_USE_HIP) || defined(DDLA_VENDOR_HIP)
 using deblasStatus_t = hipblasStatus_t;
 constexpr auto DEBLAS_STATUS_SUCCESS = deblasStatus_t::HIPBLAS_STATUS_SUCCESS;
 using deblasHandle_t = hipblasHandle_t;
@@ -202,7 +202,7 @@ constexpr auto DEBLAS_OP_N = deblasOperation_t::HIPBLAS_OP_N;
 constexpr auto DEBLAS_OP_T = deblasOperation_t::HIPBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::HIPBLAS_OP_C;
 #endif
-#ifdef DDLA_USE_CPU
+#if defined(DDLA_USE_CPU) || defined(DDLA_VENDOR_CPU)
 using deblasStatus_t = int;
 constexpr auto DEBLAS_STATUS_SUCCESS = 0;
 using deblasHandle_t = void*;

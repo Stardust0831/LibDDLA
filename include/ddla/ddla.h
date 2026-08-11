@@ -19,7 +19,7 @@
 // aliases resolve to the same vendor types either way).
 #ifndef DDLA_DEBLAS_TYPES_DEFINED
 #define DDLA_DEBLAS_TYPES_DEFINED
-#ifdef DDLA_USE_CUDA
+#if defined(DDLA_USE_CUDA) || defined(DDLA_VENDOR_CUDA)
 #include <cublas_v2.h>
 #include <cusolverDn.h>
 #include <curand.h>
@@ -53,7 +53,7 @@ using deblasOperation_t = cublasOperation_t;
 constexpr auto DEBLAS_OP_N = deblasOperation_t::CUBLAS_OP_N;
 constexpr auto DEBLAS_OP_T = deblasOperation_t::CUBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::CUBLAS_OP_C;
-#elif defined(DDLA_USE_HIP)
+#elif defined(DDLA_USE_HIP) || defined(DDLA_VENDOR_HIP)
 #include <hipblas/hipblas.h>
 #include <hipsolver/hipsolver.h>
 #include <hiprand/hiprand.h>
@@ -87,7 +87,7 @@ using deblasOperation_t = hipblasOperation_t;
 constexpr auto DEBLAS_OP_N = deblasOperation_t::HIPBLAS_OP_N;
 constexpr auto DEBLAS_OP_T = deblasOperation_t::HIPBLAS_OP_T;
 constexpr auto DEBLAS_OP_C = deblasOperation_t::HIPBLAS_OP_C;
-#elif defined(DDLA_USE_CPU)
+#elif defined(DDLA_USE_CPU) || defined(DDLA_VENDOR_CPU)
 using deblasStatus_t = int;
 constexpr auto DEBLAS_STATUS_SUCCESS = 0;
 using deblasHandle_t = void*;
