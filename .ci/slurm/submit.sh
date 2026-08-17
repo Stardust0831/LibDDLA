@@ -32,7 +32,6 @@ values = {
     "@RESULTS@": sys.argv[13], "@MAPPING_ROOT@": sys.argv[14],
     "@DISABLE_NCCL_IB@": sys.argv[15], "@BUILD_JOB@": sys.argv[16],
     "@CONTAINER_IMAGE@": sys.argv[17], "@MPI_ROOT@": sys.argv[18],
-    "@CONTAINER_URI@": sys.argv[19],
 }
 for key, value in values.items():
     template = template.replace(key, value)
@@ -48,9 +47,8 @@ test_qos=$(cfg test qos)
 test_time=$(cfg test time)
 mapping_root=$(cfg cluster mapping_root)
 disable_nccl_ib=$(cfg cluster disable_nccl_ib)
-container_uri=$(cfg container image_uri)
+container_image=$(cfg container rootfs)
 mpi_root=$(cfg container mpi_root)
-container_image=$run_root/container/libddla-base.sif
 home_dir=$(getent passwd "$USER" | cut -d: -f6)
 
 build_script=$control/build.sbatch
@@ -58,7 +56,7 @@ render "$control/build.sbatch.in" "$build_script" \
     "$build_partition" "$build_qos" "$build_time" "$test_partition" \
     "$test_qos" "$test_time" "$home_dir" "$control" "$source_dir" \
     "$build" "$results" "$mapping_root" "$disable_nccl_ib" "0" \
-    "$container_image" "$mpi_root" "$container_uri"
+    "$container_image" "$mpi_root"
 chmod 700 "$build_script"
 build_job=$(sbatch --parsable "$build_script")
 echo "build_job=$build_job" | tee "$results/jobs.txt"
@@ -84,7 +82,7 @@ render "$control/test.sbatch.in" "$test_script" \
     "$build_partition" "$build_qos" "$build_time" "$test_partition" \
     "$test_qos" "$test_time" "$home_dir" "$control" "$source_dir" \
     "$build" "$results" "$mapping_root" "$disable_nccl_ib" "$build_job" \
-    "$container_image" "$mpi_root" "$container_uri"
+    "$container_image" "$mpi_root"
 chmod 700 "$test_script"
 test_job=$(sbatch --parsable "$test_script")
 echo "test_job=$test_job" | tee -a "$results/jobs.txt"

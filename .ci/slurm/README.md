@@ -36,11 +36,20 @@ The `results/` directory contains `result.json`, `summary.md`, `ctest.xml`,
 `ctest.log`, build logs, tool/module records, GPU details, and Slurm output.
 The workflow downloads this directory even when tests fail.
 
-The build job downloads the configured, pinned OCI image into the run directory
-with Apptainer; build and test then use that immutable local SIF. The image is
-only a base userland: CMake, CUDA, and MPI tools come from the host `/opt` bind.
-The host supplies the NVIDIA driver through `--nv`; `/opt`, the
+The build and test jobs use the locally maintained tiny rootfs in `config.ini`.
+It only contains a shell and loader; CMake, CUDA, and MPI tools come from the
+host `/opt` bind. The host supplies the NVIDIA driver through `--nv`; `/opt`,
+`/usr`, `/lib`, and `/lib64` are explicitly bind-mounted read-only,
 MPI installation, source, control, and mapping directories are explicitly
 bind-mounted read-only, while only build and results are writable. The image
 is never taken from the checked-out source, and `--containall --cleanenv`
 prevents implicit host-home, temporary-directory, and environment access.
+
+Create or refresh the rootfs once as the remote workflow user:
+
+```bash
+.ci/slurm/create-rootfs.sh ~/libddla_gpu_ci/rootfs
+```
+
+The generated sandbox is about 2 MB on the current SAI login image. It is not
+downloaded from a registry and contains no compiler, MPI, or CUDA installation.

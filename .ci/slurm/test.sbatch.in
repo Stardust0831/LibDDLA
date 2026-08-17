@@ -23,7 +23,7 @@ CI_SYSTEM_MPIRUN=$(command -v mpirun)
 export CI_SYSTEM_MPIRUN
 export CI_CONTAINER_IMAGE=@CONTAINER_IMAGE@
 export CI_MPI_ROOT=@MPI_ROOT@
-container=(apptainer exec --nv --containall --cleanenv --bind /opt:/opt:ro --bind @MPI_ROOT@:@MPI_ROOT@:ro --bind @SOURCE@:@SOURCE@:ro --bind @BUILD@:@BUILD@ --bind @RESULTS@:@RESULTS@ --bind @CONTROL@:@CONTROL@:ro --bind @MAPPING_ROOT@:@MAPPING_ROOT@:ro --env "PATH=$PATH" --env "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" --env "CI_SYSTEM_MPIRUN=$CI_SYSTEM_MPIRUN" --env "MAP_OPT=$MAP_OPT" --env "SLURM_EXPORT_ENV=$SLURM_EXPORT_ENV" --env "OMPI_MCA_plm_slurm_args=$OMPI_MCA_plm_slurm_args" --env "PRTE_MCA_plm_slurm_args=$PRTE_MCA_plm_slurm_args" "$CI_CONTAINER_IMAGE")
+container=(apptainer exec --nv --containall --cleanenv --bind /opt:/opt:ro --bind /usr:/usr:ro --bind /lib:/lib:ro --bind /lib64:/lib64:ro --bind @MPI_ROOT@:@MPI_ROOT@:ro --bind @SOURCE@:@SOURCE@:ro --bind @BUILD@:@BUILD@ --bind @RESULTS@:@RESULTS@ --bind @CONTROL@:@CONTROL@:ro --bind @MAPPING_ROOT@:@MAPPING_ROOT@:ro --env "PATH=$PATH" --env "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" --env "CI_SYSTEM_MPIRUN=$CI_SYSTEM_MPIRUN" --env "MAP_OPT=$MAP_OPT" --env "SLURM_EXPORT_ENV=$SLURM_EXPORT_ENV" --env "OMPI_MCA_plm_slurm_args=$OMPI_MCA_plm_slurm_args" --env "PRTE_MCA_plm_slurm_args=$PRTE_MCA_plm_slurm_args" "$CI_CONTAINER_IMAGE")
 export MAP_OPT
 export SLURM_EXPORT_ENV=ALL
 export OMPI_MCA_plm_slurm_args=--external-launcher

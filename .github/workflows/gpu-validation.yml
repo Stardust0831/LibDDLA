@@ -27,8 +27,8 @@ jobs:
     env:
       REMOTE_HOST: c0.sai.ai-4s.com
       REMOTE_PORT: "12022"
-      REMOTE_USER: testuser01
-      REMOTE_ROOT: /home/testuser01/libddla_gpu_ci
+      REMOTE_USER: abacususer01
+      REMOTE_ROOT: /home/abacus-group/abacususer01/libddla_gpu_ci
     steps:
       - name: Checkout requested commit
         uses: actions/checkout@v4
@@ -89,7 +89,7 @@ jobs:
             trusted-control/.ci/slurm/known_hosts \
             trusted-control/.ci/slurm/build.sbatch.in trusted-control/.ci/slurm/test.sbatch.in \
             trusted-control/.ci/slurm/mpirun_with_mapping.sh trusted-control/.ci/slurm/report.py \
-            trusted-control/.ci/slurm/submit.sh \
+            trusted-control/.ci/slurm/create-rootfs.sh trusted-control/.ci/slurm/submit.sh \
             "gpu-ci:$run_root/control/"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci \
             "chmod 700 '$run_root/control/'*.sh; '$run_root/control/submit.sh' '$run_root'"
