@@ -25,10 +25,10 @@ jobs:
     environment:
       name: ${{ github.event_name == 'schedule' && 'gpu-ci-scheduled' || 'gpu-ci-manual' }}
     env:
-      REMOTE_HOST: c0.sai.ai-4s.com
-      REMOTE_PORT: "12022"
-      REMOTE_USER: abacususer01
-      REMOTE_ROOT: /home/abacus-group/abacususer01/libddla_gpu_ci
+      REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+      REMOTE_PORT: ${{ secrets.REMOTE_PORT }}
+      REMOTE_USER: ${{ secrets.REMOTE_USER }}
+      REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
     steps:
       - name: Checkout requested commit
         uses: actions/checkout@v4

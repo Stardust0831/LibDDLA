@@ -50,6 +50,10 @@ disable_nccl_ib=$(cfg cluster disable_nccl_ib)
 container_image=$(cfg container rootfs)
 mpi_root=$(cfg container mpi_root)
 home_dir=$(getent passwd "$USER" | cut -d: -f6)
+container_image=$(cfg container rootfs)
+if [[ "$container_image" == '~/'* ]]; then
+    container_image="$home_dir/${container_image#~/}"
+fi
 
 build_script=$control/build.sbatch
 render "$control/build.sbatch.in" "$build_script" \
