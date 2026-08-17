@@ -15,10 +15,14 @@ export USER=${SLURM_JOB_USER:?}
 export LOGNAME=$USER
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 source @CONTROL@/modules.sh
+export CI_CONTAINER_IMAGE=@CONTAINER_IMAGE@
+export CI_MPI_ROOT=@MPI_ROOT@
+container=(apptainer exec --nv --containall --cleanenv --bind /opt:/opt:ro --bind @MPI_ROOT@:@MPI_ROOT@:ro --bind @SOURCE@:@SOURCE@:ro --bind @BUILD@:@BUILD@ --bind @RESULTS@:@RESULTS@ --bind @CONTROL@:@CONTROL@:ro --env "PATH=$PATH" --env "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}" "$CI_CONTAINER_IMAGE")
 module -t list 2>&1 | tee @RESULTS@/modules-build.txt
-command -v cmake make mpicxx nvcc | tee @RESULTS@/tools-build.txt
+command -v apptainer | tee @RESULTS@/tools-build.txt
+"${container[@]}" bash -lc 'command -v cmake make mpicxx nvcc' | tee -a @RESULTS@/tools-build.txt
 
-cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
+"${container[@]}" cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
     -DCMAKE_CUDA_ARCHITECTURES=70 \
     -DCUDAToolkit_ROOT=/opt/devtools/nvidia/hpc_sdk/Linux_x86_64/26.3/cuda/12.9 \
@@ -30,5 +34,5 @@ cmake -S @SOURCE@ -B @BUILD@ -G "Unix Makefiles" \
     -DMPIEXEC_EXECUTABLE=@CONTROL@/mpirun_with_mapping.sh \
     -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     2>&1 | tee @RESULTS@/configure.log
-cmake --build @BUILD@ --parallel 32 2>&1 | tee @RESULTS@/build.log
-ctest --test-dir @BUILD@ --show-only=json-v1 > @RESULTS@/manifest.json
+"${container[@]}" cmake --build @BUILD@ --parallel 32 2>&1 | tee @RESULTS@/build.log
+"${container[@]}" ctest --test-dir @BUILD@ --show-only=json-v1 > @RESULTS@/manifest.json

@@ -35,3 +35,10 @@ Each run is created below:
 The `results/` directory contains `result.json`, `summary.md`, `ctest.xml`,
 `ctest.log`, build logs, tool/module records, GPU details, and Slurm output.
 The workflow downloads this directory even when tests fail.
+
+The build and test commands run inside the site-maintained Apptainer image in
+`config.ini`. The host supplies the NVIDIA driver through `--nv`; `/opt`, the
+MPI installation, source, control, and mapping directories are explicitly
+bind-mounted read-only, while only build and results are writable. The image
+is never taken from the checked-out source, and `--containall --cleanenv`
+prevents implicit host-home, temporary-directory, and environment access.

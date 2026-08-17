@@ -34,7 +34,16 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ inputs.source_sha || 'develop' }}
+          path: source
           fetch-depth: 0
+          persist-credentials: false
+
+      - name: Checkout trusted CI control files
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.workflow_sha }}
+          path: trusted-control
+          sparse-checkout: .ci/slurm
           persist-credentials: false
 
       - name: Configure SSH
@@ -46,7 +55,7 @@ jobs:
           mkdir -m 700 "$root"
           printf '%s\n' "$REMOTE_SSH_PRIVATE_KEY" > "$root/id_ed25519"
           chmod 600 "$root/id_ed25519"
-          cp .ci/slurm/known_hosts "$root/known_hosts"
+          cp trusted-control/.ci/slurm/known_hosts "$root/known_hosts"
           chmod 600 "$root/known_hosts"
           cat > "$root/config" <<EOF
           Host gpu-ci
@@ -73,12 +82,14 @@ jobs:
           run_root="$REMOTE_ROOT/runs/github/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "REMOTE_RUN_ROOT=$run_root" >> "$GITHUB_ENV"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci "mkdir -p '$run_root/source' '$run_root/control'"
-          tar --exclude=.git -czf - . \
+          tar --exclude=.git -C source -czf - . \
             | ssh -F "$REMOTE_SSH_CONFIG" gpu-ci "tar -xzf - -C '$run_root/source'"
           scp -F "$REMOTE_SSH_CONFIG" \
-            .ci/slurm/config.ini .ci/slurm/modules.sh .ci/slurm/known_hosts \
-            .ci/slurm/build.sbatch.in .ci/slurm/test.sbatch.in \
-            .ci/slurm/mpirun_with_mapping.sh .ci/slurm/report.py .ci/slurm/submit.sh \
+            trusted-control/.ci/slurm/config.ini trusted-control/.ci/slurm/modules.sh \
+            trusted-control/.ci/slurm/known_hosts \
+            trusted-control/.ci/slurm/build.sbatch.in trusted-control/.ci/slurm/test.sbatch.in \
+            trusted-control/.ci/slurm/mpirun_with_mapping.sh trusted-control/.ci/slurm/report.py \
+            trusted-control/.ci/slurm/submit.sh \
             "gpu-ci:$run_root/control/"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci \
             "chmod 700 '$run_root/control/'*.sh; '$run_root/control/submit.sh' '$run_root'"
