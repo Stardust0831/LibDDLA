@@ -25,10 +25,10 @@ jobs:
     environment:
       name: ${{ github.event_name == 'schedule' && 'gpu-ci-scheduled' || 'gpu-ci-manual' }}
     env:
-      REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-      REMOTE_PORT: ${{ secrets.REMOTE_PORT }}
+      REMOTE_HOST: c0.sai.ai-4s.com
+      REMOTE_PORT: "12022"
       REMOTE_USER: ${{ secrets.REMOTE_USER }}
-      REMOTE_ROOT: ${{ secrets.REMOTE_ROOT }}
+      REMOTE_ROOT: ~/libddla_gpu_ci
     steps:
       - name: Checkout requested commit
         uses: actions/checkout@v4
@@ -79,7 +79,8 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
-          run_root="$REMOTE_ROOT/runs/github/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          remote_root=$(ssh -F "$REMOTE_SSH_CONFIG" gpu-ci 'printf "%s/libddla_gpu_ci" "$HOME"')
+          run_root="$remote_root/runs/github/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           echo "REMOTE_RUN_ROOT=$run_root" >> "$GITHUB_ENV"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci "mkdir -p '$run_root/source' '$run_root/control'"
           tar --exclude=.git -C source -czf - . \
