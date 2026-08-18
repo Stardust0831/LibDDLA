@@ -23,7 +23,7 @@ jobs:
       REMOTE_HOST: c0.sai.ai-4s.com
       REMOTE_PORT: "12022"
       SOURCE_SHA: ${{ inputs.source_sha }}
-      CONTROLLER_REF: 0eb24380d7690349025ce6948ad0edd3d97d3efc
+      CONTROLLER_REF: 4b70c8549ce3c5e833ac1fb75173ba0d19fb4308
     steps:
       - uses: actions/checkout@v4
         with:
@@ -68,6 +68,9 @@ jobs:
           EOF
           chmod 600 "$root/config"
           echo "REMOTE_SSH_CONFIG=$root/config" >> "$GITHUB_ENV"
+          remote_suffix="${REMOTE_ROOT#~/}"
+          REMOTE_ROOT=$(ssh -F "$root/config" gpu-ci "printf '%s/%s' \"\$HOME\" '$remote_suffix'")
+          echo "REMOTE_ROOT=$REMOTE_ROOT" >> "$GITHUB_ENV"
       - name: Submit controller smoke job
         run: |
           set -euo pipefail
