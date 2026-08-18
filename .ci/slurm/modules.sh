@@ -2,13 +2,9 @@
 
 export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}
 export LD_PRELOAD=${LD_PRELOAD:-}
-export CPATH=${CPATH:-}
-export CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH:-}
 
 source /etc/profile.d/lmod.sh
 module purge
 module load cmake/3.31.6
-module load abacus/develop-git-079fd0c-260724-sm70-auto
-
-export CMAKE_LIBRARY_PATH=${LIBRARY_PATH:-}
-export CMAKE_INCLUDE_PATH=${CPATH:-}
+module load openmpi/5.0.10-nvhpc26.3-gnu-cuda12-auto
+module load apptainer/1.4.4
