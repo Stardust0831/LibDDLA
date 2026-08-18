@@ -15,6 +15,7 @@ permissions:
 jobs:
   smoke:
     uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@0010a336e61667898994d05251d10dfd91750175
+    environment: gpu-ci-manual
     with:
       source_repository: Stardust0831/LibDDLA
       source_sha: ${{ inputs.source_sha }}
