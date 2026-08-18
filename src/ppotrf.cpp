@@ -166,6 +166,10 @@ bool ppotrf(
                 }
                 T last_value;
                 RUNTIME_CHECK(runtimeMemcpyAsync(&last_value, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, sizeof(T), runtimeMemcpyDeviceToHost, stream));
+                // The D2H copy above is async; the host reads last_value below,
+                // so synchronize the stream before consuming it (no sync exists
+                // between the enqueued copy and this read otherwise).
+                RUNTIME_CHECK(runtimeStreamSynchronize(stream));
                 is_nega = false;
                 if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>){
                     if(last_value < 0){
