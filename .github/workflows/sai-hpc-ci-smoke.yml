@@ -23,7 +23,7 @@ jobs:
       REMOTE_HOST: c0.sai.ai-4s.com
       REMOTE_PORT: "12022"
       SOURCE_SHA: ${{ inputs.source_sha }}
-      CONTROLLER_REF: baac67373c7a0a2782972a668dc7b2c46db6682f
+      CONTROLLER_REF: eae5325b783601e70728cfaafa778cd56679a896
     steps:
       - uses: actions/checkout@v4
         with:
