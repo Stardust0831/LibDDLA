@@ -14,17 +14,14 @@ permissions:
 
 jobs:
   smoke:
-    uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@0010a336e61667898994d05251d10dfd91750175
-    environment: gpu-ci-manual
+    uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@0eb24380d7690349025ce6948ad0edd3d97d3efc
     with:
       source_repository: Stardust0831/LibDDLA
       source_sha: ${{ inputs.source_sha }}
       cluster_profile: sai-cuda12-openmpi5
       remote_root: ~/sai-hpc-ci
       ssh_port: "12022"
+      secret_environment: gpu-ci-manual
       ssh_known_hosts: |
         [c0.sai.ai-4s.com]:12022 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBurYQExmMdgat4VU1Twmu2pqxsBjLP6eff9oc6/8N3KUCtoe8HU9eONghETLECdA7A+O9DpefDRba0AcSXTfQc=
       tests_json: '{"version":1,"cluster_profile":"sai-cuda12-openmpi5","source":{"repository":"Stardust0831/LibDDLA","sha":"${{ inputs.source_sha }}"},"tests":[{"name":"container-smoke","nodes":2,"gpus_per_node":1,"ranks_per_node":1,"timeout_minutes":20,"working_directory":".","command":["sh","-c","test -f CMakeLists.txt && hostname && printf container-ok\\n"]}]}'
-    secrets:
-      REMOTE_USER: ${{ secrets.REMOTE_USER }}
-      REMOTE_SSH_PRIVATE_KEY: ${{ secrets.REMOTE_SSH_PRIVATE_KEY }}
