@@ -40,7 +40,7 @@ jobs:
         run: |
           set -euo pipefail
           cat > plan.json <<EOF
-          {"version":1,"cluster_profile":"sai-cuda12-openmpi5","source":{"repository":"Stardust0831/LibDDLA","sha":"$SOURCE_SHA"},"tests":[{"name":"container-smoke","nodes":2,"gpus_per_node":1,"ranks_per_node":1,"timeout_minutes":20,"working_directory":".","command":["sh","-c","test -f CMakeLists.txt && hostname && printf container-ok\\n"]}]}
+          {"version":1,"cluster_profile":"sai-cuda12-openmpi5","source":{"repository":"Stardust0831/LibDDLA","sha":"$SOURCE_SHA"},"tests":[{"name":"container-smoke","nodes":1,"gpus_per_node":1,"ranks_per_node":1,"timeout_minutes":20,"working_directory":".","command":["sh","-c","test -f CMakeLists.txt && hostname && printf container-ok\\n"]}]}
           EOF
           python3 sai-hpc-ci/controller/validate_plan.py plan.json --output validated.json \
             --expected-repository Stardust0831/LibDDLA --expected-sha "$SOURCE_SHA" \
