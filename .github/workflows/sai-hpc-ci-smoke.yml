@@ -23,7 +23,7 @@ jobs:
       REMOTE_HOST: c0.sai.ai-4s.com
       REMOTE_PORT: "12022"
       SOURCE_SHA: ${{ inputs.source_sha }}
-      CONTROLLER_REF: ab549d3222224bdb00a98af008c2459577a1e08e
+      CONTROLLER_REF: 6427df80be2e80572925e4e1de8ff808fcb0a62a
     steps:
       - uses: actions/checkout@v4
         with:
@@ -97,6 +97,7 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/results"
           scp -r -F "$REMOTE_SSH_CONFIG" "gpu-ci:$RUN_ROOT/results/." "$RUNNER_TEMP/results/" || true
+          scp -r -F "$REMOTE_SSH_CONFIG" "gpu-ci:$RUN_ROOT/bundle/." "$RUNNER_TEMP/results/bundle/" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
