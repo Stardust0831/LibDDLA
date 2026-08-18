@@ -1,0 +1,29 @@
+name: SAI HPC CI smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: "LibDDLA commit to run"
+        required: true
+        default: "a27160001978cd9a4172d755a86ac2b004e68eba"
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@0010a336e61667898994d05251d10dfd91750175
+    with:
+      source_repository: Stardust0831/LibDDLA
+      source_sha: ${{ inputs.source_sha }}
+      cluster_profile: sai-cuda12-openmpi5
+      remote_root: ~/sai-hpc-ci
+      ssh_port: "12022"
+      ssh_known_hosts: |
+        [c0.sai.ai-4s.com]:12022 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAAIbmlzdHAyNTYAAABBBBurYQExmMdgat4VU1Twmu2pqxsBjLP6eff9oc6/8N3KUCtoe8HU9eONghETLECdA7A+O9DpefDRba0AcSXTfQc=
+      tests_json: '{"version":1,"cluster_profile":"sai-cuda12-openmpi5","source":{"repository":"Stardust0831/LibDDLA","sha":"${{ inputs.source_sha }}"},"tests":[{"name":"container-smoke","nodes":2,"gpus_per_node":1,"ranks_per_node":1,"timeout_minutes":20,"working_directory":".","command":["sh","-c","test -f CMakeLists.txt && hostname && printf container-ok\\n"]}]}'
+    secrets:
+      REMOTE_USER: ${{ secrets.REMOTE_USER }}
+      REMOTE_SSH_PRIVATE_KEY: ${{ secrets.REMOTE_SSH_PRIVATE_KEY }}
