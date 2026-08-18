@@ -23,7 +23,7 @@ jobs:
       REMOTE_HOST: c0.sai.ai-4s.com
       REMOTE_PORT: "12022"
       SOURCE_SHA: ${{ inputs.source_sha }}
-      CONTROLLER_REF: eae5325b783601e70728cfaafa778cd56679a896
+      CONTROLLER_REF: dc33b6ea826c7a5db84ea11668a9bbc64df0f094
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,6 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           run_root="$REMOTE_ROOT/runs/controller-smoke/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "RUN_ROOT=$run_root" >> "$GITHUB_ENV"
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci "mkdir -p '$run_root/bundle'"
           cp validated.json "$RUNNER_TEMP/validated.json"
           cp sai-hpc-ci/remote/run_array_task.py sai-hpc-ci/remote/task.sbatch \
@@ -90,6 +91,12 @@ jobs:
           ssh -F "$REMOTE_SSH_CONFIG" gpu-ci "bash '$run_root/bundle/wait_jobs.sh' $jobs"
           mkdir -p "$RUNNER_TEMP/results"
           scp -r -F "$REMOTE_SSH_CONFIG" "gpu-ci:$run_root/results/." "$RUNNER_TEMP/results/"
+      - name: Download remote results after failure
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/results"
+          scp -r -F "$REMOTE_SSH_CONFIG" "gpu-ci:$RUN_ROOT/results/." "$RUNNER_TEMP/results/" || true
       - uses: actions/upload-artifact@v4
         if: always()
         with:
