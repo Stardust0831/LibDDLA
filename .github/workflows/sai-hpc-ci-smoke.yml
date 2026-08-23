@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   smoke:
-    uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@f22c1b9e070e4c39e9033b1953636d5f7c8d2fea
+    uses: AI4SAI/sai-hpc-ci/.github/workflows/hpc-test.yml@1ba8c48f8f03f1cac603512ea408af163bbd1ce8
     with:
       source_repository: Stardust0831/LibDDLA
       source_sha: ${{ inputs.source_sha }}
