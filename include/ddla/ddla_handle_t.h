@@ -120,14 +120,16 @@ ddlaStatus_t ddlaFree(void* ptr, const DdlaHandle_t& handle);
 
 /// Copy data between host and device (or within host for CPU handles).
 ///
-/// - Returns 1 if @p handle is null.
-/// - Zero-byte copy: returns 0 without dereferencing @p src or @p dst.
-/// - Nonzero copy: returns 1 if @p src or @p dst is null, or if @p kind
-///   is not one of the three defined DdlaMemoryCopyKind enumerators.
+/// - Returns DDLA_STATUS_INVALID_HANDLE if @p handle is null.
+/// - Zero-byte copy: returns DDLA_STATUS_SUCCESS without dereferencing
+///   @p src or @p dst.
+/// - Nonzero copy: returns DDLA_STATUS_INVALID_VALUE if @p src or @p dst is
+///   null, or if @p kind is not one of the three defined
+///   DdlaMemoryCopyKind enumerators.
 /// - CPU handles perform an ordinary host memcpy (the @p kind is ignored
 ///   after validation).
 /// - GPU handles use the appropriate runtimeMemcpyKind on the handle's
-///   default stream.
+///   default stream, returning DDLA_STATUS_INTERNAL_ERROR on device error.
 ///
 /// CPU handles require host pointers.  GPU handles require pointers
 /// allocated in the selected accelerator memory space.  No implicit

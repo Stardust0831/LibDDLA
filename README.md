@@ -175,8 +175,7 @@ path.
 
 All three paths are implemented once in `src/comm_traits.h` (`commSend`,
 `commRecv`, `commBcast`, `commAlltoallv`), selected by the same
-`DDLA_USE_CCL` / `DDLA_USE_GPU_CPU_TUNNEL` macros. This replaced the former
-per-file `include/ddla/ddla_comm.h` idiom.
+`DDLA_USE_CCL` / `DDLA_USE_GPU_CPU_TUNNEL` macros.
 
 ## Data model and lifecycle
 
@@ -184,17 +183,17 @@ per-file `include/ddla/ddla_comm.h` idiom.
 
 ```cpp
 #include <ddla/ddla.h>
-#include <ddla/ddla_connector.h>
+#include <mpi.h>
 
 ddla::DdlaHandle_t handle;          // opaque pointer (DdlaStream*)
-ddla::ddla_init(handle);            // create BLAS/Solver handles and device streams
-ddla::ddla_set(handle, MPI_COMM_WORLD, 'R');   // auto process grid (row-major)
-// or: ddla::ddla_set(handle, MPI_COMM_WORLD, nprows, npcols, 'R');
+ddla::DDLA_CHECK(ddla::ddlaInit(handle));            // create BLAS/Solver handles and device streams
+ddla::DDLA_CHECK(ddla::ddlaSet(handle, MPI_COMM_WORLD, 'R'));   // auto process grid (row-major)
+// or: ddla::DDLA_CHECK(ddla::ddlaSet(handle, MPI_COMM_WORLD, nprows, npcols, 'R'));
 ```
 
-- `ddla_set` stores the process-grid dimensions and communicator on the handle.
+- `ddlaSet` stores the process-grid dimensions and communicator on the handle.
   The automatic form (`'R'`) derives a 2D grid from the number of MPI ranks.
-- **Destroy** with `ddla::ddla_destroy(handle)` when done.
+- **Destroy** with `ddla::DDLA_CHECK(ddla::ddlaDestroy(handle))` when done.
 
 ### Descriptor (ScaLAPACK `int[9]`)
 
@@ -258,26 +257,31 @@ int main(int argc, char** argv) {
     ddla::ddlaGetGridDims(handle, nprows, npcols);
     ddla::ddlaGetGridCoords(handle, myprow, mypcol);
     const long m_locA = ddla::num_loc(n, 64, myprow, 0, nprows);
+    const long n_locA = ddla::num_loc(n, 64, mypcol, 0, npcols);
+    const long m_locB = ddla::num_loc(n, 64, myprow, 0, nprows);
     const long n_locB = ddla::num_loc(nrhs, 64, mypcol, 0, npcols);
 
     double *d_A = nullptr, *d_B = nullptr;
-    ddla::ddlaMalloc(&d_A, m_locA * 64 * sizeof(double), handle);
-    ddla::ddlaMalloc(&d_B, n_locB * 64 * sizeof(double), handle);
+    ddla::DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_A),
+                                m_locA * n_locA * sizeof(double), handle));
+    ddla::DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_B),
+                                m_locB * n_locB * sizeof(double), handle));
 
     // ... fill matrices, call ddla routines ...
 
-    ddla::ddlaFree(d_A, handle);
-    ddla::ddlaFree(d_B, handle);
-    ddla::ddlaDestroy(handle);
+    ddla::DDLA_CHECK(ddlaFree(d_A, handle));
+    ddla::DDLA_CHECK(ddlaFree(d_B, handle));
+    ddla::DDLA_CHECK(ddlaDestroy(handle));
     MPI_Finalize();
     return 0;
 }
 ```
 
-The `ddla::ddla_malloc` / `ddla::ddla_free` helpers declared in
-`<ddla/ddla_handle_t.h>` dispatch to the handle's backend (host memory for
-CPU handles, device memory on the handle's stream for GPU handles) and safely
-handle zero-byte requests (zero bytes sets `*ptr = nullptr`).
+The `ddlaMalloc` / `ddlaFree` helpers declared in
+`<ddla/ddla_handle_t.h>` (pulled in by `<ddla/ddla.h>`) dispatch to the
+handle's backend (host memory for CPU handles, device memory on the handle's
+stream for GPU handles) and safely handle zero-byte requests (zero bytes sets
+`*ptr = nullptr`).
 
 ## API overview
 
@@ -286,10 +290,10 @@ handle zero-byte requests (zero bytes sets `*ptr = nullptr`).
 | Symbol | Description |
 |--------|-------------|
 | `DdlaHandle_t` | Opaque handle type (`DdlaStream*`) |
-| `ddla_init` | Allocate handle (streams, BLAS/Solver handles, optional CCL comms) |
-| `ddla_set` | Configure process grid (auto `'R'` or explicit `nprows`×`npcols`) |
-| `ddla_destroy` | Tear down handle |
-| `ddla_get_stream` | Return the default device stream from a handle |
+| `ddlaInit` | Allocate handle (streams, BLAS/Solver handles, optional CCL comms) |
+| `ddlaSet` | Configure process grid (auto `'R'` or explicit `nprows`×`npcols`) |
+| `ddlaDestroy` | Tear down handle (idempotent) |
+| `ddlaGetStream` | Return the default device stream from a handle (CPU: `nullptr`) |
 | `ddlaDescInit` | Fill a ScaLAPACK-layout `int[9]` descriptor (`DESCINIT` equivalent) |
 | `int[9]` descriptor | 2D block-cyclic matrix layout, slots `DDLA_DTYPE_` … `DDLA_LLD_` |
 | `ddlaGetGridDims` / `ddlaGetGridCoords` | Process grid of a handle |
@@ -355,11 +359,10 @@ columns for side='R') when given the same `location` passed to `ppotrf`.
 | `gemmVbatched2s` | Two-stage variable-batch GEMM with reusable temporary |
 | `random_generate` | Fill device buffer with uniform random values |
 
-`random_generate<Backend, T>` is declared in `<ddla/random_generate.h>` as a
-backend-templated function (the same shape as `gemm` / `scal` /
-`write_matrix`), implemented in `src/random_generate.cpp`, and explicitly
-instantiated for `float`, `double`, `std::complex<float>`, and
-`std::complex<double>`.
+`random_generate<Backend, T>` is declared in `<ddla/ddla.h>` (as are
+`write_matrix` and all other backend-templated functions), implemented in
+`src/random_generate.cpp`, and explicitly instantiated for `float`, `double`,
+`std::complex<float>`, and `std::complex<double>`.
 
 ## Testing
 
@@ -386,21 +389,12 @@ particular machines; adapt their module/partition settings to your own cluster.
 LibDDLA/
 ├── include/ddla/         Public headers
 │   ├── ddla.h            Main API declarations (all Doxygen comments)
-│   ├── ddla_handle_t.h   Handle type, init/set/destroy, ddla_malloc/ddla_free
+│   ├── ddla_handle_t.h   Handle type, init/set/destroy, memory & stream helpers
 │   ├── ddla_desc.h       ScaLAPACK int[9] descriptor contract and index mapping helpers
-│   ├── ddla_connector.h  CUDA/HIP type aliases, macros, CHECK utilities, runtime alloc/copy wrappers
-│   ├── ddla_stream.h     DdlaStream (internal)
-│   ├── transport_block.h Distributed-to-local block extraction
-│   ├── ptran.h           Distributed matrix transpose
-│   ├── random_generate.h Uniform random fill (backend-templated)
-│   ├── gemmVbatched.h    Variable-size batched GEMM
-│   └── Backend wrappers  gemm.h, trsm.h, scal.h, axpy.h, swap.h, geru.h,
-│                         iamax.h, geam.h, herk.h, syrk.h, trmm.h,
-│                         gemmBatched.h, getrf.h, potrf.h, laswp.h
-├── src/                  Implementation (one routine per .cpp)
+│   └── ddla_config.h.in  Generated config header template (ddla_config.h at build time)
+├── src/                  Implementation (one routine per .cpp) and private headers
 │   └── comm_traits.h     Unified communication layer (commSend/commRecv/
-│                         commBcast/commAlltoallv; replaces the former
-│                         include/ddla/ddla_comm.h idiom)
+│                         commBcast/commAlltoallv)
 ├── tests/                Integration tests (MPI executables)
 ├── benchmarks/           Benchmark data and supporting artifacts
 ├── install_scripts/      Backend-specific build/install scripts
@@ -409,6 +403,14 @@ LibDDLA/
 ├── CMakeLists.txt        Top-level build
 └── LICENSE               LGPL-3.0 license text
 ```
+
+All other headers — the `ddla_connector.h` runtime/CHECK utilities, the
+per-routine backend wrappers (`gemm.h`, `trsm.h`, `scal.h`, `axpy.h`,
+`swap.h`, `geru.h`, `iamax.h`, `geam.h`, `herk.h`, `syrk.h`, `trmm.h`,
+`gemmBatched.h`, `gemmVbatched.h`, `getrf.h`, `potrf.h`, `laswp.h`,
+`ptran.h`, `random_generate.h`, `write_matrix.h`, `transport_block.h`),
+`ddla_stream.h`, and `comm_traits.h` — are private under `src/` and included
+by relative path; the public surface is the three headers above.
 
 ## Version
 
