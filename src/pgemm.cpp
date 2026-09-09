@@ -141,6 +141,42 @@ void pgemm(
     const int m_loc_B = num_loc((transb == 'N') ? k : n, descB[DDLA_MB_], myprow, descB[DDLA_RSRC_], nprows);
     const int n_loc_B = num_loc((transb == 'N') ? n : k, descB[DDLA_NB_], mypcol, descB[DDLA_CSRC_], npcols);
 
+    // ---- k-panel blocking: one local gemm per run of consecutive k-blocks ---
+    // A local gemm is cheaper per flop when it covers a run of k-blocks instead
+    // of a single one: with nb = 128 and a 1024-wide k panel that is 8 panel
+    // transports (8 broadcasts) feeding ONE local gemm of k = 1024. The target
+    // panel width defaults to DDLA_PGEMM_KPANEL (1024); a value below nb
+    // degenerates to the classic one-block-per-gemm pipeline. The transposed
+    // transport path has no multi-block gather yet, so any transposed operand
+    // stays one block per gemm.
+    constexpr int kDefaultPanelWidth = 1024;
+    const int kfull = k / nb;
+    const int ktail = k - kfull * nb;
+    const int nb_eff = (nb > 0) ? nb : 1;
+    int panel_width = kDefaultPanelWidth;
+    {
+        const char* s = std::getenv("DDLA_PGEMM_KPANEL");
+        if (s != nullptr && *s != '\0') {
+            const int v = std::atoi(s);
+            if (v > 0) panel_width = v;
+        }
+    }
+    int blocks_per_gemm = std::max(1, panel_width / nb_eff);
+    // The transposed transport path (trans != 'N') has no multi-block gather
+    // yet -- it would move only the first block of a run and leave the rest of
+    // the panel uninitialized -- so those operands stay one block per gemm.
+    if (transa != 'N' || transb != 'N') blocks_per_gemm = 1;
+
+    struct KStage { int start; int cnt; int kk; };  // [start, start+kk) slice of k
+    std::vector<KStage> stages;
+    stages.reserve(static_cast<std::size_t>(kfull / blocks_per_gemm + 2));
+    for (int b = 0; b < kfull; b += blocks_per_gemm) {
+        const int cnt = std::min(blocks_per_gemm, kfull - b);
+        stages.push_back(KStage{b * nb, cnt, cnt * nb});
+    }
+    if (ktail > 0) stages.push_back(KStage{kfull * nb, 1, ktail});
+    const int panel_max = blocks_per_gemm * nb;  // widest stage (>= nb)
+
     // Scratch buffers (GPU stream-scratch or CPU heap) for the SUMMA panel
     // pipeline, freed explicitly below.  RUNTIME_CHECK throws std::runtime_error
     // on failure (uncaught it terminates the rank), and the transport_block/
@@ -152,10 +188,19 @@ void pgemm(
     const int buffer_max = 2;
     T* d_A_temp[buffer_max] = {nullptr, nullptr};
     T* d_B_temp[buffer_max] = {nullptr, nullptr};
-    int count_a = ((transa == 'N') ? std::max(m_loc_A, m_loc_C) : std::max(n_loc_A, m_loc_C)) * nb;
-    int count_b = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
+    int count_a = ((transa == 'N') ? std::max(m_loc_A, m_loc_C) : std::max(n_loc_A, m_loc_C)) * panel_max;
+    int count_b = panel_max * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
     count_a = std::max(1, count_a);
     count_b = std::max(1, count_b);
+    // One-block staging tile. The B panel is stored as (kk x n_loc) with
+    // ld = kk so one gemm sees the whole run, but transport_block writes a
+    // (w x n_loc) tile with ld = w; every block is staged here and copied
+    // into the panel with the panel pitch.
+    int count_blk = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
+    count_blk = std::max(1, count_blk);  // keep d_B_blk a real allocation even at zero local extent
+    T* d_B_blk = nullptr;
+    RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
+        reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T)));
     for (int i = 0; i < buffer_max; i++) {
         RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
             reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T)));
@@ -163,65 +208,82 @@ void pgemm(
             reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T)));
     }
 
-    int temp_buffer = 0;
-    int k_s = 0, kb = 0;
-    auto get_data = [&](int ks) {
-        kb = std::min(nb, k - ks);
-        if (kb <= 0) return;
-        char sData_a;
-        int m_a, n_a, g_ia, g_ja;
-        if (transa != 'N') {
-            sData_a = 'R';
-            m_a = kb;
-            n_a = m;
-            g_ia = ks;
-            g_ja = 0;
-        } else {
-            sData_a = 'C';
-            m_a = m;
-            n_a = kb;
-            g_ia = 0;
-            g_ja = ks;
-        }
-        ddla::transport_block<Backend, T>(handle, 
-            sData_a, transa,
-            m_a, n_a,
-            A, g_ia, g_ja, descA,
-            d_A_temp[temp_buffer]);
-
-        char sData_b;
-        int m_b, n_b, g_ib, g_jb;
-        if (transb != 'N') {
-            sData_b = 'C';
-            m_b = n;
-            n_b = kb;
-            g_ib = 0;
-            g_jb = ks;
-        } else {
-            sData_b = 'R';
-            m_b = kb;
-            n_b = n;
-            g_ib = ks;
-            g_jb = 0;
-        }
-        ddla::transport_block<Backend, T>(handle, 
-            sData_b, transb,
-            m_b, n_b,
-            B, g_ib, g_jb, descB,
-            d_B_temp[temp_buffer]);
-    };
-
-    get_data(k_s);
-    bool first_gemm = true;
-    for (k_s = 0; k_s < k; k_s += nb) {
-        if constexpr (Backend == DdlaBackend::CPU) {
-            // No-op: CPU BLAS calls are synchronous and every MPI call in
-            // transport_block<DdlaBackend::CPU> is blocking, so there is no
-            // in-flight work left to wait on here.
-        } else {
+    // Wait out the in-flight panel transport before the local gemm reads it
+    // (GPU only: CPU BLAS is synchronous and every MPI call in
+    // transport_block<DdlaBackend::CPU> is blocking).
+    auto sync_panel = [&]() {
+        if constexpr (Backend != DdlaBackend::CPU) {
             RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream));
             RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream_data));
         }
+    };
+
+    int temp_buffer = 0;
+
+    auto get_data = [&](int s) {
+        if (s < 0 || s >= static_cast<int>(stages.size())) return;
+        const int ks = stages[s].start;
+        const int cnt = stages[s].cnt;
+        const int kk = stages[s].kk;
+
+        // Gather the stage's blocks one transport_block call each. The A tile
+        // (sData 'C', transa 'N') is (rows x w) with ld = rows, so it lands
+        // straight in the panel at column offset b * w; the B tile (sData 'R',
+        // transb 'N') is (w x cols) with ld = w, which only matches the panel
+        // pitch kk when the stage is one block wide -- otherwise it is staged
+        // in d_B_blk and copied in with the panel pitch. w = nb for every full
+        // block; the tail stage has w = ktail.
+        for (int b = 0; b < cnt; ++b) {
+            const int g = ks + b * nb;
+            const int w = std::min(nb, k - g);
+
+            if (transa == 'N') {
+                ddla::transport_block<Backend, T>(handle,
+                    'C', transa,
+                    m, w,
+                    A, 0, g, descA,
+                    d_A_temp[temp_buffer] + (std::size_t)b * w * m_loc_A);
+            } else {
+                ddla::transport_block<Backend, T>(handle,
+                    'R', transa,
+                    w, m,
+                    A, g, 0, descA,
+                    d_A_temp[temp_buffer]);
+            }
+
+            if (transb == 'N') {
+                if (cnt != 1) {  // multi-block: tile ld w != panel ld kk, stage + repack
+                    ddla::transport_block<Backend, T>(handle,
+                        'R', transb,
+                        w, n,
+                        B, g, 0, descB,
+                        d_B_blk);
+                    ddla::copy2D<Backend, T>(h,
+                        d_B_temp[temp_buffer] + (std::size_t)b * w, kk,
+                        d_B_blk, w,
+                        w, n_loc_B);
+                } else {
+                    ddla::transport_block<Backend, T>(handle,
+                        'R', transb,
+                        w, n,
+                        B, g, 0, descB,
+                        d_B_temp[temp_buffer]);
+                }
+            } else {
+                ddla::transport_block<Backend, T>(handle,
+                    'C', transb,
+                    n, w,
+                    B, 0, g, descB,
+                    d_B_temp[temp_buffer]);
+            }
+        }
+    };
+
+    get_data(0);
+    bool first_gemm = true;
+    for (std::size_t s = 0; s < stages.size(); ++s) {
+        const int kb = stages[s].kk;
+        sync_panel();
         if (m_loc_C > 0 && n_loc_C > 0) {
             const T gemm_beta = first_gemm ? beta : static_cast<T>(1.0);
             ddla::gemm<Backend>(
@@ -235,20 +297,14 @@ void pgemm(
             first_gemm = false;
         }
         temp_buffer = (temp_buffer + 1) % buffer_max;
-        get_data(k_s + nb);
+        get_data(static_cast<int>(s) + 1);
     }
-    if constexpr (Backend == DdlaBackend::CPU) {
-        // No-op: CPU BLAS calls are synchronous and every MPI call in
-        // transport_block<DdlaBackend::CPU> is blocking, so there is no
-        // in-flight work left to wait on here.
-    } else {
-        RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream));
-        RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream_data));
-    }
+    sync_panel();
     for (int i = 0; i < buffer_max; i++) {
         RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_A_temp[i]));
         RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_B_temp[i]));
     }
+    RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_B_blk));
 }
 
 // ---------------------------------------------------------------------------

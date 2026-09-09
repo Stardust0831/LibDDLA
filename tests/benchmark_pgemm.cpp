@@ -4,6 +4,9 @@
 #include <complex>
 #include <iomanip>
 #include <algorithm>
+#include <cstdlib>
+#include <cstring>
+#include <sstream>
 #include <ddla/ddla.h>
 #include "test_desc_helpers.h"
 #include "ddla_connector.h"
@@ -28,6 +31,13 @@ void benchmark_pgemm(int n, char transa, char transb,
                      std::vector<BenchResult>& results)
 {
     int nb = std::min(128, n);
+    {
+        const char* e = std::getenv("DDLA_BENCH_NB");
+        if (e != nullptr && *e != 0) {
+            int v = std::atoi(e);
+            if (v > 0) nb = std::min(v, n);
+        }
+    }
     int descA[DDLA_DLEN_];
     DDLA_CHECK(ddlaDescInit(descA, ddla_handle, n, n, nb, nb, 0, 0));
     int descB[DDLA_DLEN_];
@@ -104,6 +114,19 @@ int main(int argc, char* argv[])
     }
 
     std::vector<int> sizes = {500, 5000, 10000, 15000};
+    {
+        const char* e = std::getenv("DDLA_BENCH_SIZES");
+        if (e != nullptr && *e != 0) {
+            sizes.clear();
+            std::string es(e);
+            std::istringstream iss(es);
+            std::string tok;
+            while (std::getline(iss, tok, ',')) {
+                int v = std::atoi(tok.c_str());
+                if (v > 0) sizes.push_back(v);
+            }
+        }
+    }
     if (argc > 1) {
         sizes.clear();
         for (int i = 1; i < argc; ++i)
