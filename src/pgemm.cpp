@@ -178,13 +178,13 @@ void pgemm(
     const int panel_max = blocks_per_gemm * nb;  // widest stage (>= nb)
 
     // Scratch buffers (GPU stream-scratch or CPU heap) for the SUMMA panel
-    // pipeline, freed explicitly below.  RUNTIME_CHECK throws std::runtime_error
-    // on failure (uncaught it terminates the rank), and the transport_block/
-    // gemm/scal calls below can throw on a null handle or a backend mismatch --
-    // both validated above, but a failure between these allocations and the
-    // frees at the end leaks the scratch buffers on that rank.  The process
-    // terminates via the uncaught exception, so the OS reclaims them; this is
-    // not a runaway leak in practice.
+    // pipeline, freed explicitly below.  DDLA_CHECK and RUNTIME_CHECK throw
+    // std::runtime_error on failure (uncaught it terminates the rank), and the
+    // transport_block/gemm/scal calls below can throw on a null handle or a
+    // backend mismatch -- both validated above, but a failure between these
+    // allocations and the frees at the end leaks the scratch buffers on that
+    // rank.  The process terminates via the uncaught exception, so the OS
+    // reclaims them; this is not a runaway leak in practice.
     const int buffer_max = 2;
     T* d_A_temp[buffer_max] = {nullptr, nullptr};
     T* d_B_temp[buffer_max] = {nullptr, nullptr};
@@ -198,14 +198,17 @@ void pgemm(
     // into the panel with the panel pitch.
     int count_blk = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
     count_blk = std::max(1, count_blk);  // keep d_B_blk a real allocation even at zero local extent
+    // ddlaMalloc/ddlaFree dispatch on the handle's backend at run time -- host
+    // heap on CPU, and on GPU the stream-ordered cudaMallocAsync/hipMallocAsync
+    // pool on the handle's stream (no device-wide synchronize per call).  Going
+    // through the handle rather than the type-templated runtimeMallocAsync also
+    // keeps the stream type out of these call sites, so no compile-time
+    // backend split is needed.
     T* d_B_blk = nullptr;
-    RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-        reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T), h));
     for (int i = 0; i < buffer_max; i++) {
-        RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-            reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T)));
-        RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-            reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T)));
+        DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T), h));
+        DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T), h));
     }
 
     // Wait out the in-flight panel transport before the local gemm reads it
@@ -301,10 +304,10 @@ void pgemm(
     }
     sync_panel();
     for (int i = 0; i < buffer_max; i++) {
-        RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_A_temp[i]));
-        RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_B_temp[i]));
+        DDLA_CHECK(ddlaFree(d_A_temp[i], h));
+        DDLA_CHECK(ddlaFree(d_B_temp[i], h));
     }
-    RUNTIME_CHECK<Backend>(runtimeFree<Backend>(d_B_blk));
+    DDLA_CHECK(ddlaFree(d_B_blk, h));
 }
 
 // ---------------------------------------------------------------------------
