@@ -18,6 +18,19 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
     # hand-duplicated CPU-only implementation.
     list(APPEND lib_sources
         gemm.cpp
+        herk.cpp
+        her2k.cpp
+        hemv.cpp
+        hemm.cpp
+        her2.cpp
+        gemv.cpp
+        trmv.cpp
+        nrm2.cpp
+        dot.cpp
+        trsm.cpp
+        syrk.cpp
+        trmm.cpp
+        gemmBatched.cpp
         scal.cpp
         omatcopy.cpp
         axpy.cpp
@@ -34,6 +47,19 @@ else()
     # GPU-only or dual build: full accelerator source set.
     list(APPEND lib_sources
         gemm.cpp
+        herk.cpp
+        her2k.cpp
+        hemv.cpp
+        hemm.cpp
+        her2.cpp
+        gemv.cpp
+        trmv.cpp
+        nrm2.cpp
+        dot.cpp
+        trsm.cpp
+        syrk.cpp
+        trmm.cpp
+        gemmBatched.cpp
         scal.cpp
         omatcopy.cpp
         axpy.cpp

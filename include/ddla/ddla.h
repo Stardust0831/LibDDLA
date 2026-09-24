@@ -10,6 +10,12 @@
 
 namespace ddla{
 
+/// Real counterpart of a scalar type: `real_type<double>::type == double`,
+/// `real_type<complex<double>>::type == double`.  Used for eigenvalue arrays
+/// and residual norms of Hermitian problems.
+template <typename T> struct real_type            { using type = T; };
+template <typename U> struct real_type<std::complex<U>> { using type = U; };
+
 /// Check a ddlaStatus_t returned by a public API function.
 ///
 /// Throws std::runtime_error with file:line context when @p status is not
@@ -780,6 +786,460 @@ void gemm(
     const T* B, int ldb,
     const T& beta,
     T* C, int ldc);
+
+/**
+ * @brief Hermitian rank-k update: C := alpha*A*A**H + beta*C  ('N')  or
+ *        C := alpha*A**H*A + beta*C.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xHERK (xSYRK for the real scalar types), the GPU instantiation
+ * calls cuBLAS/hipBLAS.  CPU consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @p alpha and @p beta are the REAL type of @p T (the xHERK convention).  For
+ * the real scalar types this is xSYRK, and a conjugate-transpose request is
+ * normalised to a plain transpose.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of C is updated.
+ * @param trans  'N' or 'C' (also accepts 'T').
+ * @param n      Order of C.
+ * @param k      Inner dimension (columns of A when @p trans is 'N').
+ * @param alpha  Real scaling factor for A*A**H.
+ * @param A      Input matrix.
+ * @param lda    Leading dimension of A.
+ * @param beta   Real scaling factor for C.
+ * @param C      In/out matrix; only the @p uplo triangle is referenced.
+ * @param ldc    Leading dimension of C.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void herk(
+    const DdlaHandle_t& handle,
+    char uplo, char trans,
+    int n, int k,
+    const typename real_type<T>::type& alpha,
+    const T* A, int lda,
+    const typename real_type<T>::type& beta,
+    T* C, int ldc);
+
+/**
+ * @brief Hermitian rank-2k update: C := alpha*A*B**H + conj(alpha)*B*A**H +
+ *        beta*C  ('N')  or  C := alpha*A**H*B + conj(alpha)*B**H*A + beta*C.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xHER2K (xSYR2K for the real scalar types), the GPU
+ * instantiation calls cuBLAS/hipBLAS.  CPU consumes HOST pointers, GPU DEVICE
+ * pointers.
+ *
+ * Following the xHER2K convention (and cuBLAS v2), @p alpha is COMPLEX while
+ * @p beta is REAL.  For the real scalar types this is xSYR2K, where both
+ * scalars are real and a conjugate-transpose request is normalised to a plain
+ * transpose.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of C is updated.
+ * @param trans  'N' or 'C' (also accepts 'T').
+ * @param n      Order of C.
+ * @param k      Inner dimension (columns of A and B when @p trans is 'N').
+ * @param alpha  Complex scaling factor for A*B**H.
+ * @param A      First input matrix.
+ * @param lda    Leading dimension of A.
+ * @param B      Second input matrix.
+ * @param ldb    Leading dimension of B.
+ * @param beta   Real scaling factor for C.
+ * @param C      In/out matrix; only the @p uplo triangle is referenced.
+ * @param ldc    Leading dimension of C.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void her2k(
+    const DdlaHandle_t& handle,
+    char uplo, char trans,
+    int n, int k,
+    const T& alpha,
+    const T* A, int lda,
+    const T* B, int ldb,
+    const typename real_type<T>::type& beta,
+    T* C, int ldc);
+
+/**
+ * @brief Hermitian matrix-vector product: y := alpha*A*x + beta*y.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xHEMV (xSYMV for the real scalar types), the GPU instantiation
+ * calls cuBLAS/hipBLAS.  CPU consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of A is referenced.
+ * @param n      Order of A and length of x and y.
+ * @param alpha  Scaling factor for A*x.
+ * @param A      Hermitian input matrix.
+ * @param lda    Leading dimension of A.
+ * @param x      Input vector.
+ * @param incx   Stride between elements of x.
+ * @param beta   Scaling factor for y.
+ * @param y      In/out vector.
+ * @param incy   Stride between elements of y.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void hemv(
+    const DdlaHandle_t& handle,
+    char uplo,
+    int n,
+    const T& alpha,
+    const T* A, int lda,
+    const T* x, int incx,
+    const T& beta,
+    T* y, int incy);
+
+/**
+ * @brief Hermitian matrix-matrix product: C := alpha*A*B + beta*C  ('L')  or
+ *        C := alpha*B*A + beta*C  ('R').
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xHEMM (xSYMM for the real scalar types), the GPU instantiation
+ * calls cuBLAS/hipBLAS.  CPU consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param side   'L' (A multiplies B on the left) or 'R' (on the right).
+ * @param uplo   'U' or 'L' -- which triangle of A is referenced.
+ * @param m      Number of rows of C.
+ * @param n      Number of columns of C.
+ * @param alpha  Scaling factor for the product.
+ * @param A      Hermitian input matrix.
+ * @param lda    Leading dimension of A.
+ * @param B      Input matrix.
+ * @param ldb    Leading dimension of B.
+ * @param beta   Scaling factor for C.
+ * @param C      In/out matrix.
+ * @param ldc    Leading dimension of C.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void hemm(
+    const DdlaHandle_t& handle,
+    char side, char uplo,
+    int m, int n,
+    const T& alpha,
+    const T* A, int lda,
+    const T* B, int ldb,
+    const T& beta,
+    T* C, int ldc);
+
+/**
+ * @brief Hermitian rank-2 update: A := alpha*x*y**H + conj(alpha)*y*x**H + A.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xHER2 (xSYR2 for the real scalar types), the GPU instantiation
+ * calls cuBLAS/hipBLAS.  CPU consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * There is no @p beta and no transpose flag: the update is applied in place to
+ * @p A, which is therefore the LAST argument (matching xHER2 / cuBLAS v2).
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of A is updated.
+ * @param n      Order of A and length of x and y.
+ * @param alpha  Scaling factor for x*y**H.
+ * @param x      First input vector.
+ * @param incx   Stride between elements of x.
+ * @param y      Second input vector.
+ * @param incy   Stride between elements of y.
+ * @param A      In/out Hermitian matrix; only the @p uplo triangle is updated.
+ * @param lda    Leading dimension of A.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void her2(
+    const DdlaHandle_t& handle,
+    char uplo,
+    int n,
+    const T& alpha,
+    const T* x, int incx,
+    const T* y, int incy,
+    T* A, int lda);
+
+/**
+ * @brief Matrix-vector product: y := alpha*op(A)*x + beta*y.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xGEMV, the GPU instantiation calls cuBLAS/hipBLAS.  CPU
+ * consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param trans  'N' (y := alpha*A*x + beta*y), 'T' or 'C' (y :=
+ *               alpha*A**T*x / alpha*A**H*x + beta*y).
+ * @param m      Number of rows of A (and length of y under 'N').
+ * @param n      Number of columns of A (and length of x).
+ * @param alpha  Scaling factor for op(A)*x.
+ * @param A      Input matrix.
+ * @param lda    Leading dimension of A.
+ * @param x      Input vector of length n ('N') or m (otherwise).
+ * @param incx   Stride between elements of x.
+ * @param beta   Scaling factor for y.
+ * @param y      In/out vector of length m ('N') or n (otherwise).
+ * @param incy   Stride between elements of y.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void gemv(
+    const DdlaHandle_t& handle,
+    char trans, int m, int n,
+    const T& alpha,
+    const T* A, int lda,
+    const T* x, int incx,
+    const T& beta,
+    T* y, int incy);
+
+/**
+ * @brief Triangular matrix-vector product: x := op(A)*x, IN PLACE.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xTRMV, the GPU instantiation calls cuBLAS/hipBLAS.  CPU
+ * consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @p x is modified in place, so a caller that needs the original vector must
+ * keep its own copy (or re-upload it) before comparing results.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of A is referenced.
+ * @param trans  'N' (x := A*x), 'T' or 'C' (x := A**T*x / A**H*x).
+ * @param diag   'U' (unit diagonal, A's diagonal not referenced) or 'N'.
+ * @param n      Order of A and length of x.
+ * @param A      Input triangular matrix.
+ * @param lda    Leading dimension of A.
+ * @param x      In/out vector, overwritten with op(A)*x.
+ * @param incx   Stride between elements of x.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void trmv(
+    const DdlaHandle_t& handle,
+    char uplo, char trans, char diag,
+    int n,
+    const T* A, int lda,
+    T* x, int incx);
+
+/**
+ * @brief Euclidean norm: result := ||x||_2.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xNRM2/xCNRM2/xZNRM2, the GPU instantiation calls
+ * cuBLAS/hipBLAS.  The result is written THROUGH THE POINTER @p result, not
+ * returned by value, because the two backends disagree on the pointer's
+ * address space:
+ *   - GPU handles: @p result is DEVICE memory.  The GPU instantiation forces
+ *     the vendor handle into DEVICE pointer mode for the call (and restores
+ *     the previous mode afterwards); passing a host pointer there is undefined.
+ *   - CPU handles: @p result is HOST memory.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param n      Length of x.
+ * @param x      Input vector.
+ * @param incx   Stride between elements of x.
+ * @param result Scalar result; DEVICE memory for GPU handles, HOST memory for
+ *               CPU handles.  Always the REAL type of @p T.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void nrm2(
+    const DdlaHandle_t& handle,
+    int n,
+    const T* x, int incx,
+    typename real_type<T>::type* result);
+
+/**
+ * @brief Conjugate dot product: result := x**H * y (plain dot for real types).
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xDOT for the real scalar types (the complex ones accumulate in
+ * the host arm, since the Fortran ABI for complex-valued function returns is
+ * compiler-dependent), the GPU instantiation calls cuBLAS/hipBLAS.  The result
+ * is written THROUGH THE POINTER @p result, not returned by value, because the
+ * two backends disagree on the pointer's address space:
+ *   - GPU handles: @p result is DEVICE memory.  The GPU instantiation forces
+ *     the vendor handle into DEVICE pointer mode for the call (and restores
+ *     the previous mode afterwards); passing a host pointer there is undefined.
+ *   - CPU handles: @p result is HOST memory.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param n      Length of x and y.
+ * @param x      First input vector, conjugated in the product.
+ * @param incx   Stride between elements of x.
+ * @param y      Second input vector.
+ * @param incy   Stride between elements of y.
+ * @param result Scalar result; DEVICE memory for GPU handles, HOST memory for
+ *               CPU handles.  Same scalar type as @p x and @p y.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void dotc(
+    const DdlaHandle_t& handle,
+    int n,
+    const T* x, int incx,
+    const T* y, int incy,
+    T* result);
+
+/**
+ * @brief Triangular solve with multiple right-hand sides:
+ *        side='L' -> B := alpha*op(A)**-1*B  (A is m-by-m),
+ *        side='R' -> B := alpha*B*op(A)**-1  (A is n-by-n).
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xTRSM, the GPU instantiation calls cuBLAS/hipBLAS.  CPU
+ * consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * @p A and @p B are non-const: the vendor prototypes require non-const
+ * pointers even though A is only read.  @p B is read and written in place.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param side   'L' or 'R' -- whether op(A) multiplies B on the left or right.
+ * @param uplo   'U' or 'L' -- which triangle of A holds the factor.
+ * @param trans  'N', 'T' or 'C' -- op(A) = A, A**T or A**H.
+ * @param diag   'U' (unit diagonal) or 'N' (non-unit).
+ * @param m      Rows of B (and order of A when @p side is 'L').
+ * @param n      Columns of B (and order of A when @p side is 'R').
+ * @param alpha  Scaling factor applied to the solution.
+ * @param A      Triangular factor; only the @p uplo triangle is referenced.
+ * @param lda    Leading dimension of A.
+ * @param B      Right-hand sides (in) / solution (out).
+ * @param ldb    Leading dimension of B.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void trsm(
+    const DdlaHandle_t& handle,
+    char side, char uplo, char trans, char diag,
+    int m, int n,
+    const T& alpha,
+    T* A, int lda,
+    T* B, int ldb);
+
+/**
+ * @brief Symmetric rank-k update: C := alpha*A*A**T + beta*C  ('N')  or
+ *        C := alpha*A**T*A + beta*C.
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xSYRK, the GPU instantiation calls cuBLAS/hipBLAS.  CPU
+ * consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * REAL SCALAR TYPES ONLY.  The complex rank-k update is @ref herk, whose
+ * alpha and beta are the real type of @p T; instantiating this function with a
+ * complex @p T is a compile-time error.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float or double (see above).
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param uplo   'U' or 'L' -- which triangle of C is updated.
+ * @param trans  'N' or 'T' (a 'C' request is normalised to 'T').
+ * @param n      Order of C.
+ * @param k      Inner dimension (columns of A when @p trans is 'N').
+ * @param alpha  Scaling factor for A*A**T.
+ * @param A      Input matrix.
+ * @param lda    Leading dimension of A.
+ * @param beta   Scaling factor for C.
+ * @param C      In/out matrix; only the @p uplo triangle is referenced.
+ * @param ldc    Leading dimension of C.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void syrk(
+    const DdlaHandle_t& handle,
+    char uplo, char trans,
+    int n, int k,
+    const T& alpha,
+    const T* A, int lda,
+    const T& beta,
+    T* C, int ldc);
+
+/**
+ * @brief Triangular matrix multiply:
+ *        side='L' -> C := alpha*op(A)*B  (A m-by-m),
+ *        side='R' -> C := alpha*B*op(A)  (A n-by-n).
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * calls Fortran xTRMM, the GPU instantiation calls cuBLAS/hipBLAS.  CPU
+ * consumes HOST pointers, GPU DEVICE pointers.
+ *
+ * Unlike Fortran xTRMM, which overwrites B, this interface keeps @p B
+ * untouched and writes the product into the separate output @p C; the CPU arm
+ * stages B into C before multiplying in place.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle Handle whose backend must equal @p Backend.
+ * @param side   'L' or 'R' -- side on which op(A) multiplies B.
+ * @param uplo   'U' or 'L' -- which triangle of A is referenced.
+ * @param trans  'N', 'T' or 'C' -- op(A) = A, A**T or A**H.
+ * @param diag   'U' (unit diagonal) or 'N' (non-unit).
+ * @param m      Rows of B and C.
+ * @param n      Columns of B and C.
+ * @param alpha  Scaling factor.
+ * @param A      Triangular factor; only the @p uplo triangle is referenced.
+ * @param lda    Leading dimension of A.
+ * @param B      Input matrix (unmodified).
+ * @param ldb    Leading dimension of B.
+ * @param C      Output matrix.
+ * @param ldc    Leading dimension of C.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void trmm(
+    const DdlaHandle_t& handle,
+    char side, char uplo, char trans, char diag,
+    int m, int n,
+    const T& alpha,
+    const T* A, int lda,
+    const T* B, int ldb,
+    T* C, int ldc);
+
+/**
+ * @brief Batched matrix multiply over arrays of pointers: for each
+ *        i in [0, batchCount),
+ *        C[i] := alpha*op(A[i])*op(B[i]) + beta*C[i].
+ *
+ * Same unified backend-templated form as @ref gemm: the CPU instantiation
+ * loops over Fortran xGEMM, the GPU instantiation calls cuBLAS/hipBLAS
+ * xgemmBatched.  CPU consumes HOST pointers, GPU DEVICE pointers; the arrays
+ * themselves are host arrays of pointers for either backend.
+ *
+ * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
+ * @tparam T       float, double, complex<float> or complex<double>.
+ * @param handle     Handle whose backend must equal @p Backend.
+ * @param transa     'N', 'T' or 'C' -- op(A[i]).
+ * @param transb     'N', 'T' or 'C' -- op(B[i]).
+ * @param m          Rows of op(A[i]) and C[i].
+ * @param n          Columns of op(B[i]) and C[i].
+ * @param k          Shared inner dimension.
+ * @param alpha      Scaling factor for the product.
+ * @param Aarray     Array of @p batchCount pointers to the left operands.
+ * @param lda        Leading dimension of every A[i].
+ * @param Barray     Array of @p batchCount pointers to the right operands.
+ * @param ldb        Leading dimension of every B[i].
+ * @param beta       Scaling factor for C.
+ * @param Carray     Array of @p batchCount pointers to the in/out results.
+ * @param ldc        Leading dimension of every C[i].
+ * @param batchCount Number of matrix triples.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void gemmBatched(
+    const DdlaHandle_t& handle,
+    char transa, char transb,
+    int m, int n, int k,
+    const T& alpha,
+    const T* const Aarray[], int lda,
+    const T* const Barray[], int ldb,
+    const T& beta,
+    T* const Carray[], int ldc,
+    int batchCount);
 
 template <DdlaBackend Backend = default_backend_v, typename T>
 void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,

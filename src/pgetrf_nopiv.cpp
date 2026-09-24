@@ -5,8 +5,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "gemm.h"
-#include "trsm.h"
 #include "comm_traits.h"
 
 namespace ddla {
@@ -54,7 +52,6 @@ void pgetrf_nopiv(
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
     runtimeStream_t stream = ddla_handle->stream;
-    deblasHandle_t blasH = ddla_handle->blasH;
 
     int nb_real;
     int mm_row_start = 0;  // local row start of trailing submatrix
@@ -129,14 +126,14 @@ void pgetrf_nopiv(
         if (myprow == owner_row) {
             if (n_loc > right_panel_col_start) {
                 T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
-                BLAS_CHECK(deblasTrsm(
-                    blasH,
-                    DEBLAS_SIDE_LEFT, DEBLAS_FILL_MODE_LOWER,
-                    DEBLAS_OP_N, DEBLAS_DIAG_UNIT,
+                trsm<DdlaBackend::GPU, T>(
+                    ddla_handle,
+                    'L', 'L',
+                    'N', 'U',
                     nb_real, n_loc - right_panel_col_start, T(1.0),
                     d_temp_block, nb_real,
                     d_right_panel, lld
-                ));
+                );
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_U, nb_real * sizeof(T),
                     d_right_panel, lld * sizeof(T),
@@ -153,14 +150,14 @@ void pgetrf_nopiv(
         if (mypcol == owner_col) {
             if (m_loc > left_panel_row_start) {
                 T* d_left_panel = d_A + mm_col_start * lld + left_panel_row_start;
-                BLAS_CHECK(deblasTrsm(
-                    blasH,
-                    DEBLAS_SIDE_RIGHT, DEBLAS_FILL_MODE_UPPER,
-                    DEBLAS_OP_N, DEBLAS_DIAG_NON_UNIT,
+                trsm<DdlaBackend::GPU, T>(
+                    ddla_handle,
+                    'R', 'U',
+                    'N', 'N',
                     m_loc - left_panel_row_start, nb_real, T(1.0),
                     d_temp_block, nb_real,
                     d_left_panel, lld
-                ));
+                );
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
                     d_left_panel, lld * sizeof(T),

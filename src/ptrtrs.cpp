@@ -4,10 +4,8 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "trsm.h"
 #include "transport_block.h"
 #include "comm_traits.h"
-#include "gemm.h"
 namespace ddla{
 
 
@@ -41,19 +39,7 @@ void ptrtrs(
 
 
     runtimeStream_t stream=ddla_handle->stream;
-    deblasHandle_t blasH=ddla_handle->blasH;
 
-    deblasFillMode_t uplo_device = (uplo == 'U') ? DEBLAS_FILL_MODE_UPPER : DEBLAS_FILL_MODE_LOWER;
-    deblasDiagType_t diag_device = (diag == 'U') ? DEBLAS_DIAG_UNIT : DEBLAS_DIAG_NON_UNIT;
-    deblasOperation_t trans_device;
-    if(trans == 'N'){
-        trans_device = DEBLAS_OP_N;
-    }else if(trans == 'T'){
-        trans_device = DEBLAS_OP_T;
-    }else{
-        trans_device = DEBLAS_OP_C;
-    }
-    deblasSideMode_t side_device = (side == 'L') ? DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
     // Order of the triangular system: op(A) is n_solve x n_solve, matching the
     // rows of B for side='L' (B is m x n) and the columns of B for side='R'.
     const int n_solve = (side == 'L') ? m : n;
@@ -129,12 +115,11 @@ void ptrtrs(
             // 广播当前块行
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
-                BLAS_CHECK(deblasTrsm(
-                    blasH, side_device, uplo_device, trans_device, diag_device,
-                    nb_real, n_loc_B, 1.0,
+                trsm<DdlaBackend::GPU, T>(ddla_handle, 'L', uplo, trans, diag,
+                    nb_real, n_loc_B, (T)1.0,
                     d_block_diag, nb_real,
                     d_B + mm_row_start, lldB
-                ));
+                );
             }
             transport_block(handle, 
                 'R', 'N', 
@@ -249,12 +234,11 @@ void ptrtrs(
             // block column of B on the owner column's processes
             if(mypcol == owner_col){
                 commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
-                BLAS_CHECK(deblasTrsm(
-                    blasH, DEBLAS_SIDE_RIGHT, uplo_device, trans_device, diag_device,
-                    m_loc_B, nb_real, 1.0,
+                trsm<DdlaBackend::GPU, T>(ddla_handle, 'R', uplo, trans, diag,
+                    m_loc_B, nb_real, (T)1.0,
                     d_block_diag, nb_real,
                     d_B + mm_col_start * lldB, lldB
-                ));
+                );
             }
             // gather the solved block column of B (local part: m_loc x nb_real)
             transport_block(handle, 

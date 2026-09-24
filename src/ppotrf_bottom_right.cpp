@@ -13,10 +13,6 @@
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"
-#include "gemmBatched.h"
-#include "herk.h"
-#include "syrk.h"
-#include "trsm.h"
 
 namespace ddla{
 
@@ -24,7 +20,7 @@ namespace {
 
 template <typename T>
 void update_diagonal_tile(
-    const deblasHandle_t blas_handle,
+    const DdlaHandle_t& handle,
     const char uplo,
     const int nb, const int panel_width,
     const T* d_panel, const int ld_panel,
@@ -32,31 +28,28 @@ void update_diagonal_tile(
 )
 {
     const bool upper = uplo == 'U';
-    const deblasFillMode_t fill_mode = upper
-        ? DEBLAS_FILL_MODE_UPPER
-        : DEBLAS_FILL_MODE_LOWER;
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>){
         const T minus_one = T(-1);
         const T one = T(1);
-        BLAS_CHECK(deblasSyrk(
-            blas_handle,
-            fill_mode, upper ? DEBLAS_OP_N : DEBLAS_OP_T,
+        syrk<DdlaBackend::GPU, T>(
+            handle,
+            uplo, upper ? 'N' : 'T',
             nb, panel_width,
             minus_one, d_panel, ld_panel,
             one, d_tile, ldd
-        ));
+        );
     }else{
         using Real = std::conditional_t<
             std::is_same_v<T, std::complex<float>>, float, double>;
         const Real minus_one = Real(-1);
         const Real one = Real(1);
-        BLAS_CHECK(deblasHerk(
-            blas_handle,
-            fill_mode, upper ? DEBLAS_OP_N : DEBLAS_OP_C,
+        herk<DdlaBackend::GPU, T>(
+            handle,
+            uplo, upper ? 'N' : 'C',
             nb, panel_width,
             minus_one, d_panel, ld_panel,
             one, d_tile, ldd
-        ));
+        );
     }
 }
 
@@ -96,7 +89,6 @@ void ppotrf_bottom_right(
     const int lld = descA[DDLA_LLD_];
 
     const runtimeStream_t stream = handle->stream;
-    const deblasHandle_t blas_handle = handle->blasH;
 
     const int max_local_rows = num_loc(
         n, nb, myprow, descA[DDLA_RSRC_], nprocs_dim);
@@ -216,17 +208,17 @@ void ppotrf_bottom_right(
                 const T one = T(1);
                 T* const d_local_panel = d_A
                                        + static_cast<std::size_t>(local_col_prefix) * lld;
-                BLAS_CHECK(deblasTrsm(
-                    blas_handle,
-                    DEBLAS_SIDE_RIGHT,
-                    DEBLAS_FILL_MODE_UPPER,
-                    DEBLAS_OP_C,
-                    DEBLAS_DIAG_NON_UNIT,
+                trsm<DdlaBackend::GPU, T>(
+                    handle,
+                    'R',
+                    'U',
+                    'C',
+                    'N',
                     local_row_prefix, block_width,
                     one,
                     d_diag, block_width,
                     d_local_panel, lld
-                ));
+                );
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_row_panel,
                     static_cast<std::size_t>(local_row_prefix) * sizeof(T),
@@ -268,22 +260,22 @@ void ppotrf_bottom_right(
                 if(myprow == owner_row){
                     const T one = T(1);
                     T* const d_local_panel = d_A + local_row_prefix;
-                    const deblasOperation_t trans =
+                    const char trans =
                         std::is_same_v<T, float>
                             || std::is_same_v<T, double>
-                        ? DEBLAS_OP_T
-                        : DEBLAS_OP_C;
-                    BLAS_CHECK(deblasTrsm(
-                        blas_handle,
-                        DEBLAS_SIDE_LEFT,
-                        DEBLAS_FILL_MODE_LOWER,
+                        ? 'T'
+                        : 'C';
+                    trsm<DdlaBackend::GPU, T>(
+                        handle,
+                        'L',
+                        'L',
                         trans,
-                        DEBLAS_DIAG_NON_UNIT,
+                        'N',
                         block_width, local_col_prefix,
                         one,
                         d_diag, block_width,
                         d_local_panel, lld
-                    ));
+                    );
                     RUNTIME_CHECK(runtimeMemcpy2DAsync(
                         d_col_panel,
                         static_cast<std::size_t>(block_width) * sizeof(T),
@@ -355,7 +347,7 @@ void ppotrf_bottom_right(
                     : block_width;
                 if(global_row == global_col){
                     update_diagonal_tile(
-                        blas_handle,
+                        handle,
                         uplo,
                         nb, block_width,
                         d_left, ld_left,
@@ -388,10 +380,10 @@ void ppotrf_bottom_right(
 
             const T minus_one = T(-1);
             const T one = T(1);
-            BLAS_CHECK(deblasGemmBatched(
-                blas_handle,
-                uplo == 'U' ? DEBLAS_OP_N : DEBLAS_OP_C,
-                uplo == 'U' ? DEBLAS_OP_C : DEBLAS_OP_N,
+            gemmBatched<DdlaBackend::GPU, T>(
+                handle,
+                uplo == 'U' ? 'N' : 'C',
+                uplo == 'U' ? 'C' : 'N',
                 nb, nb, block_width,
                 minus_one,
                 d_left_array,
@@ -401,7 +393,7 @@ void ppotrf_bottom_right(
                 one,
                 d_target_array, lld,
                 batch_count
-            ));
+            );
         }
     }
 

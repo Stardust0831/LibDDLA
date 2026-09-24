@@ -9,11 +9,7 @@
 #include <type_traits>
 #include <cmath>
 #include <algorithm>
-#include "trsm.h"
 #include "potrf.h"
-#include "gemmBatched.h"
-#include "herk.h"
-#include "gemm.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -75,13 +71,14 @@ bool ppotrf(
     const int n_loc_A = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
     runtimeStream_t stream=ddla_handle->stream;
-    deblasHandle_t blasH=ddla_handle->blasH;
     desolverHandle_t solverH=ddla_handle->solverH;
 
     deblasFillMode_t uplo_device = (uplo == 'U') ? DEBLAS_FILL_MODE_UPPER : DEBLAS_FILL_MODE_LOWER;
-    deblasDiagType_t diag_device = DEBLAS_DIAG_NON_UNIT;
-    deblasOperation_t trans_device = DEBLAS_OP_C;
-    deblasSideMode_t side_device = (uplo == 'U') ?DEBLAS_SIDE_LEFT : DEBLAS_SIDE_RIGHT;
+    // The unified trsm/herk/gemmBatched entries take LAPACK-style characters, so
+    // the flags the old DEBLAS_* enum locals encoded are passed through directly.
+    // The side follows the factorized triangle (uplo='U' -> 'L', 'L' -> 'R'),
+    // exactly as the removed side_device local did.
+    const char side_char = (uplo == 'U') ? 'L' : 'R';
 
     T* d_block_diag = nullptr;
     T* d_block_row = nullptr;
@@ -140,31 +137,31 @@ bool ppotrf(
                 if(nb_real > 1){
                     SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
                     if(uplo == 'L'){
-                        BLAS_CHECK(deblasTrsm(
-                            blasH, side_device, uplo_device, trans_device, diag_device,
+                        trsm<DdlaBackend::GPU, T>(
+                            ddla_handle, side_char, uplo, 'C', 'N',
                             1, nb_real - 1, (T)1.0, 
                             A + mm_row_start + mm_col_start * lldA, lldA,
                             A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA
-                        ));
-                        BLAS_CHECK(deblasHerk(
-                            blasH, uplo_device, DEBLAS_OP_N,
+                        );
+                        herk<DdlaBackend::GPU, T>(
+                            ddla_handle, uplo, 'N',
                             1, nb_real - 1,
                             -1.0, A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA,
                             1.0, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, lldA
-                        ));
+                        );
                     }else{
-                        BLAS_CHECK(deblasTrsm(
-                            blasH, side_device, uplo_device, trans_device, diag_device,
+                        trsm<DdlaBackend::GPU, T>(
+                            ddla_handle, side_char, uplo, 'C', 'N',
                             nb_real - 1, 1, (T)1.0, 
                             A + mm_row_start + mm_col_start * lldA, lldA,
                             A + mm_row_start + (mm_col_start + nb_real - 1) * lldA, lldA
-                        ));
-                        BLAS_CHECK(deblasHerk(
-                            blasH, uplo_device, DEBLAS_OP_C,
+                        );
+                        herk<DdlaBackend::GPU, T>(
+                            ddla_handle, uplo, 'C',
                             1, nb_real - 1,
                             -1.0, A + mm_row_start + (mm_col_start + nb_real - 1) * lldA, lldA,
                             1.0, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, lldA
-                        ));
+                        );
                     }
                 }
                 T last_value;
@@ -215,12 +212,12 @@ bool ppotrf(
         if(mypcol == owner_col){
             commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
             if(length_row > 0){
-                BLAS_CHECK(deblasTrsm(
-                    blasH, side_device, uplo_device, trans_device, diag_device,
+                trsm<DdlaBackend::GPU, T>(
+                    ddla_handle, side_char, uplo, 'C', 'N',
                     length_row, nb_real, (T)1.0, 
                     d_block_diag, nb_real,
                     A + mm_row_start + mm_col_start * lldA, lldA
-                ));
+                );
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_block_col, length_row * sizeof(T),
                     A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
@@ -244,12 +241,12 @@ bool ppotrf(
         }
         if(myprow == mypcol){
             if(length_row > 0)
-                BLAS_CHECK(deblasHerk(
-                    blasH, uplo_device, DEBLAS_OP_N,
+                herk<DdlaBackend::GPU, T>(
+                    ddla_handle, uplo, 'N',
                     length_row, nb_real,
                     -1.0, d_block_col, length_row,
                     1.0, A + mm_row_start + mm_col_start * lldA, lldA
-                ));
+                );
         }else{
             // the first approach in which the unused block will be polluted
             // if(length_row > 0 && length_col > 0)
@@ -330,14 +327,14 @@ bool ppotrf(
             RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
             RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
             RUNTIME_CHECK(runtimeMemcpyAsync(d_C_array, h_C_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-            BLAS_CHECK(deblasGemmBatched(
-                blasH, DEBLAS_OP_N, DEBLAS_OP_C,
-                nb, nb, nb_real, -1.0,
+            gemmBatched<DdlaBackend::GPU, T>(
+                ddla_handle, 'N', 'C',
+                nb, nb, nb_real, (T)-1.0,
                 d_A_array, length_row,
                 d_B_array, length_col,
-                1.0, d_C_array, lldA,
+                (T)1.0, d_C_array, lldA,
                 i_batch_count
-            ));
+            );
 
             
             RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
@@ -349,12 +346,12 @@ bool ppotrf(
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 if(length_col > 0){
-                    BLAS_CHECK(deblasTrsm(
-                        blasH, side_device, uplo_device, trans_device, diag_device,
+                    trsm<DdlaBackend::GPU, T>(
+                        ddla_handle, side_char, uplo, 'C', 'N',
                         nb_real, length_col, (T)1.0,
                         d_block_diag, nb_real,
                         A + mm_row_start + mm_col_start * lldA, lldA
-                    ));
+                    );
                     RUNTIME_CHECK(runtimeMemcpy2DAsync(
                         d_block_row, nb_real * sizeof(T),
                         A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
@@ -378,12 +375,12 @@ bool ppotrf(
             }
             if(myprow == mypcol){
                 if(length_col > 0)
-                    BLAS_CHECK(deblasHerk(
-                        blasH, uplo_device, DEBLAS_OP_C,
+                    herk<DdlaBackend::GPU, T>(
+                        ddla_handle, uplo, 'C',
                         length_col, nb_real,
                         -1.0, d_block_row, nb_real,
                         1.0, A + mm_row_start + mm_col_start * lldA, lldA
-                    ));
+                    );
             }else{
                 if(length_row <= 0 || length_col <= 0)
                     continue;
@@ -453,14 +450,14 @@ bool ppotrf(
                     RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
                     RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
                     RUNTIME_CHECK(runtimeMemcpyAsync(d_C_array, h_C_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-                    BLAS_CHECK(deblasGemmBatched(
-                        blasH, DEBLAS_OP_C, DEBLAS_OP_N,
-                        nb, nb, nb_real, -1.0,
+                    gemmBatched<DdlaBackend::GPU, T>(
+                        ddla_handle, 'C', 'N',
+                        nb, nb, nb_real, (T)-1.0,
                         d_A_array, nb_real,
                         d_B_array, nb_real,
-                        1.0, d_C_array, lldA,
+                        (T)1.0, d_C_array, lldA,
                         i_batch_count
-                    ));
+                    );
                 }
             }
         }

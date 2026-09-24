@@ -78,6 +78,10 @@ enable_testing()
 
 add_test_executable(test_backend_gemm)
 add_test_executable(test_backend_level1)
+# BLAS-3 families that had no numerical coverage before the wrapper
+# unification (trsm, syrk, trmm, gemmBatched), plus per-family handle and
+# backend-mismatch rejection.
+add_test_executable(test_backend_blas3)
 add_test_executable(test_random_generate)
 
 if(DDLA_USE_CUDA OR DDLA_USE_HIP)

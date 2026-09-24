@@ -1,10 +1,12 @@
-#include "gemm.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
 
 #include <complex>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
 
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 #if DDLA_HAS_CPU

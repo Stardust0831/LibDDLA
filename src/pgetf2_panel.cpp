@@ -5,8 +5,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "gemm.h"
-#include "trsm.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -43,7 +41,6 @@ void pgetf2_panel(
     int panel_real;
 
     runtimeStream_t stream=ddla_handle->stream;
-    deblasHandle_t blasH=ddla_handle->blasH;
 
     int mm_row_start = num_loc(n_start, nb, myprow, array_descA[DDLA_RSRC_], nprows);
     int mm_col_start = num_loc(n_start, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
@@ -84,12 +81,11 @@ void pgetf2_panel(
         // broadcast block column
         if(mm_col_start<j_s + nb_real && j_loc>=0){
             if(i_loc>=0){
-                BLAS_CHECK(deblasTrsm(
-                    blasH, DEBLAS_SIDE_LEFT, DEBLAS_FILL_MODE_LOWER, DEBLAS_OP_N, DEBLAS_DIAG_UNIT,
-                    panel_real, j_s + nb_real - mm_col_start, 1.0,
+                trsm<DdlaBackend::GPU, T>(
+                    ddla_handle, 'L', 'L', 'N', 'U',
+                    panel_real, j_s + nb_real - mm_col_start, T(1),
                     d_A + i_loc + j_loc * lld, lld,
-                    d_A + i_loc + mm_col_start * lld, lld)
-                );
+                    d_A + i_loc + mm_col_start * lld, lld);
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_U, panel_real * sizeof(T),
                     d_A + i_loc + mm_col_start * lld, lld * sizeof(T),

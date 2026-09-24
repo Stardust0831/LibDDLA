@@ -2,8 +2,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "gemm.h"
-#include "trsm.h"
 #include <thrust/complex.h>
 #include <algorithm>
 #include <complex>
@@ -171,7 +169,6 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
 {
     detail::require_gpu_backend(ddla_handle, "getrf_nopiv");
     runtimeStream_t stream = ddla_handle->stream;
-    deblasHandle_t blas_handle = ddla_handle->blasH;
 
     // Block size for the blocked algorithm.  Must be <= GETF2_MAX_N
     // because the panel kernel stores one row in registers.
@@ -233,19 +230,17 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         if (j + jb < m)
         {
             T one = T(1);
-            BLAS_CHECK(deblasTrsm(
-                blas_handle,
-                DEBLAS_SIDE_RIGHT,          // op(A)*X = B  =>  X = B*inv(A)
-                DEBLAS_FILL_MODE_UPPER,     // U is upper triangular
-                DEBLAS_OP_N,                // no transpose
-                DEBLAS_DIAG_NON_UNIT,       // U has non-unit diagonal
+            trsm<DdlaBackend::GPU, T>(
+                ddla_handle,
+                'R', 'U',                   // op(A)*X = B  =>  X = B*inv(A)
+                'N', 'N',                   // no transpose; U has non-unit diagonal
                 mm - jb, jb,                // (m-jb) rows, jb cols
                 one,
                 d_A + j * lda + j,          // U factor (jb x jb)
                 lda,
                 d_A + j * lda + (j + jb),   // A21 input, L21 output
                 lda
-            ));
+            );
         }
 
         // ---------------------------------------------------------------
@@ -260,19 +255,17 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         if (j + jb < n)
         {
             T one = T(1);
-            BLAS_CHECK(deblasTrsm(
-                blas_handle,
-                DEBLAS_SIDE_LEFT,           // op(A)*X = B  =>  X = inv(A)*B
-                DEBLAS_FILL_MODE_LOWER,     // L is lower triangular
-                DEBLAS_OP_N,                // no transpose
-                DEBLAS_DIAG_UNIT,           // L has unit diagonal
+            trsm<DdlaBackend::GPU, T>(
+                ddla_handle,
+                'L', 'L',                   // op(A)*X = B  =>  X = inv(A)*B
+                'N', 'U',                   // no transpose; L has unit diagonal
                 jb, nn,                     // jb rows, (n-jb) cols
                 one,
                 d_A + j * lda + j,          // L factor (jb x jb, implicit unit diag)
                 lda,
                 d_A + (j + jb) * lda + j,   // A12 input, U12 output
                 lda
-            ));
+            );
 
             // -----------------------------------------------------------
             // 4) Update trailing submatrix

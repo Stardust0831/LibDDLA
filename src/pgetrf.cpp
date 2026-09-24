@@ -5,8 +5,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "gemm.h"
-#include "trsm.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -39,7 +37,6 @@ void pgetrf(
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
     runtimeStream_t stream=ddla_handle->stream;
-    deblasHandle_t blasH=ddla_handle->blasH;
 
     int mm_row_start = 0;
     int mm_col_start = 0;
@@ -108,12 +105,11 @@ void pgetrf(
         if(i_loc>=0){
             commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
             if(mm_col_start<n_loc){
-                BLAS_CHECK(deblasTrsm(
-                    blasH, DEBLAS_SIDE_LEFT, DEBLAS_FILL_MODE_LOWER, DEBLAS_OP_N, DEBLAS_DIAG_UNIT,
-                    nb_real, n_loc - mm_col_start, 1.0,
+                trsm<DdlaBackend::GPU, T>(
+                    ddla_handle, 'L', 'L', 'N', 'U',
+                    nb_real, n_loc - mm_col_start, T(1),
                     d_temp_block, nb_real,
-                    d_A + i_loc + mm_col_start * lld, lld)
-                );
+                    d_A + i_loc + mm_col_start * lld, lld);
                 RUNTIME_CHECK(runtimeMemcpy2DAsync(
                     d_temp_U, nb_real * sizeof(T),
                     d_A + i_loc + mm_col_start * lld, lld * sizeof(T),

@@ -10,7 +10,6 @@
 #include "ddla_stream_impl.h"
 #include <vector>
 #include "transport_block.h"
-#include "gemm.h"
 #include "scal.h"
 
 // CPU-only includes (no GPU vendor headers pulled in by these; safe in any

@@ -7,13 +7,12 @@
 #include <complex>
 #include <type_traits>
 
+#include <ddla/ddla.h>
+
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "herk.h"
 #include "potrf.h"
-#include "syrk.h"
-#include "trsm.h"
 
 namespace ddla{
 
@@ -25,36 +24,33 @@ constexpr int kBlockSize = 128;
 
 template <typename T>
 void update_leading(
-    deblasHandle_t blas_handle,
+    const DdlaHandle_t& handle,
     const char uplo,
     int leading_n, int block_n,
     const T* d_panel, int lda,
     T* d_leading)
 {
     const bool upper = uplo == 'U';
-    const deblasFillMode_t fill_mode = upper
-        ? DEBLAS_FILL_MODE_UPPER
-        : DEBLAS_FILL_MODE_LOWER;
-    if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>){
+    // d_leading -= d_panel * d_panel^H (or its transpose, for the lower case).
+    // The unified syrk/herk take a LAPACK-style character flag, so the
+    // transpose choice is the same 'N'/'T'/'C' string the CPU arm hands to
+    // Fortran -- one convention across both backends.
+    if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
         const T minus_one = T(-1);
         const T one = T(1);
-        BLAS_CHECK(deblasSyrk(
-            blas_handle, fill_mode,
-            upper ? DEBLAS_OP_N : DEBLAS_OP_T,
-            leading_n, block_n,
-            minus_one, d_panel, lda,
-            one, d_leading, lda));
-    }else{
+        syrk<DdlaBackend::GPU, T>(handle, uplo, upper ? 'N' : 'T',
+                                  leading_n, block_n,
+                                  minus_one, d_panel, lda,
+                                  one, d_leading, lda);
+    } else {
         using Real = std::conditional_t<
             std::is_same_v<T, std::complex<float>>, float, double>;
         const Real minus_one = Real(-1);
         const Real one = Real(1);
-        BLAS_CHECK(deblasHerk(
-            blas_handle, fill_mode,
-            upper ? DEBLAS_OP_N : DEBLAS_OP_C,
-            leading_n, block_n,
-            minus_one, d_panel, lda,
-            one, d_leading, lda));
+        herk<DdlaBackend::GPU, T>(handle, uplo, upper ? 'N' : 'C',
+                                  leading_n, block_n,
+                                  minus_one, d_panel, lda,
+                                  one, d_leading, lda);
     }
 }
 
@@ -147,7 +143,6 @@ void potrf_bottom_right(
     assert(lda >= n);
 
     const runtimeStream_t stream = handle->stream;
-    const deblasHandle_t blas_handle = handle->blasH;
     T* d_work = nullptr;
     int* d_info = nullptr;
     RUNTIME_CHECK(runtimeMallocAsync(
@@ -180,35 +175,21 @@ void potrf_bottom_right(
             ? d_A + static_cast<std::size_t>(block_start) * lda
             : d_A + block_start;
         const T one = T(1);
+        // For real T a conjugate transpose is a plain transpose; for the
+        // complex types 'C' is required.  One flag, both backends.
+        const char trans = (std::is_same_v<T, float> || std::is_same_v<T, double>)
+            ? 'T' : 'C';
         if(uplo == 'U'){
-            BLAS_CHECK(deblasTrsm(
-                blas_handle,
-                DEBLAS_SIDE_RIGHT,
-                DEBLAS_FILL_MODE_UPPER,
-                DEBLAS_OP_C,
-                DEBLAS_DIAG_NON_UNIT,
-                block_start, block_n,
-                one,
-                d_diag, lda,
-                d_panel, lda));
+            trsm<DdlaBackend::GPU, T>(handle, 'R', 'U', 'C', 'N',
+                                      block_start, block_n, one,
+                                      d_diag, lda, d_panel, lda);
         }else{
-            const deblasOperation_t trans =
-                std::is_same_v<T, float> || std::is_same_v<T, double>
-                ? DEBLAS_OP_T
-                : DEBLAS_OP_C;
-            BLAS_CHECK(deblasTrsm(
-                blas_handle,
-                DEBLAS_SIDE_LEFT,
-                DEBLAS_FILL_MODE_LOWER,
-                trans,
-                DEBLAS_DIAG_NON_UNIT,
-                block_n, block_start,
-                one,
-                d_diag, lda,
-                d_panel, lda));
+            trsm<DdlaBackend::GPU, T>(handle, 'L', 'L', trans, 'N',
+                                      block_n, block_start, one,
+                                      d_diag, lda, d_panel, lda);
         }
         detail::update_leading(
-            blas_handle,
+            handle,
             uplo,
             block_start, block_n,
             d_panel, lda,
