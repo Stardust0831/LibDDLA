@@ -48,17 +48,15 @@ void pgesv_bpiv(
     assert(n <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     const int m_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int* d_ipiv = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_ipiv),
-                                     sizeof(int) * std::max(1, m_loc_A),
-                                     ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, reinterpret_cast<void**>(&d_ipiv), sizeof(int) * std::max(1, m_loc_A)));
     int info = 0;
     pgetrf_bpiv(handle, n, n, d_A, array_descA, d_ipiv, info);
     if(info != 0){
-        RUNTIME_CHECK(runtimeFreeAsync(d_ipiv, ddla_handle->stream));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
         throw std::runtime_error("pgesv_bpiv: pgetrf_bpiv returned info = " + std::to_string(info));
     }
     pgetrs_bpiv(handle, side, trans, n, nrhs, d_A, array_descA, d_ipiv, d_B, array_descB);
-    RUNTIME_CHECK(runtimeFreeAsync(d_ipiv, ddla_handle->stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
 }
 
 template void pgesv_bpiv<float>(

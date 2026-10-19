@@ -264,7 +264,7 @@ inline bool parse_options(int argc, char** argv, int nprocs, TestOptions& option
 inline void check_ddla_malloc(void** ptr, size_t bytes,
                               const ddla::DdlaHandle_t& handle)
 {
-    ddlaStatus_t rc = ddlaMalloc(ptr, bytes, handle);
+    ddlaStatus_t rc = ddlaMalloc(handle, ptr, bytes);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
         std::cerr << "ddlaMalloc failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
@@ -278,7 +278,7 @@ inline void check_ddla_malloc(void** ptr, size_t bytes,
 inline void check_ddla_free(void* ptr, const ddla::DdlaHandle_t& handle)
 {
     if (ptr == nullptr) return;
-    ddlaStatus_t rc = ddlaFree(ptr, handle);
+    ddlaStatus_t rc = ddlaFree(handle, ptr);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
         std::cerr << "ddlaFree failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
@@ -286,10 +286,9 @@ inline void check_ddla_free(void* ptr, const ddla::DdlaHandle_t& handle)
 }
 
 inline void check_ddla_memcpy(void* dst, const void* src, size_t bytes,
-                              ddla::DdlaMemoryCopyKind kind,
                               const ddla::DdlaHandle_t& handle)
 {
-    ddlaStatus_t rc = ddlaMemcpy(dst, src, bytes, kind, handle);
+    ddlaStatus_t rc = ddlaMemcpy(handle, dst, src, bytes);
     if (rc != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
         std::cerr << "ddlaMemcpy failed (rc=" << static_cast<int>(rc) << ")" << std::endl;
         MPI_Abort(ddlaGetCommunicator(handle), 1);
@@ -332,7 +331,7 @@ inline void upload(const ddla::DdlaHandle_t& handle, T* dst, const std::vector<T
 {
     if(!src.empty()){
         check_ddla_memcpy(dst, src.data(), src.size() * sizeof(T),
-                          DdlaMemoryCopyKind::HostToDevice, handle);
+                          handle);
     }
 }
 
@@ -342,7 +341,7 @@ inline std::vector<T> download(const ddla::DdlaHandle_t& handle, const T* src, s
     std::vector<T> host(count);
     if(count > 0){
         check_ddla_memcpy(host.data(), src, count * sizeof(T),
-                          DdlaMemoryCopyKind::DeviceToHost, handle);
+                          handle);
     }
     check_ddla_sync(handle);
     return host;

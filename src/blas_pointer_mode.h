@@ -28,32 +28,18 @@
 namespace ddla {
 namespace detail {
 
-#if defined(DDLA_USE_CUDA)
+#if DDLA_GPU_VENDOR
 
-using blas_pointer_mode_t = cublasPointerMode_t;
+using blas_pointer_mode_t = gpublasPointerMode_t;
 
-inline blas_pointer_mode_t blas_pointer_mode_device() { return CUBLAS_POINTER_MODE_DEVICE; }
-inline void blas_get_pointer_mode(deblasHandle_t h, blas_pointer_mode_t& m)
+inline blas_pointer_mode_t blas_pointer_mode_device() { return GPUBLAS_POINTER_MODE_DEVICE; }
+inline void blas_get_pointer_mode(gpublasHandle_t h, blas_pointer_mode_t& m)
 {
-    BLAS_CHECK(cublasGetPointerMode(h, &m));
+    BLAS_CHECK(gpublasGetPointerMode(h, &m));
 }
-inline void blas_set_pointer_mode(deblasHandle_t h, blas_pointer_mode_t m)
+inline void blas_set_pointer_mode(gpublasHandle_t h, blas_pointer_mode_t m)
 {
-    BLAS_CHECK(cublasSetPointerMode(h, m));
-}
-
-#elif defined(DDLA_USE_HIP)
-
-using blas_pointer_mode_t = hipblasPointerMode_t;
-
-inline blas_pointer_mode_t blas_pointer_mode_device() { return HIPBLAS_POINTER_MODE_DEVICE; }
-inline void blas_get_pointer_mode(deblasHandle_t h, blas_pointer_mode_t& m)
-{
-    BLAS_CHECK(hipblasGetPointerMode(h, &m));
-}
-inline void blas_set_pointer_mode(deblasHandle_t h, blas_pointer_mode_t m)
-{
-    BLAS_CHECK(hipblasSetPointerMode(h, m));
+    BLAS_CHECK(gpublasSetPointerMode(h, m));
 }
 
 #endif
@@ -63,10 +49,10 @@ inline void blas_set_pointer_mode(deblasHandle_t h, blas_pointer_mode_t m)
 /// state exists there).
 struct blas_device_pointer_mode_scope {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-    deblasHandle_t h_;
+    gpublasHandle_t h_;
     blas_pointer_mode_t saved_;
 
-    explicit blas_device_pointer_mode_scope(deblasHandle_t h) : h_(h), saved_()
+    explicit blas_device_pointer_mode_scope(gpublasHandle_t h) : h_(h), saved_()
     {
         blas_get_pointer_mode(h_, saved_);
         if (saved_ != blas_pointer_mode_device()) blas_set_pointer_mode(h_, blas_pointer_mode_device());
@@ -76,7 +62,7 @@ struct blas_device_pointer_mode_scope {
         if (saved_ != blas_pointer_mode_device()) blas_set_pointer_mode(h_, saved_);
     }
 #else
-    explicit blas_device_pointer_mode_scope(deblasHandle_t) {}
+    explicit blas_device_pointer_mode_scope(gpublasHandle_t) {}
 #endif
 
     blas_device_pointer_mode_scope(const blas_device_pointer_mode_scope&) = delete;

@@ -22,17 +22,17 @@ void check_pdam(int n, const DdlaHandle_t& handle, const T1& alpha)
 
     T2* d_A = nullptr;
     if (nelem > 0) {
-        RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A), nelem * sizeof(T2), handle->stream));
-        RUNTIME_CHECK(runtimeMemsetAsync(d_A, 0, nelem * sizeof(T2), handle->stream));
+        DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), nelem * sizeof(T2)));
+        DDLA_CHECK(ddlaMemset(handle, d_A, 0, nelem * sizeof(T2)));
     }
 
     pdam(handle, alpha, d_A, desc);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     std::vector<T2> h_A(nelem);
     if (nelem > 0) {
-        RUNTIME_CHECK(runtimeMemcpyAsync(h_A.data(), d_A, nelem * sizeof(T2), runtimeMemcpyDeviceToHost, handle->stream));
-        RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+        DDLA_CHECK(ddlaMemcpy(handle, h_A.data(), d_A, nelem * sizeof(T2)));
+        DDLA_CHECK(ddlaSynchronize(handle));
     }
 
     const T2 expected = static_cast<T2>(alpha);
@@ -72,7 +72,7 @@ void check_pdam(int n, const DdlaHandle_t& handle, const T1& alpha)
     }
 
     if (nelem > 0) {
-        RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
+        DDLA_CHECK(ddlaFree(handle, d_A));
     }
 
     if (global_ok == 0) {

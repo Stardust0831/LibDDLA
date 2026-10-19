@@ -33,9 +33,9 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
     const size_t nelem = static_cast<size_t>(ddla_test::m_loc(ddla_handle, matrix_desc)) * ddla_test::n_loc(ddla_handle, matrix_desc);
     const size_t size = nelem * sizeof(std::complex<double>);
 
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_copy, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_identity, size, ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A_copy, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_identity, size));
 
     // Build distributed identity matrix I on host.
     std::vector<std::complex<double>> h_identity(nelem, std::complex<double>(0.0, 0.0));
@@ -49,26 +49,27 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
 
     // Generate distributed random matrix A.
     random_generate(d_A, nelem);
-    BLAS_CHECK(deblasScal(ddla_handle->blasH, nelem, 0.01, d_A, 1));
+    BLAS_CHECK(gpublasScal(ddla_handle->blasH, nelem, 0.01, d_A, 1));
     std::complex<double> diag_shift(2.0, 0.0);
     for (int i = 0; i < matrix_desc[DDLA_M_]; i++) {
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);
         if (i_loc < 0) continue;
         int j_loc = indx_g2l_c(matrix_desc, ddla_handle, i);
         if (j_loc < 0) continue;
-        RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &diag_shift,
-                                  sizeof(std::complex<double>), runtimeMemcpyHostToDevice));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &diag_shift,
+                              sizeof(std::complex<double>)));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
 
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_A_copy, d_A, size, runtimeMemcpyDeviceToDevice, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_identity, h_identity.data(), size, runtimeMemcpyHostToDevice, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_copy, d_A, size));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_identity, h_identity.data(), size));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Solve A * X = I (overwrites d_A with LU factors, d_identity with X).
     double start_time_sv = MPI_Wtime();
     pgesv_nopiv(ddla_handle, 'L', 'N', n, n, d_A, matrix_desc, d_identity, matrix_desc);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_sv = MPI_Wtime() - start_time_sv;
 
@@ -80,14 +81,14 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
           d_identity, matrix_desc,
           std::complex<double>(0.0, 0.0),
           d_A, matrix_desc);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_gemm = MPI_Wtime() - start_time_gemm;
 
     // Check locally on each rank: result should be close to identity.
     std::vector<std::complex<double>> h_result(nelem);
-    RUNTIME_CHECK(runtimeMemcpyAsync(h_result.data(), d_A, size, runtimeMemcpyDeviceToHost, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_result.data(), d_A, size));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     double local_max_err = 0.0;
     for (int i = 0; i < matrix_desc[DDLA_M_]; i++) {
@@ -117,10 +118,10 @@ void check_pgesv_nopiv(int n, const DdlaHandle_t& ddla_handle)
         }
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_identity, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A_copy, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_identity));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A_copy));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 int main(int argc, char* argv[])
@@ -141,7 +142,7 @@ int main(int argc, char* argv[])
         }
     }
     for (int n : sizes) {
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n", n);
         check_pgesv_nopiv(n, ddla_handle);

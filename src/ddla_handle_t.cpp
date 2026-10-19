@@ -1,6 +1,8 @@
 #include "ddla_stream_impl.h"
 #include <stdexcept>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 
 namespace ddla {
 
@@ -142,7 +144,7 @@ void* ddlaGetStream(const DdlaHandle_t& handle)
     if (handle == nullptr) return nullptr;
     if (handle->backend == DdlaBackend::CPU) return nullptr;
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-    return reinterpret_cast<void*>(handle->stream);
+    return handle->stream;
 #else
     // GPU backend requested but this is a CPU-only build — unreachable
     // if ddlaBackendAvailable is checked correctly before init.
@@ -151,87 +153,410 @@ void* ddlaGetStream(const DdlaHandle_t& handle)
 }
 
 // ---------------------------------------------------------------------------
-// Memory helpers — dispatch by handle backend, with uniform validation
+// Memory, copies, events and queries — dispatch by handle backend, with uniform validation
 // ---------------------------------------------------------------------------
-ddlaStatus_t ddlaMalloc(void** ptr, std::size_t bytes, const DdlaHandle_t& handle)
+namespace {
+
+// Vendor message of the most recent failed vendor call on this thread (read by ddlaGetErrorString).
+thread_local std::string g_vendor_error;
+
+// Where a copy goes, decided from the handle and the two pointers.
+enum class CopyRoute { Host, HostToDevice, DeviceToHost, DeviceToDevice, Unknown };
+
+// A CPU handle has no device: every copy is a host copy and the pointers are not inspected.  A GPU handle asks
+// the runtime where each pointer lives (managed memory counts as device memory, see gpuPointerMemType).
+CopyRoute route_copy(const DdlaHandle_t& handle, const void* dst, const void* src)
 {
-    if (handle == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE;
-    if (ptr == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_VALUE;
+#if DDLA_GPU_VENDOR
+    if (handle->backend == DdlaBackend::GPU) {
+        const GpuMemType s = gpuPointerMemType(src);
+        const GpuMemType d = gpuPointerMemType(dst);
+        if (s == GpuMemType::Unknown || d == GpuMemType::Unknown) return CopyRoute::Unknown;
+        if (s == GpuMemType::Host)
+            return d == GpuMemType::Host ? CopyRoute::Host : CopyRoute::HostToDevice;
+        return d == GpuMemType::Host ? CopyRoute::DeviceToHost : CopyRoute::DeviceToDevice;
+    }
+#else
+    (void)handle; (void)dst; (void)src;
+#endif
+    return CopyRoute::Host;
+}
+
+constexpr ddlaStatus_t kOk = ddlaStatus_t::DDLA_STATUS_SUCCESS;
+constexpr ddlaStatus_t kBadHandle = ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE;
+constexpr ddlaStatus_t kBadValue = ddlaStatus_t::DDLA_STATUS_INVALID_VALUE;
+constexpr ddlaStatus_t kInternal = ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR;
+
+inline bool is_gpu(const DdlaHandle_t& handle) { return handle->backend == DdlaBackend::GPU; }
+
+#if DDLA_GPU_VENDOR
+// Only meaningful for the three device routes.
+gpuMemcpyKind vendor_kind(CopyRoute route)
+{
+    switch (route) {
+    case CopyRoute::HostToDevice: return gpuMemcpyHostToDevice;
+    case CopyRoute::DeviceToHost: return gpuMemcpyDeviceToHost;
+    default:                      return gpuMemcpyDeviceToDevice;
+    }
+}
+
+ddlaStatus_t to_status(gpuError_t err)
+{
+    if (err == gpuSuccess) return kOk;
+    g_vendor_error = gpuGetErrorString(err);
+    return kInternal;
+}
+
+inline gpuEvent_t vendor_event(ddlaEvent_t e) { return static_cast<gpuEvent_t>(e); }
+#endif
+
+// Host rectangle copy (the CPU-handle path and the host-to-host path of a GPU handle).
+ddlaStatus_t host_memcpy2d(void* dst, std::size_t dpitch, const void* src, std::size_t spitch,
+                           std::size_t width, std::size_t height)
+{
+    // Contiguous fast path: when both row pitches equal the row width the whole region is one block, so a
+    // single memcpy avoids the per-row call overhead (stride-1 vectors can have a huge height).
+    if (spitch == width && dpitch == width) {
+        std::memcpy(dst, src, width * height);
+        return kOk;
+    }
+    for (std::size_t i = 0; i < height; ++i)
+        std::memcpy(static_cast<char*>(dst) + i * dpitch, static_cast<const char*>(src) + i * spitch, width);
+    return kOk;
+}
+
+} // namespace
+
+const char* ddlaGetErrorString(ddlaStatus_t status)
+{
+    const char* name = "DDLA_STATUS_UNKNOWN";
+    switch (status) {
+    case ddlaStatus_t::DDLA_STATUS_SUCCESS:             name = "DDLA_STATUS_SUCCESS"; break;
+    case ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE:      name = "DDLA_STATUS_INVALID_HANDLE"; break;
+    case ddlaStatus_t::DDLA_STATUS_INVALID_VALUE:       name = "DDLA_STATUS_INVALID_VALUE"; break;
+    case ddlaStatus_t::DDLA_STATUS_ALLOC_FAILED:        name = "DDLA_STATUS_ALLOC_FAILED"; break;
+    case ddlaStatus_t::DDLA_STATUS_BACKEND_UNAVAILABLE: name = "DDLA_STATUS_BACKEND_UNAVAILABLE"; break;
+    case ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR:      name = "DDLA_STATUS_INTERNAL_ERROR"; break;
+    }
+    thread_local std::string text;
+    text = name;
+    if (status == ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR && !g_vendor_error.empty())
+        text += ": " + g_vendor_error;
+    return text.c_str();
+}
+
+// -- allocation ------------------------------------------------------------------------------------------
+ddlaStatus_t ddlaMalloc(const DdlaHandle_t& handle, void** ptr, std::size_t bytes)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (ptr == nullptr) return kBadValue;
 
     // Zero-byte allocation: set *ptr = nullptr, return success
     if (bytes == 0) {
         *ptr = nullptr;
-        return ddlaStatus_t::DDLA_STATUS_SUCCESS;
+        return kOk;
     }
 
-    if (handle->backend == DdlaBackend::CPU) {
+    if (!is_gpu(handle)) {
         *ptr = std::malloc(bytes);
-        return (*ptr != nullptr) ? ddlaStatus_t::DDLA_STATUS_SUCCESS
-                                 : ddlaStatus_t::DDLA_STATUS_ALLOC_FAILED;
+        return (*ptr != nullptr) ? kOk : ddlaStatus_t::DDLA_STATUS_ALLOC_FAILED;
     }
-    return runtimeMallocAsync(ptr, bytes, handle->stream)
-        == runtimeSuccess ? ddlaStatus_t::DDLA_STATUS_SUCCESS
-                          : ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuMallocAsync(ptr, bytes, handle->stream));
+#else
+    return kInternal;
+#endif
 }
 
-ddlaStatus_t ddlaFree(void* ptr, const DdlaHandle_t& handle)
+ddlaStatus_t ddlaFree(const DdlaHandle_t& handle, void* ptr)
 {
-    if (handle == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE;
+    if (handle == nullptr) return kBadHandle;
     // Freeing nullptr is a valid no-op on both CPU and GPU
-    if (ptr == nullptr) return ddlaStatus_t::DDLA_STATUS_SUCCESS;
-    if (handle->backend == DdlaBackend::CPU) {
+    if (ptr == nullptr) return kOk;
+    if (!is_gpu(handle)) {
         std::free(ptr);
-        return ddlaStatus_t::DDLA_STATUS_SUCCESS;
+        return kOk;
     }
-    return runtimeFreeAsync(ptr, handle->stream)
-        == runtimeSuccess ? ddlaStatus_t::DDLA_STATUS_SUCCESS
-                          : ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuFreeAsync(ptr, handle->stream));
+#else
+    return kInternal;
+#endif
 }
 
-ddlaStatus_t ddlaMemcpy(void* dst, const void* src, std::size_t bytes,
-                DdlaMemoryCopyKind kind, const DdlaHandle_t& handle)
+ddlaStatus_t ddlaMallocHost(const DdlaHandle_t& handle, void** ptr, std::size_t bytes)
 {
-    if (handle == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE;
+    if (handle == nullptr) return kBadHandle;
+    if (ptr == nullptr) return kBadValue;
+    if (bytes == 0) {
+        *ptr = nullptr;
+        return kOk;
+    }
+    if (!is_gpu(handle)) {
+        *ptr = std::malloc(bytes);
+        return (*ptr != nullptr) ? kOk : ddlaStatus_t::DDLA_STATUS_ALLOC_FAILED;
+    }
+#if DDLA_GPU_VENDOR
+    return to_status(gpuHostAlloc(ptr, bytes, gpuHostAllocDefault));
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaFreeHost(const DdlaHandle_t& handle, void* ptr)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (ptr == nullptr) return kOk;
+    if (!is_gpu(handle)) {
+        std::free(ptr);
+        return kOk;
+    }
+#if DDLA_GPU_VENDOR
+    return to_status(gpuFreeHost(ptr));
+#else
+    return kInternal;
+#endif
+}
+
+// -- copies and memset -----------------------------------------------------------------------------------
+namespace detail {
+
+ddlaStatus_t memcpy_on(const DdlaHandle_t& handle, void* dst, const void* src, std::size_t bytes,
+                       gpuStream_t queue)
+{
+    if (handle == nullptr) return kBadHandle;
 
     // Zero-byte copy: no-op, do not dereference src/dst
-    if (bytes == 0) return ddlaStatus_t::DDLA_STATUS_SUCCESS;
+    if (bytes == 0) return kOk;
 
     // Nonzero copy: reject null source or destination
-    if (dst == nullptr || src == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_VALUE;
+    if (dst == nullptr || src == nullptr) return kBadValue;
 
-    // Reject invalid copy kind values
-    switch (kind) {
-    case DdlaMemoryCopyKind::HostToDevice:
-    case DdlaMemoryCopyKind::DeviceToHost:
-    case DdlaMemoryCopyKind::DeviceToDevice:
-        break;
-    default:
-        return ddlaStatus_t::DDLA_STATUS_INVALID_VALUE;
-    }
-
-    if (handle->backend == DdlaBackend::CPU) {
+    const CopyRoute route = route_copy(handle, dst, src);
+    if (route == CopyRoute::Unknown) return kInternal;
+    if (route == CopyRoute::Host) {
         std::memcpy(dst, src, bytes);
-        return ddlaStatus_t::DDLA_STATUS_SUCCESS;
+        return kOk;
     }
-    runtimeMemcpyKind dkind;
-    switch (kind) {
-    case DdlaMemoryCopyKind::HostToDevice:   dkind = runtimeMemcpyHostToDevice;   break;
-    case DdlaMemoryCopyKind::DeviceToHost:   dkind = runtimeMemcpyDeviceToHost;   break;
-    case DdlaMemoryCopyKind::DeviceToDevice: dkind = runtimeMemcpyDeviceToDevice; break;
-    default: return ddlaStatus_t::DDLA_STATUS_INVALID_VALUE; // unreachable (validated above)
-    }
-    return runtimeMemcpyAsync(dst, src, bytes, dkind, handle->stream)
-        == runtimeSuccess ? ddlaStatus_t::DDLA_STATUS_SUCCESS
-                          : ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuMemcpyAsync(dst, src, bytes, vendor_kind(route), queue));
+#else
+    (void)queue;
+    return kInternal;
+#endif
 }
+
+} // namespace detail
+
+ddlaStatus_t ddlaMemcpy(const DdlaHandle_t& handle, void* dst, const void* src, std::size_t bytes)
+{
+    return detail::memcpy_on(handle, dst, src, bytes, handle ? handle->stream : nullptr);
+}
+
+ddlaStatus_t ddlaMemcpy2D(const DdlaHandle_t& handle, void* dst, std::size_t dpitch,
+                          const void* src, std::size_t spitch,
+                          std::size_t width, std::size_t height)
+{
+    if (handle == nullptr) return kBadHandle;
+
+    // Empty rectangle: no-op, do not dereference src/dst
+    if (width == 0 || height == 0) return kOk;
+
+    if (dst == nullptr || src == nullptr) return kBadValue;
+
+    // A pitch shorter than the row width would make rows overlap (and
+    // cudaMemcpy2D rejects it too).
+    if (dpitch < width || spitch < width) return kBadValue;
+
+    const CopyRoute route = route_copy(handle, dst, src);
+    if (route == CopyRoute::Unknown) return kInternal;
+    if (route == CopyRoute::Host) return host_memcpy2d(dst, dpitch, src, spitch, width, height);
+#if DDLA_GPU_VENDOR
+    return to_status(gpuMemcpy2DAsync(dst, dpitch, src, spitch, width, height, vendor_kind(route),
+                                      handle->stream));
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaMemset(const DdlaHandle_t& handle, void* ptr, int value, std::size_t bytes)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (bytes == 0) return kOk;
+    if (ptr == nullptr) return kBadValue;
+    if (!is_gpu(handle)) {
+        std::memset(ptr, value, bytes);
+        return kOk;
+    }
+#if DDLA_GPU_VENDOR
+    return to_status(gpuMemsetAsync(ptr, value, bytes, handle->stream));
+#else
+    return kInternal;
+#endif
+}
+
+// -- synchronization and events --------------------------------------------------------------------
+namespace detail {
+
+ddlaStatus_t synchronize_on(const DdlaHandle_t& handle, gpuStream_t queue)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuStreamSynchronize(queue));
+#else
+    (void)queue;
+    return kInternal;
+#endif
+}
+
+} // namespace detail
 
 ddlaStatus_t ddlaSynchronize(const DdlaHandle_t& handle)
 {
-    if (handle == nullptr) return ddlaStatus_t::DDLA_STATUS_INVALID_HANDLE;
-    if (handle->backend == DdlaBackend::CPU) return ddlaStatus_t::DDLA_STATUS_SUCCESS;
-    return runtimeStreamSynchronize(handle->stream)
-        == runtimeSuccess ? ddlaStatus_t::DDLA_STATUS_SUCCESS
-                          : ddlaStatus_t::DDLA_STATUS_INTERNAL_ERROR;
+    return detail::synchronize_on(handle, handle ? handle->stream : nullptr);
+}
+
+ddlaStatus_t ddlaDeviceSynchronize(const DdlaHandle_t& handle)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuDeviceSynchronize());
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaEventCreate(const DdlaHandle_t& handle, ddlaEvent_t* event)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (event == nullptr) return kBadValue;
+    *event = nullptr;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    gpuEvent_t e = nullptr;
+    const ddlaStatus_t st = to_status(gpuEventCreate(&e));
+    if (st == kOk) *event = e;
+    return st;
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaEventDestroy(const DdlaHandle_t& handle, ddlaEvent_t event)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle) || event == nullptr) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuEventDestroy(vendor_event(event)));
+#else
+    return kInternal;
+#endif
+}
+
+namespace detail {
+
+ddlaStatus_t event_record_on(const DdlaHandle_t& handle, ddlaEvent_t event, gpuStream_t queue)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuEventRecord(vendor_event(event), queue));
+#else
+    (void)event; (void)queue;
+    return kInternal;
+#endif
+}
+
+} // namespace detail
+
+ddlaStatus_t ddlaEventRecord(const DdlaHandle_t& handle, ddlaEvent_t event)
+{
+    return detail::event_record_on(handle, event, handle ? handle->stream : nullptr);
+}
+
+namespace detail {
+
+ddlaStatus_t event_wait_on(const DdlaHandle_t& handle, ddlaEvent_t event, gpuStream_t queue)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuStreamWaitEvent(queue, vendor_event(event), 0));
+#else
+    (void)event; (void)queue;
+    return kInternal;
+#endif
+}
+
+} // namespace detail
+
+ddlaStatus_t ddlaEventWait(const DdlaHandle_t& handle, ddlaEvent_t event)
+{
+    return detail::event_wait_on(handle, event, handle ? handle->stream : nullptr);
+}
+
+ddlaStatus_t ddlaEventSynchronize(const DdlaHandle_t& handle, ddlaEvent_t event)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuEventSynchronize(vendor_event(event)));
+#else
+    (void)event;
+    return kInternal;
+#endif
+}
+
+// -- errors and device queries ---------------------------------------------------------------------------
+ddlaStatus_t ddlaGetLastError(const DdlaHandle_t& handle)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuGetLastError());
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaSetDevice(const DdlaHandle_t& handle)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuSetDevice(handle->local_device));
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaGetDeviceCount(const DdlaHandle_t& handle, int* count)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (count == nullptr) return kBadValue;
+    *count = 1;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuGetDeviceCount(count));
+#else
+    return kInternal;
+#endif
+}
+
+ddlaStatus_t ddlaMemGetInfo(const DdlaHandle_t& handle, std::size_t* free_bytes, std::size_t* total_bytes)
+{
+    if (handle == nullptr) return kBadHandle;
+    if (free_bytes == nullptr || total_bytes == nullptr) return kBadValue;
+    *free_bytes = 0;
+    *total_bytes = 0;
+    if (!is_gpu(handle)) return kOk;
+#if DDLA_GPU_VENDOR
+    return to_status(gpuMemGetInfo(free_bytes, total_bytes));
+#else
+    return kInternal;
+#endif
 }
 
 // ---------------------------------------------------------------------------
@@ -245,16 +570,13 @@ ddlaStatus_t ddlaSetStream(const DdlaHandle_t& handle, void* stream)
             "ddlaSetStream: setting a stream requires a GPU handle");
     }
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-    handle->stream = static_cast<runtimeStream_t>(stream);
+    handle->stream = static_cast<gpuStream_t>(stream);
 #endif
     // Re-bind the BLAS/solver handles so subsequent calls honor the new
     // stream (mirrors what DdlaStream::init does at creation time).
-#if defined(DDLA_USE_CUDA)
-    BLAS_CHECK(cublasSetStream(handle->blasH, handle->stream));
-    SOLVER_CHECK(cusolverDnSetStream(handle->solverH, handle->stream));
-#elif defined(DDLA_USE_HIP)
-    BLAS_CHECK(hipblasSetStream(handle->blasH, handle->stream));
-    SOLVER_CHECK(hipsolverSetStream(handle->solverH, handle->stream));
+#if DDLA_GPU_VENDOR
+    BLAS_CHECK(gpublasSetStream(handle->blasH, handle->stream));
+    SOLVER_CHECK(gpusolverSetStream(handle->solverH, handle->stream));
 #endif
     return ddlaStatus_t::DDLA_STATUS_SUCCESS;
 }

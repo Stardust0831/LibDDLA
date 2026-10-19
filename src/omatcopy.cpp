@@ -8,14 +8,14 @@
 
 // ---------------------------------------------------------------------------
 // ddla::omatcopy<Backend,T> -- the DdlaBackend-templated form of
-// deblasOmatcopy, in the same shape as ddla::gemm / ddla::scal.
+// gpublasOmatcopy, in the same shape as ddla::gemm / ddla::scal.
 //
-// Why this exists separately from deblasOmatcopy: every `deblas*` wrapper in
+// Why this exists separately from gpublasOmatcopy: every `gpublas*` wrapper in
 // include/ddla/ selects its implementation from the *translation unit's*
 // vendor macros (`#if defined(DDLA_USE_CUDA) ... #elif defined(DDLA_USE_CPU)`),
 // not from a backend template argument. In a dual (CPU+GPU) build a single
 // object file is compiled with DDLA_USE_CUDA defined and DDLA_USE_CPU not
-// defined, so deblasOmatcopy unconditionally resolves to cuBLAS geam there --
+// defined, so gpublasOmatcopy unconditionally resolves to cuBLAS geam there --
 // calling it from an `if constexpr (Backend == CPU)` branch would hand host
 // pointers to cuBLAS. This file breaks that coupling by binding the CPU path
 // to the raw cblas_?omatcopy symbols directly (gated on the project-wide
@@ -121,9 +121,9 @@ void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
 #endif
     } else {
 #if DDLA_HAS_GPU
-        const deblasOperation_t op = trans == 'N' ? DEBLAS_OP_N :
-                                     trans == 'T' ? DEBLAS_OP_T : DEBLAS_OP_C;
-        BLAS_CHECK(deblasOmatcopy(handle->blasH, op, rows, cols, alpha, A, lda, B, ldb));
+        const gpublasOperation_t op = trans == 'N' ? GPUBLAS_OP_N :
+                                      trans == 'T' ? GPUBLAS_OP_T : GPUBLAS_OP_C;
+        BLAS_CHECK(gpublasOmatcopy(handle->blasH, op, rows, cols, alpha, A, lda, B, ldb));
 #endif
     }
 }
@@ -140,13 +140,9 @@ void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
 #endif
     } else {
 #if DDLA_HAS_GPU
-        RUNTIME_CHECK(runtimeMemcpy2DAsync<Backend>(
-            dst, static_cast<std::size_t>(dst_ld) * sizeof(T),
-            src, static_cast<std::size_t>(src_ld) * sizeof(T),
-            static_cast<std::size_t>(rows) * sizeof(T),
-            static_cast<std::size_t>(cols),
-            detail::RuntimeTraits<Backend>::device_to_device,
-            handle->stream));
+        DDLA_CHECK(ddlaMemcpy2D(handle, dst, static_cast<std::size_t>(dst_ld) * sizeof(T), src,
+                                static_cast<std::size_t>(src_ld) * sizeof(T),
+                                static_cast<std::size_t>(rows) * sizeof(T), static_cast<std::size_t>(cols)));
 #endif
     }
 }

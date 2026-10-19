@@ -19,7 +19,7 @@ using namespace ddla;
 
 //
 // Helper: validate that every underlying real component of the generated
-// data falls in [0, 1] (the derand uniform range).
+// data falls in [0, 1] (the gpurand uniform range).
 //
 
 template <typename T>
@@ -94,20 +94,21 @@ bool test_type_gpu(int64_t count, const DdlaHandle_t& handle, const char* type_n
 
     // Allocate device memory
     T* d_data = nullptr;
-    RUNTIME_CHECK(runtimeMalloc(&d_data, bytes));
+    DDLA_CHECK(ddlaMalloc(handle, &d_data, bytes));
 
     // Call the GPU backend
     random_generate<DdlaBackend::GPU>(d_data, count);
 
     // Copy back to host
     std::vector<T> h_data(count);
-    RUNTIME_CHECK(runtimeMemcpy(h_data.data(), d_data, bytes, runtimeMemcpyDeviceToHost));
+    DDLA_CHECK(ddlaMemcpy(handle, h_data.data(), d_data, bytes));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     // Validate
     bool ok = validate_uniform_range(h_data, count, myid, type_name);
 
     // Cleanup
-    RUNTIME_CHECK(runtimeFree(d_data));
+    DDLA_CHECK(ddlaFree(handle, d_data));
 
     return ok;
 }

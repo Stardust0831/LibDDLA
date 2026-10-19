@@ -40,7 +40,6 @@ void pgetf2_panel(
     const int panel = std::min(32, nb/2>0?nb/2:1);
     int panel_real;
 
-    runtimeStream_t stream=ddla_handle->stream;
 
     int mm_row_start = num_loc(n_start, nb, myprow, array_descA[DDLA_RSRC_], nprows);
     int mm_col_start = num_loc(n_start, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
@@ -48,7 +47,7 @@ void pgetf2_panel(
     int owner_row;
 
     T *d_temp_U;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_U, sizeof(T)*nb_real*panel, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T)*nb_real*panel));
 
     info = 0;
 
@@ -69,7 +68,7 @@ void pgetf2_panel(
             ipiv, info
         );
         if(info != 0){
-            RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
+            DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
             return;
         }
         // finish pgetf2
@@ -86,12 +85,9 @@ void pgetf2_panel(
                     panel_real, j_s + nb_real - mm_col_start, T(1),
                     d_A + i_loc + j_loc * lld, lld,
                     d_A + i_loc + mm_col_start * lld, lld);
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_U, panel_real * sizeof(T),
-                    d_A + i_loc + mm_col_start * lld, lld * sizeof(T),
-                    panel_real * sizeof(T), j_s + nb_real - mm_col_start,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, panel_real * sizeof(T),
+                                        d_A + i_loc + mm_col_start * lld, lld * sizeof(T), panel_real * sizeof(T),
+                                        j_s + nb_real - mm_col_start));
             } 
             commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
         }
@@ -107,7 +103,7 @@ void pgetf2_panel(
         }
     }
     info = 0;
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
 
 }
 

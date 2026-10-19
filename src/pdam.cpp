@@ -77,14 +77,14 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* array
     if (n_eff <= 0) return;
 
     detail::require_gpu_backend(handle, "pdam");
-    runtimeStream_t stream = handle->stream;
+    gpuStream_t stream = handle->stream;
 
     using deviceT1 = typename detail::device_scalar<T1>::type;
     using deviceT2 = typename detail::device_scalar<T2>::type;
 
     deviceT1* d_alpha = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_alpha), sizeof(deviceT1), stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_alpha, &alpha, sizeof(deviceT1), runtimeMemcpyHostToDevice, stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_alpha), sizeof(deviceT1)));
+    DDLA_CHECK(ddlaMemcpy(handle, d_alpha, &alpha, sizeof(deviceT1)));
 
     const int blockSize = 256;
     const int gridSize = (n_eff + blockSize - 1) / blockSize;
@@ -98,9 +98,9 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* array
         myprow, mypcol,
         nprows, npcols,
         array_descA[DDLA_LLD_]);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_alpha, stream));
+    DDLA_CHECK(ddlaFree(handle, d_alpha));
 }
 
 // Supported type combinations match LibRPA's DeviceConnector::pdam.

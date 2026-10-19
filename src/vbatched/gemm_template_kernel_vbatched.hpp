@@ -261,12 +261,12 @@ template <typename T, const int DIM_X, const int DIM_Y, const int BLK_M, const i
          const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
          const int CONJA, const int CONJB>
 void gemm_template_vbatched_nn(
-    int max_m, int max_n, int max_k,
+    const ddla::DdlaHandle_t& handle, int max_m, int max_n, int max_k,
     int* m, int* n, int* k,
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -277,7 +277,7 @@ void gemm_template_vbatched_nn(
         int ibatch = min(max_batchCount, batchCount-i);
         dim3 dimGrid( ddlaVbatchedCeilDiv( max_m, BLK_M ), ddlaVbatchedCeilDiv( max_n, BLK_N ), ibatch );
 
-        DDLA_LAUNCH_KERNEL((gemm_template_vbatched_nn_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, stream, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
+        DDLA_LAUNCH_KERNEL(handle, (gemm_template_vbatched_nn_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
     }
 }
 
@@ -288,12 +288,12 @@ template <typename T, const int DIM_X, const int DIM_Y, const int BLK_M, const i
          const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
          const int CONJA, const int CONJB>
 void gemm_template_vbatched_nt(
-    int max_m, int max_n, int max_k,
+    const ddla::DdlaHandle_t& handle, int max_m, int max_n, int max_k,
     int* m, int* n, int* k,
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -304,7 +304,7 @@ void gemm_template_vbatched_nt(
         int ibatch = min(max_batchCount, batchCount-i);
         dim3 dimGrid( ddlaVbatchedCeilDiv( max_m, BLK_M ), ddlaVbatchedCeilDiv( max_n, BLK_N ), ibatch );
 
-        DDLA_LAUNCH_KERNEL((gemm_template_vbatched_nt_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, stream, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
+        DDLA_LAUNCH_KERNEL(handle, (gemm_template_vbatched_nt_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
     }
 }
 
@@ -315,12 +315,12 @@ template <typename T, const int DIM_X, const int DIM_Y, const int BLK_M, const i
          const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
          const int CONJA, const int CONJB>
 void gemm_template_vbatched_tn(
-    int max_m, int max_n, int max_k,
+    const ddla::DdlaHandle_t& handle, int max_m, int max_n, int max_k,
     int* m, int* n, int* k,
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -331,7 +331,7 @@ void gemm_template_vbatched_tn(
         int ibatch = min(max_batchCount, batchCount-i);
         dim3 dimGrid( ddlaVbatchedCeilDiv( max_m, BLK_M ), ddlaVbatchedCeilDiv( max_n, BLK_N ), ibatch );
 
-        DDLA_LAUNCH_KERNEL((gemm_template_vbatched_tn_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, stream, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
+        DDLA_LAUNCH_KERNEL(handle, (gemm_template_vbatched_tn_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
     }
 
 }
@@ -343,12 +343,12 @@ template <typename T, const int DIM_X, const int DIM_Y, const int BLK_M, const i
          const int DIM_XA, const int DIM_YA, const int DIM_XB, const int DIM_YB,
          const int CONJA, const int CONJB>
 void gemm_template_vbatched_tt(
-    int max_m, int max_n, int max_k,
+    const ddla::DdlaHandle_t& handle, int max_m, int max_n, int max_k,
     int* m, int* n, int* k,
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
              T const * const * dB_array, int Bi, int Bj, int* lddb,
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     size_t shmem = 0;
     int max_batchCount = ddlaVbatchedMaxBatchCount;
@@ -359,7 +359,7 @@ void gemm_template_vbatched_tt(
         int ibatch = min(max_batchCount, batchCount-i);
         dim3 dimGrid( ddlaVbatchedCeilDiv( max_m, BLK_M ), ddlaVbatchedCeilDiv( max_n, BLK_N ), ibatch );
 
-        DDLA_LAUNCH_KERNEL((gemm_template_vbatched_tt_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, stream, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
+        DDLA_LAUNCH_KERNEL(handle, (gemm_template_vbatched_tt_kernel<T, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, dim_vec, DIM_XA, DIM_YA, DIM_XB, DIM_YB, CONJA, CONJB>), dim3(dimGrid), dim3(dimBlock), shmem, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
     }
 }
 
@@ -368,7 +368,7 @@ void gemm_template_vbatched_tt(
 // kernel wrappers
 template <typename T>
 void gemm_template_vbatched(
-    Func_gemm_template_vbatched_kernel<T> func_gemm_template_vbatched_kernel,
+    const ddla::DdlaHandle_t& handle, Func_gemm_template_vbatched_kernel<T> func_gemm_template_vbatched_kernel,
     int max_m, int max_n, int max_k,
     int* m, int* n, int* k,
     T alpha, T const * const * dA_array, int Ai, int Aj, int* ldda,
@@ -376,7 +376,7 @@ void gemm_template_vbatched(
     T beta,  T              ** dC_array, int Ci, int Cj, int* lddc,
     const int DIM_X, const int DIM_Y,
     const int BLK_M, const int BLK_N, const int BLK_K,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     int max_batchCount = ddlaVbatchedMaxBatchCount;
     size_t shmem = 0;
@@ -387,7 +387,7 @@ void gemm_template_vbatched(
         int ibatch = min(max_batchCount, batchCount-i);
         dim3 dimGrid( ddlaVbatchedCeilDiv( max_m, BLK_M ), ddlaVbatchedCeilDiv( max_n, BLK_N ), ibatch );
 
-        ddlaLaunchKernelByPtr<T>(func_gemm_template_vbatched_kernel, dim3(dimGrid), dim3(dimBlock), shmem, stream, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
+        ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel, dim3(dimGrid), dim3(dimBlock), shmem, m+i, n+i, k+i, dA_array+i, Ai, Aj, ldda+i, dB_array+i, Bi, Bj, lddb+i, dC_array+i, Ci, Cj, lddc+i, alpha, beta, max_m, max_n, max_k);
     }
 }
 
@@ -398,7 +398,7 @@ void gemm_template_vbatched(
 // kernel wrappers
 template <typename T>
 void gemm_template_vbatched_2s(
-    Func_gemm_template_vbatched_kernel<T> func_gemm_template_vbatched_kernel_0,
+    const ddla::DdlaHandle_t& handle, Func_gemm_template_vbatched_kernel<T> func_gemm_template_vbatched_kernel_0,
     int max_m_0, int max_n_0, int max_k_0,
     int* m_0, int* n_0, int* k_0,
     T alpha_0, T const * const * dA_array_0, int Ai_0, int Aj_0, int* ldda_0,
@@ -415,7 +415,7 @@ void gemm_template_vbatched_2s(
     const int DIM_X_1, const int DIM_Y_1,
     const int BLK_M_1, const int BLK_N_1, const int BLK_K_1,
     bool C0_left,
-    int batchCount, const int* segment_sizes, ddla::runtimeStream_t stream)
+    int batchCount, const int* segment_sizes)
 {
     size_t shmem_0 = 0;
     shmem_0 += (BLK_M_0+1) * BLK_K_0 * sizeof(T);  // sA
@@ -431,12 +431,12 @@ void gemm_template_vbatched_2s(
         dim3 dimGrid_0( ddlaVbatchedCeilDiv( max_m_0, BLK_M_0 ), ddlaVbatchedCeilDiv( max_n_0, BLK_N_0 ), ibatch );
         dim3 dimGrid_1( ddlaVbatchedCeilDiv( max_m_1, BLK_M_1 ), ddlaVbatchedCeilDiv( max_n_1, BLK_N_1 ), ibatch );
 
-        ddlaLaunchKernelByPtr<T>(func_gemm_template_vbatched_kernel_0, dim3(dimGrid_0), dim3(dimBlock_0), shmem_0, stream, m_0+i, n_0+i, k_0+i, dA_array_0+i, Ai_0, Aj_0, ldda_0+i, dB_array_0+i, Bi_0, Bj_0, lddb_0+i, dC_array_0, Ci_0, Cj_0, lddc_0+i, alpha_0, beta_0, max_m_0, max_n_0, max_k_0);
+        ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_0, dim3(dimGrid_0), dim3(dimBlock_0), shmem_0, m_0+i, n_0+i, k_0+i, dA_array_0+i, Ai_0, Aj_0, ldda_0+i, dB_array_0+i, Bi_0, Bj_0, lddb_0+i, dC_array_0, Ci_0, Cj_0, lddc_0+i, alpha_0, beta_0, max_m_0, max_n_0, max_k_0);
 
         if(C0_left)
-            ddlaLaunchKernelByPtr<T>(func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, stream, m_1+i, n_1+i, k_1+i, dC_array_0, Ai_1, Aj_1, ldda_1+i, dAB_array_1+i, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
+            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dC_array_0, Ai_1, Aj_1, ldda_1+i, dAB_array_1+i, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
         else
-            ddlaLaunchKernelByPtr<T>(func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, stream, m_1+i, n_1+i, k_1+i, dAB_array_1+i, Ai_1, Aj_1, ldda_1+i, dC_array_0, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
+            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dAB_array_1+i, Ai_1, Aj_1, ldda_1+i, dC_array_0, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
 
 		i += segment_sizes[segment];
 	}

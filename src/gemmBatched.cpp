@@ -58,7 +58,7 @@ void zgemm_(const char*, const char*, const int*, const int*, const int*,
 #endif // DDLA_HAS_CPU
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasGemmBatched overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasGemmBatched overloads so the
 // dispatch below stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::gemmBatched declared in <ddla/ddla.h>.
@@ -67,8 +67,8 @@ void zgemm_(const char*, const char*, const int*, const int*, const int*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasGemmBatched(
-    deblasHandle_t handle, deblasOperation_t transa, deblasOperation_t transb,
+inline gpublasStatus_t gpublasGemmBatched(
+    gpublasHandle_t handle, gpublasOperation_t transa, gpublasOperation_t transb,
     int m, int n, int k,
     const std::complex<double>& alpha,
     const std::complex<double> *const Aarray[], int lda,
@@ -78,24 +78,14 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZgemmBatched(
+    #if DDLA_GPU_VENDOR
+    return gpublasZgemmBatched(
         handle, transa, transb, m, n, k,
-        (hipblasDoubleComplex*)(&alpha),
-        (hipblasDoubleComplex**)(Aarray), lda,
-        (hipblasDoubleComplex**)(Barray), ldb,
-        (hipblasDoubleComplex*)(&beta),
-        (hipblasDoubleComplex**)(Carray), ldc,
-        batchCount
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZgemmBatched(
-        handle, transa, transb, m, n, k,
-        (cuDoubleComplex*)(&alpha),
-        (cuDoubleComplex**)(Aarray), lda,
-        (cuDoubleComplex**)(Barray), ldb,
-        (cuDoubleComplex*)(&beta),
-        (cuDoubleComplex**)(Carray), ldc,
+        (gpublasDoubleComplex*)(&alpha),
+        (gpublasDoubleComplex**)(Aarray), lda,
+        (gpublasDoubleComplex**)(Barray), ldb,
+        (gpublasDoubleComplex*)(&beta),
+        (gpublasDoubleComplex**)(Carray), ldc,
         batchCount
     );
     #else
@@ -103,12 +93,12 @@ inline deblasStatus_t deblasGemmBatched(
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasGemmBatched: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemmBatched: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemmBatched(
-    deblasHandle_t handle, deblasOperation_t transa, deblasOperation_t transb,
+inline gpublasStatus_t gpublasGemmBatched(
+    gpublasHandle_t handle, gpublasOperation_t transa, gpublasOperation_t transb,
     int m, int n, int k,
     const std::complex<float>& alpha,
     const std::complex<float> *const Aarray[], int lda,
@@ -118,33 +108,23 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCgemmBatched(
+    #if DDLA_GPU_VENDOR
+    return gpublasCgemmBatched(
         handle, transa, transb, m, n, k,
-        (hipblasComplex*)(&alpha),
-        (hipblasComplex**)(Aarray), lda,
-        (hipblasComplex**)(Barray), ldb,
-        (hipblasComplex*)(&beta),
-        (hipblasComplex**)(Carray), ldc,
-        batchCount
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCgemmBatched(
-        handle, transa, transb, m, n, k,
-        (cuFloatComplex*)(&alpha),
-        (cuFloatComplex**)(Aarray), lda,
-        (cuFloatComplex**)(Barray), ldb,
-        (cuFloatComplex*)(&beta),
-        (cuFloatComplex**)(Carray), ldc,
+        (gpublasComplex*)(&alpha),
+        (gpublasComplex**)(Aarray), lda,
+        (gpublasComplex**)(Barray), ldb,
+        (gpublasComplex*)(&beta),
+        (gpublasComplex**)(Carray), ldc,
         batchCount
     );
     #else
-    throw std::runtime_error("deblasGemmBatched: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemmBatched: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemmBatched(
-    deblasHandle_t handle, deblasOperation_t transa, deblasOperation_t transb,
+inline gpublasStatus_t gpublasGemmBatched(
+    gpublasHandle_t handle, gpublasOperation_t transa, gpublasOperation_t transb,
     int m, int n, int k,
     const float& alpha,
     const float *const Aarray[], int lda,
@@ -154,18 +134,8 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasSgemmBatched(
-        handle, transa, transb, m, n, k,
-        &alpha,
-        Aarray, lda,
-        Barray, ldb,
-        &beta,
-        Carray, ldc,
-        batchCount
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSgemmBatched(
+    #if DDLA_GPU_VENDOR
+    return gpublasSgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,
         Aarray, lda,
@@ -175,12 +145,12 @@ inline deblasStatus_t deblasGemmBatched(
         batchCount
     );
     #else
-    throw std::runtime_error("deblasGemmBatched: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemmBatched: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemmBatched(
-    deblasHandle_t handle, deblasOperation_t transa, deblasOperation_t transb,
+inline gpublasStatus_t gpublasGemmBatched(
+    gpublasHandle_t handle, gpublasOperation_t transa, gpublasOperation_t transb,
     int m, int n, int k,
     const double& alpha,
     const double *const Aarray[], int lda,
@@ -190,18 +160,8 @@ inline deblasStatus_t deblasGemmBatched(
     int batchCount
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDgemmBatched(
-        handle, transa, transb, m, n, k,
-        &alpha,
-        Aarray, lda,
-        Barray, ldb,
-        &beta,
-        Carray, ldc,
-        batchCount
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDgemmBatched(
+    #if DDLA_GPU_VENDOR
+    return gpublasDgemmBatched(
         handle, transa, transb, m, n, k,
         &alpha,
         Aarray, lda,
@@ -211,7 +171,7 @@ inline deblasStatus_t deblasGemmBatched(
         batchCount
     );
     #else
-    throw std::runtime_error("deblasGemmBatched: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemmBatched: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -285,12 +245,12 @@ void gemmBatched(
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasGemmBatched(handle->blasH,
-                                         detail::to_blas_op(transa),
-                                         detail::to_blas_op(transb),
-                                         m, n, k, alpha,
-                                         Aarray, lda, Barray, ldb, beta,
-                                         Carray, ldc, batchCount));
+            BLAS_CHECK(gpublasGemmBatched(handle->blasH,
+                                          detail::to_blas_op(transa),
+                                          detail::to_blas_op(transb),
+                                          m, n, k, alpha,
+                                          Aarray, lda, Barray, ldb, beta,
+                                          Carray, ldc, batchCount));
         } else {
             static_assert(sizeof(T) == 0, "gemmBatched: unsupported scalar type T");
         }

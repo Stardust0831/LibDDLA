@@ -8,7 +8,7 @@
 // modelled on it) take the LAPACK convention -- plain `char` for
 // uplo/side/trans/diag -- because that is what the public header uses for
 // every routine that exposes these flags (ddla.h's gemm, ptrtrs, ...).  The
-// vendor arms need `deblasFillMode_t` and friends, so the mapping has to
+// vendor arms need `gpublasFillMode_t` and friends, so the mapping has to
 // happen somewhere; doing it here keeps it in ONE place instead of repeating
 // the same three ternaries in every scalar overload of every family, which is
 // how the pre-unification wrappers carried 48 copies of it.
@@ -28,7 +28,7 @@
 //
 // The functions are `constexpr`-eligible and header-only so they can be used
 // from any TU, and they compile in the CPU-only lane too (there the vendored
-// `deblas*` aliases are plain ints/chars, so the comparisons still hold).
+// `gpublas*` aliases are plain ints/chars, so the comparisons still hold).
 // ---------------------------------------------------------------------------
 
 #include <stdexcept>
@@ -38,32 +38,32 @@
 namespace ddla {
 namespace detail {
 
-inline deblasFillMode_t to_fill_mode(char uplo)
+inline gpublasFillMode_t to_fill_mode(char uplo)
 {
-    if (uplo == 'U' || uplo == 'u') return DEBLAS_FILL_MODE_UPPER;
-    if (uplo == 'L' || uplo == 'l') return DEBLAS_FILL_MODE_LOWER;
+    if (uplo == 'U' || uplo == 'u') return GPUBLAS_FILL_MODE_UPPER;
+    if (uplo == 'L' || uplo == 'l') return GPUBLAS_FILL_MODE_LOWER;
     throw std::runtime_error("ddla: invalid uplo flag (expected 'U' or 'L')");
 }
 
-inline deblasSideMode_t to_side_mode(char side)
+inline gpublasSideMode_t to_side_mode(char side)
 {
-    if (side == 'L' || side == 'l') return DEBLAS_SIDE_LEFT;
-    if (side == 'R' || side == 'r') return DEBLAS_SIDE_RIGHT;
+    if (side == 'L' || side == 'l') return GPUBLAS_SIDE_LEFT;
+    if (side == 'R' || side == 'r') return GPUBLAS_SIDE_RIGHT;
     throw std::runtime_error("ddla: invalid side flag (expected 'L' or 'R')");
 }
 
-inline deblasDiagType_t to_diag_type(char diag)
+inline gpublasDiagType_t to_diag_type(char diag)
 {
-    if (diag == 'U' || diag == 'u') return DEBLAS_DIAG_UNIT;
-    if (diag == 'N' || diag == 'n') return DEBLAS_DIAG_NON_UNIT;
+    if (diag == 'U' || diag == 'u') return GPUBLAS_DIAG_UNIT;
+    if (diag == 'N' || diag == 'n') return GPUBLAS_DIAG_NON_UNIT;
     throw std::runtime_error("ddla: invalid diag flag (expected 'U' or 'N')");
 }
 
-inline deblasOperation_t to_blas_op(char trans)
+inline gpublasOperation_t to_blas_op(char trans)
 {
-    if (trans == 'N' || trans == 'n') return DEBLAS_OP_N;
-    if (trans == 'T' || trans == 't') return DEBLAS_OP_T;
-    if (trans == 'C' || trans == 'c') return DEBLAS_OP_C;
+    if (trans == 'N' || trans == 'n') return GPUBLAS_OP_N;
+    if (trans == 'T' || trans == 't') return GPUBLAS_OP_T;
+    if (trans == 'C' || trans == 'c') return GPUBLAS_OP_C;
     throw std::runtime_error("ddla: invalid trans flag (expected 'N', 'T' or 'C')");
 }
 

@@ -59,7 +59,7 @@ void zher2k_(const char*, const char*, const int*, const int*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasHer2k overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasHer2k overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::her2k declared in <ddla/ddla.h>.
@@ -68,9 +68,9 @@ void zher2k_(const char*, const char*, const int*, const int*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasHer2k(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHer2k(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const float& alpha,
     const float* A, int lda,
@@ -80,22 +80,20 @@ inline deblasStatus_t deblasHer2k(
 )
 {
     // Real HER2K == SYR2K.  For real data a conjugate transpose is identical
-    // to a plain transpose, so map DEBLAS_OP_C -> transpose as well; cuBLAS
+    // to a plain transpose, so map GPUBLAS_OP_C -> transpose as well; cuBLAS
     // and hipBLAS reject 'C' outright and only the reference SSYR2K tolerates
-    // it.  (Same mapping as deblasHerk's real overloads.)
-    const deblasOperation_t trans_real = (trans == DEBLAS_OP_N) ? DEBLAS_OP_N : DEBLAS_OP_T;
-    #if defined(DDLA_USE_HIP)
-    return hipblasSsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
+    // it.  (Same mapping as gpublasHerk's real overloads.)
+    const gpublasOperation_t trans_real = (trans == GPUBLAS_OP_N) ? GPUBLAS_OP_N : GPUBLAS_OP_T;
+    #if DDLA_GPU_VENDOR
+    return gpublasSsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHer2k: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2k: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHer2k(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHer2k(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const double& alpha,
     const double* A, int lda,
@@ -104,22 +102,20 @@ inline deblasStatus_t deblasHer2k(
     double* C, int ldc
 )
 {
-    const deblasOperation_t trans_real = (trans == DEBLAS_OP_N) ? DEBLAS_OP_N : DEBLAS_OP_T;
-    #if defined(DDLA_USE_HIP)
-    return hipblasDsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
+    const gpublasOperation_t trans_real = (trans == GPUBLAS_OP_N) ? GPUBLAS_OP_N : GPUBLAS_OP_T;
+    #if DDLA_GPU_VENDOR
+    return gpublasDsyr2k(handle, uplo, trans_real, n, k, &alpha, A, lda, B, ldb, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHer2k: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2k: no GPU vendor selected at compile time");
     #endif
 }
 
 // cuBLAS v2 quirk (mirrored by hipBLAS): xher2k takes a COMPLEX alpha with a
 // REAL beta -- same as Fortran xHER2K.  (xherk, by contrast, takes a real
-// alpha, which is what deblasHerk's real-alpha interface follows.)
-inline deblasStatus_t deblasHer2k(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+// alpha, which is what gpublasHerk's real-alpha interface follows.)
+inline gpublasStatus_t gpublasHer2k(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
@@ -128,22 +124,18 @@ inline deblasStatus_t deblasHer2k(
     std::complex<float>* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCher2k(handle, uplo, trans, n, k,
-        (hipblasComplex*)&alpha, (hipblasComplex*)A, lda, (hipblasComplex*)B, ldb,
-        &beta, (hipblasComplex*)C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCher2k(handle, uplo, trans, n, k,
-        (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda, (cuFloatComplex*)B, ldb,
-        &beta, (cuFloatComplex*)C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasCher2k(handle, uplo, trans, n, k,
+        (gpublasComplex*)&alpha, (gpublasComplex*)A, lda, (gpublasComplex*)B, ldb,
+        &beta, (gpublasComplex*)C, ldc);
     #else
-    throw std::runtime_error("deblasHer2k: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2k: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHer2k(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHer2k(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
@@ -152,16 +144,12 @@ inline deblasStatus_t deblasHer2k(
     std::complex<double>* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZher2k(handle, uplo, trans, n, k,
-        (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)B, ldb,
-        &beta, (hipblasDoubleComplex*)C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZher2k(handle, uplo, trans, n, k,
-        (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)B, ldb,
-        &beta, (cuDoubleComplex*)C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasZher2k(handle, uplo, trans, n, k,
+        (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)A, lda, (gpublasDoubleComplex*)B, ldb,
+        &beta, (gpublasDoubleComplex*)C, ldc);
     #else
-    throw std::runtime_error("deblasHer2k: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2k: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -227,15 +215,15 @@ void her2k(
     } else {
 #if DDLA_HAS_GPU
         // The real types map onto xSYR2K with a normalised transpose inside
-        // deblasHer2k; the complex types take the caller's flag unchanged.
+        // gpublasHer2k; the complex types take the caller's flag unchanged.
         if constexpr (std::is_same_v<T, float> ||
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasHer2k(handle->blasH,
-                                   detail::to_fill_mode(uplo),
-                                   detail::to_blas_op(trans),
-                                   n, k, alpha, A, lda, B, ldb, beta, C, ldc));
+            BLAS_CHECK(gpublasHer2k(handle->blasH,
+                                    detail::to_fill_mode(uplo),
+                                    detail::to_blas_op(trans),
+                                    n, k, alpha, A, lda, B, ldb, beta, C, ldc));
         } else {
             static_assert(sizeof(T) == 0, "her2k: unsupported scalar type T");
         }

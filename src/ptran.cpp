@@ -107,7 +107,7 @@ __global__ void transpose_blocks_kernel(
 }
 
 // ---- Kernel: batched scatter (copy without transpose) ----
-// Replaces N runtimeMemcpy2DAsync calls with a single kernel launch.
+// Replaces N ddlaMemcpy2D calls with a single kernel launch.
 // Copies bn x bm blocks from compact recv buffer to strided dest.
 template <typename devT>
 __global__ void scatter_blocks_kernel(
@@ -144,12 +144,12 @@ __global__ void scatter_blocks_kernel(
  *
  * Performance improvements over the original per-block geam/memcpy2D loop:
  *   - P0: Three fused CUDA kernels replace thousands of per-block kernel launches.
- *   - P0: Redundant runtimeDeviceSynchronize() in pgemm.cpp removed.
+ *   - P0: Redundant device-wide synchronize in pgemm.cpp removed.
  *   - P1: Phase 4 (local transpose) launches on the same stream as Phase
  *         3+5+6, keeping a single ordered device stream (no overlap).
  *
- * All device allocations use runtimeMallocAsync/runtimeFreeAsync (stream-ordered),
- * eliminating the runtimeStreamSynchronize that synchronous free requires and
+ * All device allocations use ddlaMalloc/ddlaFree (stream-ordered),
+ * eliminating the stream synchronize that synchronous free requires and
  * allowing the free to overlap with subsequent stream work.
  */
 template <typename T>
@@ -283,13 +283,13 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
     const devT* d_A_dev = reinterpret_cast<const devT*>(d_A);
     devT* d_AT_dev = reinterpret_cast<devT*>(d_AT);
 
-    runtimeStream_t stream = handle->stream;
+    gpuStream_t stream = handle->stream;
 
     // ---- Phase 2: allocate device buffers ----
     T* d_sendbuf = nullptr;
     T* d_recvbuf = nullptr;
-    if(send_total > 0) RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_sendbuf), sizeof(T) * send_total, stream));
-    if(recv_total > 0) RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_recvbuf), sizeof(T) * recv_total, stream));
+    if(send_total > 0) DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_sendbuf), sizeof(T) * send_total));
+    if(recv_total > 0) DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_recvbuf), sizeof(T) * recv_total));
     devT* d_sendbuf_dev = reinterpret_cast<devT*>(d_sendbuf);
     devT* d_recvbuf_dev = reinterpret_cast<devT*>(d_recvbuf);
 
@@ -307,16 +307,15 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
                          b.offset,
                          descA[DDLA_LLD_], b.bn};
         }
-        RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_pack_blocks),
-            sizeof(TransBlockInfo) * h_pack.size(), stream));
-        RUNTIME_CHECK(runtimeMemcpyAsync(d_pack_blocks, h_pack.data(),
-            sizeof(TransBlockInfo) * h_pack.size(), runtimeMemcpyHostToDevice, stream));
+        DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_pack_blocks),
+                              sizeof(TransBlockInfo) * h_pack.size()));
+        DDLA_CHECK(ddlaMemcpy(handle, d_pack_blocks, h_pack.data(), sizeof(TransBlockInfo) * h_pack.size()));
 
         dim3 grid_dim(static_cast<int>(send_blocks.size()), 1, 1);
         transpose_blocks_kernel<devT><<<grid_dim, block_dim, 0, stream>>>(
             d_A_dev, d_sendbuf_dev, d_pack_blocks,
             static_cast<int>(send_blocks.size()), conj);
-        RUNTIME_CHECK(runtimeGetLastError());
+        DDLA_CHECK(ddlaGetLastError(handle));
     }
 
     // ---- Phase 4: local transpose (fused kernel: d_A -> d_AT) ----
@@ -330,16 +329,15 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
                           b.lrow_AT + b.lcol_AT * descAT[DDLA_LLD_],
                           descA[DDLA_LLD_], descAT[DDLA_LLD_]};
         }
-        RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_local_blocks),
-            sizeof(TransBlockInfo) * h_local.size(), stream));
-        RUNTIME_CHECK(runtimeMemcpyAsync(d_local_blocks, h_local.data(),
-            sizeof(TransBlockInfo) * h_local.size(), runtimeMemcpyHostToDevice, stream));
+        DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_local_blocks),
+                              sizeof(TransBlockInfo) * h_local.size()));
+        DDLA_CHECK(ddlaMemcpy(handle, d_local_blocks, h_local.data(), sizeof(TransBlockInfo) * h_local.size()));
 
         dim3 grid_dim(static_cast<int>(local_blocks.size()), 1, 1);
         transpose_blocks_kernel<devT><<<grid_dim, block_dim, 0, stream>>>(
             d_A_dev, d_AT_dev, d_local_blocks,
             static_cast<int>(local_blocks.size()), conj);
-        RUNTIME_CHECK(runtimeGetLastError());
+        DDLA_CHECK(ddlaGetLastError(handle));
     }
 
     // ---- Phase 5: communication ----
@@ -372,25 +370,24 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
                             b.lrow_AT + b.lcol_AT * descAT[DDLA_LLD_],
                             b.bn, descAT[DDLA_LLD_]};
         }
-        RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_scatter_blocks),
-            sizeof(TransBlockInfo) * h_scatter.size(), stream));
-        RUNTIME_CHECK(runtimeMemcpyAsync(d_scatter_blocks, h_scatter.data(),
-            sizeof(TransBlockInfo) * h_scatter.size(), runtimeMemcpyHostToDevice, stream));
+        DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_scatter_blocks),
+                              sizeof(TransBlockInfo) * h_scatter.size()));
+        DDLA_CHECK(ddlaMemcpy(handle, d_scatter_blocks, h_scatter.data(), sizeof(TransBlockInfo) * h_scatter.size()));
 
         dim3 grid_dim(static_cast<int>(recv_blocks.size()), 1, 1);
         scatter_blocks_kernel<devT><<<grid_dim, block_dim, 0, stream>>>(
             d_recvbuf_dev, d_AT_dev, d_scatter_blocks,
             static_cast<int>(recv_blocks.size()));
-        RUNTIME_CHECK(runtimeGetLastError());
+        DDLA_CHECK(ddlaGetLastError(handle));
     }
 
     // ---- Finalize ----
     // Free device buffers (async free is stream-ordered, no sync needed).
-    if(d_sendbuf)        RUNTIME_CHECK(runtimeFreeAsync(d_sendbuf, stream));
-    if(d_recvbuf)        RUNTIME_CHECK(runtimeFreeAsync(d_recvbuf, stream));
-    if(d_pack_blocks)    RUNTIME_CHECK(runtimeFreeAsync(d_pack_blocks, stream));
-    if(d_scatter_blocks) RUNTIME_CHECK(runtimeFreeAsync(d_scatter_blocks, stream));
-    if(d_local_blocks)   RUNTIME_CHECK(runtimeFreeAsync(d_local_blocks, stream));
+    if(d_sendbuf)        DDLA_CHECK(ddlaFree(handle, d_sendbuf));
+    if(d_recvbuf)        DDLA_CHECK(ddlaFree(handle, d_recvbuf));
+    if(d_pack_blocks)    DDLA_CHECK(ddlaFree(handle, d_pack_blocks));
+    if(d_scatter_blocks) DDLA_CHECK(ddlaFree(handle, d_scatter_blocks));
+    if(d_local_blocks)   DDLA_CHECK(ddlaFree(handle, d_local_blocks));
 }
 
 template void ptran<float>(const DdlaHandle_t&, const float* d_A, const int* descA, float* d_AT, const int* descAT, bool conj);

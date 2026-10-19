@@ -36,9 +36,8 @@ void fill_local(int rows, int cols, const int* desc, Complex* d_A,
             local[iloc + jloc * desc[DDLA_LLD_]] = value(i, j);
         }
     }
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_A, local.data(), local.size() * sizeof(Complex),
-                                   runtimeMemcpyHostToDevice, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, local.data(), local.size() * sizeof(Complex)));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 // Time plapiv(direc, rowcol, 'C', m, n) on an m x n matrix with a pivot
@@ -53,9 +52,7 @@ double benchmark_plapiv(char direc, char rowcol, int m, int n,
 
     const size_t nelem = static_cast<size_t>(desc[DDLA_LLD_]) * ddla_test::n_loc(handle, desc);
     Complex* d_A = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A),
-                                  std::max<size_t>(1, nelem) * sizeof(Complex),
-                                  handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), std::max<size_t>(1, nelem) * sizeof(Complex)));
     fill_local(m, n, desc, d_A, handle);
 
     // Pivot vector: swap row/col k with m-1-k for k in [0, m/2).  Local entry
@@ -72,15 +69,15 @@ double benchmark_plapiv(char direc, char rowcol, int m, int n,
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
     plapiv(handle, direc, rowcol, 'C', m, n, d_A, desc, ipiv.data(), desc, nullptr);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
 
     double max_elapsed = 0.0;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, handle->comm);
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     if(handle->myid == 0){
         std::cout << "RESULT m=" << m

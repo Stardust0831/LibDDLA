@@ -88,19 +88,16 @@ int check_axpy()
 
     T* d_x = nullptr;
     T* d_y = nullptr;
-    ddlaMalloc(reinterpret_cast<void**>(&d_x), x.size() * sizeof(T), handle);
-    ddlaMalloc(reinterpret_cast<void**>(&d_y), y.size() * sizeof(T), handle);
-    ddlaMemcpy(d_x, x.data(), x.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
-    ddlaMemcpy(d_y, y.data(), y.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_x), x.size() * sizeof(T));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_y), y.size() * sizeof(T));
+    ddlaMemcpy(handle, d_x, x.data(), x.size() * sizeof(T));
+    ddlaMemcpy(handle, d_y, y.data(), y.size() * sizeof(T));
     ddla::axpy<Backend>(handle, n, alpha, d_x, incx, d_y, incy);
     ddlaSynchronize(handle);
-    ddlaMemcpy(y.data(), d_y, y.size() * sizeof(T),
-                DdlaMemoryCopyKind::DeviceToHost, handle);
+    ddlaMemcpy(handle, y.data(), d_y, y.size() * sizeof(T));
     ddlaSynchronize(handle);
-    ddlaFree(d_x, handle);
-    ddlaFree(d_y, handle);
+    ddlaFree(handle, d_x);
+    ddlaFree(handle, d_y);
     ddlaDestroy(handle);
 
     for (int i = 0; i < n; ++i) {
@@ -126,13 +123,12 @@ int check_iamax()
     const int expected = 14; // 1-based, matching cuBLAS/hipBLAS iamax
 
     T* d_x = nullptr;
-    ddlaMalloc(reinterpret_cast<void**>(&d_x), x.size() * sizeof(T), handle);
-    ddlaMemcpy(d_x, x.data(), x.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_x), x.size() * sizeof(T));
+    ddlaMemcpy(handle, d_x, x.data(), x.size() * sizeof(T));
     int result = -1;
     ddla::iamax<Backend>(handle, n, d_x, incx, result);
     ddlaSynchronize(handle);
-    ddlaFree(d_x, handle);
+    ddlaFree(handle, d_x);
     ddlaDestroy(handle);
 
     return result == expected ? 0 : 1;
@@ -167,23 +163,19 @@ int check_geru()
     T* d_x = nullptr;
     T* d_y = nullptr;
     T* d_A = nullptr;
-    ddlaMalloc(reinterpret_cast<void**>(&d_x), x.size() * sizeof(T), handle);
-    ddlaMalloc(reinterpret_cast<void**>(&d_y), y.size() * sizeof(T), handle);
-    ddlaMalloc(reinterpret_cast<void**>(&d_A), A.size() * sizeof(T), handle);
-    ddlaMemcpy(d_x, x.data(), x.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
-    ddlaMemcpy(d_y, y.data(), y.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
-    ddlaMemcpy(d_A, A.data(), A.size() * sizeof(T),
-                DdlaMemoryCopyKind::HostToDevice, handle);
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_x), x.size() * sizeof(T));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_y), y.size() * sizeof(T));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), A.size() * sizeof(T));
+    ddlaMemcpy(handle, d_x, x.data(), x.size() * sizeof(T));
+    ddlaMemcpy(handle, d_y, y.data(), y.size() * sizeof(T));
+    ddlaMemcpy(handle, d_A, A.data(), A.size() * sizeof(T));
     ddla::geru<Backend>(handle, m, n, alpha, d_x, incx, d_y, incy, d_A, m);
     ddlaSynchronize(handle);
-    ddlaMemcpy(A.data(), d_A, A.size() * sizeof(T),
-                DdlaMemoryCopyKind::DeviceToHost, handle);
+    ddlaMemcpy(handle, A.data(), d_A, A.size() * sizeof(T));
     ddlaSynchronize(handle);
-    ddlaFree(d_x, handle);
-    ddlaFree(d_y, handle);
-    ddlaFree(d_A, handle);
+    ddlaFree(handle, d_x);
+    ddlaFree(handle, d_y);
+    ddlaFree(handle, d_A);
     ddlaDestroy(handle);
 
     for (size_t k = 0; k < A.size(); ++k) {

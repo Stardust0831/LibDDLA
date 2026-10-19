@@ -79,10 +79,8 @@ void pgetrs_bpiv(
     // block's pivots over the full grid from that single owner, so every
     // process gets correct values regardless of block.
     std::vector<int> h_ipiv(m_loc_A);
-    RUNTIME_CHECK(runtimeMemcpyAsync(h_ipiv.data(), d_ipiv,
-                                     h_ipiv.size() * sizeof(int),
-                                     runtimeMemcpyDeviceToHost, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_ipiv.data(), d_ipiv, h_ipiv.size() * sizeof(int)));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     // Apply the block-partial pivot permutation to B: rows of B for side='L',
     // columns of B for side='R'.  Each block's swaps are local to the owning
@@ -125,17 +123,17 @@ void pgetrs_bpiv(
                     if(mypcol == owner_col){
                         const int j1 = indx_g2l_c(array_descB, handle, n_s + i - 1);
                         const int j2 = indx_g2l_c(array_descB, handle, n_s + t);
-                        BLAS_CHECK(deblasSwap(ddla_handle->blasH,
-                                              m_loc_B, d_B + j1 * lldB, 1,
-                                              d_B + j2 * lldB, 1));
+                        BLAS_CHECK(gpublasSwap(ddla_handle->blasH,
+                                               m_loc_B, d_B + j1 * lldB, 1,
+                                               d_B + j2 * lldB, 1));
                     }
                 }else{
                     if(myprow == owner_row){
                         const int i1 = indx_g2l_r(array_descB, handle, n_s + i - 1);
                         const int i2 = indx_g2l_r(array_descB, handle, n_s + t);
-                        BLAS_CHECK(deblasSwap(ddla_handle->blasH,
-                                              n_loc_B, d_B + i1, lldB,
-                                              d_B + i2, lldB));
+                        BLAS_CHECK(gpublasSwap(ddla_handle->blasH,
+                                               n_loc_B, d_B + i1, lldB,
+                                               d_B + i2, lldB));
                     }
                 }
             }

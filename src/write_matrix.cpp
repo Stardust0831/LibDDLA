@@ -56,14 +56,13 @@ void write_matrix(const T* A, const int& m, const int& n, const char* filename)
     } else {
 #if DDLA_HAS_GPU
         // Stage the device buffer back to the host, then reuse the same
-        // formatter. A synchronous runtimeMemcpy is used deliberately: this is
+        // formatter. A synchronous gpuMemcpy is used deliberately (write_matrix has no
+        // handle to take a stream from): this is
         // a debugging dump, so a stream-ordered copy would only add a
         // synchronisation the caller then has to remember to perform.
         const std::size_t count = static_cast<std::size_t>(m) * static_cast<std::size_t>(n);
         std::vector<T> host(count);
-        RUNTIME_CHECK<Backend>(runtimeMemcpy<Backend>(
-            host.data(), A, count * sizeof(T),
-            detail::RuntimeTraits<Backend>::device_to_host));
+        GPU_CHECK(gpuMemcpy(host.data(), A, count * sizeof(T), gpuMemcpyDeviceToHost));
         write_host_matrix(host.data(), m, n, filename);
 #endif
     }

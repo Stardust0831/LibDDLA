@@ -47,7 +47,7 @@ void zherk_(const char*, const char*, const int*, const int*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasHerk overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasHerk overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::herk declared in <ddla/ddla.h>.
@@ -56,9 +56,9 @@ void zherk_(const char*, const char*, const int*, const int*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasHerk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHerk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const double& alpha,
     const std::complex<double> *A, int lda,
@@ -66,31 +66,25 @@ inline deblasStatus_t deblasHerk(
     std::complex<double> *C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZherk(
+    #if DDLA_GPU_VENDOR
+    return gpublasZherk(
         handle, uplo, trans, n, k, 
-        &alpha, (hipblasDoubleComplex*)A, lda,
-        &beta, (hipblasDoubleComplex*)C, ldc
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZherk(
-        handle, uplo, trans, n, k, 
-        &alpha, (cuDoubleComplex*)A, lda, 
-        &beta, (cuDoubleComplex*)C, ldc
+        &alpha, (gpublasDoubleComplex*)A, lda, 
+        &beta, (gpublasDoubleComplex*)C, ldc
     );
     #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasHerk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHerk: no GPU vendor selected at compile time");
     #endif
 }
 
 
-inline deblasStatus_t deblasHerk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHerk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const float& alpha,
     const float* A, int lda,
@@ -99,22 +93,19 @@ inline deblasStatus_t deblasHerk(
 )
 {
     // Real HERK == SYRK.  For real data a conjugate transpose is identical
-    // to a plain transpose, so map DEBLAS_OP_C -> transpose as well.
-    deblasOperation_t trans_real = (trans == DEBLAS_OP_N) ? DEBLAS_OP_N : DEBLAS_OP_T;
-    #if defined(DDLA_USE_HIP)
-    return hipblasSsyrk(handle, uplo, trans_real, n, k,
-        &alpha, A, lda, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSsyrk(handle, uplo, trans_real, n, k,
+    // to a plain transpose, so map GPUBLAS_OP_C -> transpose as well.
+    gpublasOperation_t trans_real = (trans == GPUBLAS_OP_N) ? GPUBLAS_OP_N : GPUBLAS_OP_T;
+    #if DDLA_GPU_VENDOR
+    return gpublasSsyrk(handle, uplo, trans_real, n, k,
         &alpha, A, lda, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHerk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHerk: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHerk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHerk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const double& alpha,
     const double* A, int lda,
@@ -122,21 +113,18 @@ inline deblasStatus_t deblasHerk(
     double* C, int ldc
 )
 {
-    deblasOperation_t trans_real = (trans == DEBLAS_OP_N) ? DEBLAS_OP_N : DEBLAS_OP_T;
-    #if defined(DDLA_USE_HIP)
-    return hipblasDsyrk(handle, uplo, trans_real, n, k,
-        &alpha, A, lda, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDsyrk(handle, uplo, trans_real, n, k,
+    gpublasOperation_t trans_real = (trans == GPUBLAS_OP_N) ? GPUBLAS_OP_N : GPUBLAS_OP_T;
+    #if DDLA_GPU_VENDOR
+    return gpublasDsyrk(handle, uplo, trans_real, n, k,
         &alpha, A, lda, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHerk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHerk: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHerk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasHerk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const float& alpha,
     const std::complex<float> *A, int lda,
@@ -144,20 +132,14 @@ inline deblasStatus_t deblasHerk(
     std::complex<float> *C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCherk(
-        handle, uplo, trans, n, k,
-        &alpha, (hipblasComplex*)A, lda,
-        &beta, (hipblasComplex*)C, ldc
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCherk(
+    #if DDLA_GPU_VENDOR
+    return gpublasCherk(
         handle, uplo, trans, n, k, 
-        &alpha, (cuFloatComplex*)A, lda,
-        &beta, (cuFloatComplex*)C, ldc
+        &alpha, (gpublasComplex*)A, lda,
+        &beta, (gpublasComplex*)C, ldc
     );
     #else
-    throw std::runtime_error("deblasHerk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHerk: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -224,15 +206,15 @@ void herk(
     } else {
 #if DDLA_HAS_GPU
         // The real types map onto xSYRK with a normalised transpose inside
-        // deblasHerk; the complex types take the caller's flag unchanged.
+        // gpublasHerk; the complex types take the caller's flag unchanged.
         if constexpr (std::is_same_v<T, float> ||
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasHerk(handle->blasH,
-                                  detail::to_fill_mode(uplo),
-                                  detail::to_blas_op(trans),
-                                  n, k, alpha, A, lda, beta, C, ldc));
+            BLAS_CHECK(gpublasHerk(handle->blasH,
+                                   detail::to_fill_mode(uplo),
+                                   detail::to_blas_op(trans),
+                                   n, k, alpha, A, lda, beta, C, ldc));
         } else {
             static_assert(sizeof(T) == 0, "herk: unsupported scalar type T");
         }

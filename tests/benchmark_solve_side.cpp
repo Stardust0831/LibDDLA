@@ -57,9 +57,8 @@ void fill_local(int rows, int cols, const int* desc, Complex* d_A,
             local[iloc + jloc * desc[DDLA_LLD_]] = value(i, j);
         }
     }
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_A, local.data(), local.size() * sizeof(Complex),
-                                  runtimeMemcpyHostToDevice, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, local.data(), local.size() * sizeof(Complex)));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 // Time ppotrs(side,'L','N') only; the ppotrf factorization is not timed.
@@ -78,12 +77,8 @@ double benchmark_ppotrs(char side, int n, int nrhs, const DdlaHandle_t& handle)
     const size_t b_nelem = static_cast<size_t>(descB[DDLA_LLD_]) * ddla_test::n_loc(handle, descB);
     Complex* d_A = nullptr;
     Complex* d_B = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A),
-                                  std::max<size_t>(1, a_nelem) * sizeof(Complex),
-                                  handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_B),
-                                  std::max<size_t>(1, b_nelem) * sizeof(Complex),
-                                  handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), std::max<size_t>(1, a_nelem) * sizeof(Complex)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_B), std::max<size_t>(1, b_nelem) * sizeof(Complex)));
     fill_local(n, n, descA, d_A, handle, [&](int i, int j){ return hpd_value(i, j, n); });
     const int b_rows = (side == 'L') ? n : nrhs;
     const int b_cols = (side == 'L') ? nrhs : n;
@@ -91,21 +86,21 @@ double benchmark_ppotrs(char side, int n, int nrhs, const DdlaHandle_t& handle)
 
     int info = -1;
     ppotrf(handle, 'L', n, d_A, 1, 1, descA, info);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
     ppotrs(handle, side, 'L', 'N', n, nrhs, d_A, descA, d_B, descB);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
 
     double max_elapsed = 0.0;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, handle->comm);
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_B, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaFree(handle, d_B));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     if(handle->myid == 0){
         std::cout << "RESULT n=" << n
@@ -138,12 +133,8 @@ double benchmark_pgetrs(char side, int n, int nrhs, const DdlaHandle_t& handle)
     const size_t b_nelem = static_cast<size_t>(descB[DDLA_LLD_]) * ddla_test::n_loc(handle, descB);
     Complex* d_A = nullptr;
     Complex* d_B = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A),
-                                  std::max<size_t>(1, a_nelem) * sizeof(Complex),
-                                  handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_B),
-                                  std::max<size_t>(1, b_nelem) * sizeof(Complex),
-                                  handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), std::max<size_t>(1, a_nelem) * sizeof(Complex)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_B), std::max<size_t>(1, b_nelem) * sizeof(Complex)));
     fill_local(n, n, descA, d_A, handle, [&](int i, int j){ return dominant_value(i, j, n); });
     const int b_rows = (side == 'L') ? n : nrhs;
     const int b_cols = (side == 'L') ? nrhs : n;
@@ -152,21 +143,21 @@ double benchmark_pgetrs(char side, int n, int nrhs, const DdlaHandle_t& handle)
     std::vector<int> ipiv(ddla_test::m_loc(handle, descA));
     int info = -1;
     pgetrf(handle, n, n, d_A, descA, ipiv.data(), info);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
     pgetrs(handle, side, 'N', n, nrhs, d_A, descA, ipiv.data(), d_B, descB);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
 
     double max_elapsed = 0.0;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, handle->comm);
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_B, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaFree(handle, d_B));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     if(handle->myid == 0){
         std::cout << "RESULT n=" << n

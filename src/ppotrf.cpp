@@ -70,12 +70,11 @@ bool ppotrf(
     const int m_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     const int n_loc_A = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
-    runtimeStream_t stream=ddla_handle->stream;
-    desolverHandle_t solverH=ddla_handle->solverH;
+    gpusolverHandle_t solverH=ddla_handle->solverH;
 
-    deblasFillMode_t uplo_device = (uplo == 'U') ? DEBLAS_FILL_MODE_UPPER : DEBLAS_FILL_MODE_LOWER;
+    gpublasFillMode_t uplo_device = (uplo == 'U') ? GPUBLAS_FILL_MODE_UPPER : GPUBLAS_FILL_MODE_LOWER;
     // The unified trsm/herk/gemmBatched entries take LAPACK-style characters, so
-    // the flags the old DEBLAS_* enum locals encoded are passed through directly.
+    // the flags the old GPUBLAS_* enum locals encoded are passed through directly.
     // The side follows the factorized triangle (uplo='U' -> 'L', 'L' -> 'R'),
     // exactly as the removed side_device local did.
     const char side_char = (uplo == 'U') ? 'L' : 'R';
@@ -83,14 +82,11 @@ bool ppotrf(
     T* d_block_diag = nullptr;
     T* d_block_row = nullptr;
     T* d_block_col = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_diag,
-                             static_cast<std::size_t>(nb) * nb * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_row,
-                             static_cast<std::size_t>(nb) * n_loc_A * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_block_col,
-                             static_cast<std::size_t>(nb) * m_loc_A * sizeof(T), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_diag, static_cast<std::size_t>(nb) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_row, static_cast<std::size_t>(nb) * n_loc_A * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_col, static_cast<std::size_t>(nb) * m_loc_A * sizeof(T)));
     int *d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_info, sizeof(int), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_info, sizeof(int)));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -106,19 +102,19 @@ bool ppotrf(
     std::vector<T*> h_A_array(batchCount), h_B_array(batchCount), h_C_array(batchCount);
 
     const std::size_t pointer_buffer_bytes = static_cast<std::size_t>(batchCount) * sizeof(T*);
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_array, pointer_buffer_bytes, stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_B_array, pointer_buffer_bytes, stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_C_array, pointer_buffer_bytes, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A_array, pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_B_array, pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_C_array, pointer_buffer_bytes));
     auto cleanup_device_buffers = [&]()
     {
-        RUNTIME_CHECK(runtimeFreeAsync(d_A_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_B_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_C_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_block_diag, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_block_row, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_block_col, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
-        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_A_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_B_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_C_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_block_diag));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_block_row));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_block_col));
+        DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     };
     int h_info;
     int i_batch_count, row_s, col_s, row_remain, col_remain, length_row, length_col;
@@ -135,7 +131,7 @@ bool ppotrf(
         {
             if(n_s + nb_real == n && is_head){
                 if(nb_real > 1){
-                    SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+                    SOLVER_CHECK(gpusolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
                     if(uplo == 'L'){
                         trsm<DdlaBackend::GPU, T>(
                             ddla_handle, side_char, uplo, 'C', 'N',
@@ -165,11 +161,13 @@ bool ppotrf(
                     }
                 }
                 T last_value;
-                RUNTIME_CHECK(runtimeMemcpyAsync(&last_value, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, sizeof(T), runtimeMemcpyDeviceToHost, stream));
+                DDLA_CHECK(ddlaMemcpy(ddla_handle, &last_value,
+                                      A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA,
+                                      sizeof(T)));
                 // The D2H copy above is async; the host reads last_value below,
                 // so synchronize the stream before consuming it (no sync exists
                 // between the enqueued copy and this read otherwise).
-                RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+                DDLA_CHECK(ddlaSynchronize(ddla_handle));
                 is_nega = false;
                 if constexpr (std::is_same_v<T, double> || std::is_same_v<T, float>){
                     if(last_value < 0){
@@ -185,17 +183,17 @@ bool ppotrf(
                     throw std::runtime_error("unsupported template type\n");
                 }
                 last_value = std::sqrt(last_value);
-                RUNTIME_CHECK(runtimeMemcpyAsync(A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, &last_value, sizeof(T), runtimeMemcpyHostToDevice, stream));
+                DDLA_CHECK(ddlaMemcpy(ddla_handle,
+                                      A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA,
+                                      &last_value, sizeof(T)));
             }else
-                SOLVER_CHECK(desolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
-            RUNTIME_CHECK(runtimeMemcpy(&info, d_info, sizeof(int), runtimeMemcpyDeviceToHost));
-            RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                d_block_diag, nb_real * sizeof(T),
-                A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
-                nb_real * sizeof(T), nb_real,
-                runtimeMemcpyDeviceToDevice, stream
-            ));
+                SOLVER_CHECK(gpusolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
+            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
+                                    A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T), nb_real * sizeof(T),
+                                    nb_real));
         }
         if(n_s + nb_real == n)
             MPI_CHECK(MPI_Bcast(&is_nega, 1, MPI_CXX_BOOL, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
@@ -218,12 +216,9 @@ bool ppotrf(
                     d_block_diag, nb_real,
                     A + mm_row_start + mm_col_start * lldA, lldA
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_block_col, length_row * sizeof(T),
-                    A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
-                    length_row * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_col, length_row * sizeof(T),
+                                        A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                                        length_row * sizeof(T), nb_real));
             }
         }
         if(mypcol == owner_col)
@@ -234,7 +229,7 @@ bool ppotrf(
         }
         if(myprow == mypcol){
             if(length_col > 0)
-                RUNTIME_CHECK(runtimeMemcpyAsync(d_block_row, d_block_col, length_col * nb_real * sizeof(T), runtimeMemcpyDeviceToDevice, stream));
+                DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_row, d_block_col, length_col * nb_real * sizeof(T)));
         }
         if(length_col > 0){
             commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, mypcol);
@@ -324,9 +319,9 @@ bool ppotrf(
                 }
             }
             if(i_batch_count == 0) continue;
-            RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-            RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-            RUNTIME_CHECK(runtimeMemcpyAsync(d_C_array, h_C_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
             gemmBatched<DdlaBackend::GPU, T>(
                 ddla_handle, 'N', 'C',
                 nb, nb, nb_real, (T)-1.0,
@@ -337,7 +332,7 @@ bool ppotrf(
             );
 
             
-            RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
         }else{
             if(mypcol == owner_col)
@@ -352,12 +347,9 @@ bool ppotrf(
                         d_block_diag, nb_real,
                         A + mm_row_start + mm_col_start * lldA, lldA
                     );
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        d_block_row, nb_real * sizeof(T),
-                        A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
-                        nb_real * sizeof(T), length_col,
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_row, nb_real * sizeof(T),
+                                            A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                                            nb_real * sizeof(T), length_col));
                 }
             }
             if(myprow == owner_row)
@@ -368,7 +360,7 @@ bool ppotrf(
             }
             if(myprow == mypcol){
                 if(length_row > 0)
-                    RUNTIME_CHECK(runtimeMemcpyAsync(d_block_col, d_block_row, nb_real * length_row * sizeof(T), runtimeMemcpyDeviceToDevice, stream));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_col, d_block_row, nb_real * length_row * sizeof(T)));
             }
             if(length_row > 0){
                 commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)nb_real * length_row, myprow);
@@ -447,9 +439,9 @@ bool ppotrf(
                     }
                 }
                 if(i_batch_count > 0){
-                    RUNTIME_CHECK(runtimeMemcpyAsync(d_A_array, h_A_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-                    RUNTIME_CHECK(runtimeMemcpyAsync(d_B_array, h_B_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
-                    RUNTIME_CHECK(runtimeMemcpyAsync(d_C_array, h_C_array.data(), i_batch_count * sizeof(T*), runtimeMemcpyHostToDevice, stream));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
                     gemmBatched<DdlaBackend::GPU, T>(
                         ddla_handle, 'C', 'N',
                         nb, nb, nb_real, (T)-1.0,
@@ -461,7 +453,7 @@ bool ppotrf(
                 }
             }
         }
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
     cleanup_device_buffers();
     return is_nega;

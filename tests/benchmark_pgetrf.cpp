@@ -24,26 +24,24 @@ constexpr unsigned long long kRandomSeed = 20260710ULL;
 void fill_matrix(int n, const int* desc, Complex* d_A, const DdlaHandle_t& handle)
 {
     const size_t nelem = static_cast<size_t>(ddla_test::m_loc(handle, desc)) * ddla_test::n_loc(handle, desc);
-    derandGenerator_t generator;
-    DERAND_CHECK(derandCreateGenerator(&generator, DERAND_RNG_PSEUDO_DEFAULT));
-    DERAND_CHECK(derandSetPseudoRandomGeneratorSeed(
+    gpurandGenerator_t generator;
+    GPURAND_CHECK(gpurandCreateGenerator(&generator, GPURAND_RNG_PSEUDO_DEFAULT));
+    GPURAND_CHECK(gpurandSetPseudoRandomGeneratorSeed(
         generator, kRandomSeed + static_cast<unsigned long long>(handle->myid)));
-    DERAND_CHECK(derandGenerateUniformDouble(
+    GPURAND_CHECK(gpurandGenerateUniformDouble(
         generator, reinterpret_cast<double*>(d_A), nelem * 2));
-    DERAND_CHECK(derandDestroyGenerator(generator));
-    BLAS_CHECK(deblasScal(handle->blasH, nelem, Complex(1.0e-4, 0.0), d_A, 1));
+    GPURAND_CHECK(gpurandDestroyGenerator(generator));
+    BLAS_CHECK(gpublasScal(handle->blasH, nelem, Complex(1.0e-4, 0.0), d_A, 1));
 
     const Complex diag(2.0, 0.0);
     for(int i = 0; i < n; ++i){
         const int iloc = indx_g2l_r(desc, handle, i);
         const int jloc = indx_g2l_c(desc, handle, i);
         if(iloc >= 0 && jloc >= 0){
-            RUNTIME_CHECK(runtimeMemcpyAsync(d_A + iloc + jloc * desc[DDLA_LLD_], &diag,
-                                          sizeof(Complex), runtimeMemcpyHostToDevice,
-                                          handle->stream));
+            DDLA_CHECK(ddlaMemcpy(handle, d_A + iloc + jloc * desc[DDLA_LLD_], &diag, sizeof(Complex)));
         }
     }
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 double benchmark_pgetrf(int n, const DdlaHandle_t& handle,
@@ -55,8 +53,7 @@ double benchmark_pgetrf(int n, const DdlaHandle_t& handle,
 
     const size_t nelem = static_cast<size_t>(ddla_test::m_loc(handle, desc)) * ddla_test::n_loc(handle, desc);
     Complex* d_A = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_A),
-                                  nelem * sizeof(Complex), handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), nelem * sizeof(Complex)));
     fill_matrix(n, desc, d_A, handle);
 
     std::vector<int> ipiv(ddla_test::m_loc(handle, desc));
@@ -65,7 +62,7 @@ double benchmark_pgetrf(int n, const DdlaHandle_t& handle,
     MPI_Barrier(handle->comm);
     const double start = MPI_Wtime();
     pgetrf(handle, n, n, d_A, desc, ipiv.data(), info);
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     MPI_Barrier(handle->comm);
     const double elapsed = MPI_Wtime() - start;
 
@@ -81,8 +78,8 @@ double benchmark_pgetrf(int n, const DdlaHandle_t& handle,
     double max_elapsed = 0.0;
     MPI_Reduce(&elapsed, &max_elapsed, 1, MPI_DOUBLE, MPI_MAX, 0, handle->comm);
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     if(handle->myid == 0){
         std::cout << (warmup ? "WARMUP" : "RESULT") << " n=" << n

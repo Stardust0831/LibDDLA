@@ -177,28 +177,20 @@ bool run_success_case(char uplo, int n, const DdlaHandle_t& handle)
     T* d_A = nullptr;
     T* d_work = nullptr;
     int* d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_A), matrix_bytes, handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_work),
-        static_cast<std::size_t>(n) * n * sizeof(T), handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_info), sizeof(int), handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        d_A, input.data(), matrix_bytes,
-        runtimeMemcpyHostToDevice, handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), matrix_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_work), static_cast<std::size_t>(n) * n * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), matrix_bytes));
 
     int info = -1;
     detail::potrf_bottom_right_block(
         uplo, n, d_A, lda, global_offset,
         d_work, d_info, info, handle);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 
     std::vector<T> output(input.size());
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        output.data(), d_A, matrix_bytes,
-        runtimeMemcpyDeviceToHost, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaMemcpy(handle, output.data(), d_A, matrix_bytes));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     double factor_error = 0.0;
     double opposite_triangle_error = 0.0;
@@ -229,10 +221,10 @@ bool run_success_case(char uplo, int n, const DdlaHandle_t& handle)
         }
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_work, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaFree(handle, d_work));
+    DDLA_CHECK(ddlaFree(handle, d_info));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     const double tol = tolerance<T>(n);
     const bool passed = info == 0
@@ -277,28 +269,21 @@ bool run_failure_case(
     T* d_A = nullptr;
     T* d_work = nullptr;
     int* d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_A), input.size() * sizeof(T),
-        handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_work),
-        static_cast<std::size_t>(n) * n * sizeof(T), handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_info), sizeof(int), handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        d_A, input.data(), input.size() * sizeof(T),
-        runtimeMemcpyHostToDevice, handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), input.size() * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_work), static_cast<std::size_t>(n) * n * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), input.size() * sizeof(T)));
 
     int info = -1;
     detail::potrf_bottom_right_block(
         uplo, n, d_A, lda, global_offset,
         d_work, d_info, info, handle);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_work, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaFree(handle, d_work));
+    DDLA_CHECK(ddlaFree(handle, d_info));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     const int expected_info = global_offset + failed_pivot + 1;
     const bool passed = info == expected_info;
@@ -351,7 +336,7 @@ int main(int argc, char** argv)
     passed = run_type<std::complex<float>>(handle) && passed;
     passed = run_type<std::complex<double>>(handle) && passed;
 
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     ddlaDestroy(handle);
     MPI_Finalize();
     return passed ? 0 : 1;

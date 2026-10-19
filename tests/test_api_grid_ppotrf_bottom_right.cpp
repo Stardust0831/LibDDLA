@@ -199,7 +199,7 @@ void check_success_case(const ddla::DdlaHandle_t& handle, char uplo, int n, int 
 
     int info = -1;
     ddla::ppotrf_bottom_right(handle, uplo, n, d_A.ptr, desc, info);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
     auto output = download(handle, d_A.ptr, input.values.size());
 
     double factor_error = 0.0;
@@ -259,7 +259,7 @@ void check_failure_case(const ddla::DdlaHandle_t& handle, char uplo, int n, int 
 
     int info = -1;
     ddla::ppotrf_bottom_right(handle, uplo, n, d_A.ptr, desc, info);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
     auto output = download(handle, d_A.ptr, input.values.size());
 
     int info_min = 0;

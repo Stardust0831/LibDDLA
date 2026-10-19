@@ -10,8 +10,8 @@
 
 namespace ddla{
 
-inline deblasStatus_t deblasGeam(
-    deblasHandle_t handle, deblasOperation_t transA, deblasOperation_t transB,
+inline gpublasStatus_t gpublasGeam(
+    gpublasHandle_t handle, gpublasOperation_t transA, gpublasOperation_t transB,
     int m, int n,
     const float& alpha,
     const float* A, int lda,
@@ -20,18 +20,8 @@ inline deblasStatus_t deblasGeam(
     float* C, int ldc
     )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasSgeam(
-        handle, transA, transB,
-        m, n,
-        &alpha,
-        A, lda,
-        &beta,
-        B, ldb,
-        C, ldc
-    );
-#elif defined(DDLA_USE_HIP)
-    return hipblasSgeam(
+#if DDLA_GPU_VENDOR
+    return gpublasSgeam(
         handle, transA, transB,
         m, n,
         &alpha,
@@ -51,14 +41,14 @@ inline deblasStatus_t deblasGeam(
             C[i + j*ldc] = alpha * a_val + beta * b_val;
         }
     }
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
-inline deblasStatus_t deblasGeam(
-    deblasHandle_t handle, deblasOperation_t transA, deblasOperation_t transB,
+inline gpublasStatus_t gpublasGeam(
+    gpublasHandle_t handle, gpublasOperation_t transA, gpublasOperation_t transB,
     int m, int n,
     const double& alpha,
     const double* A, int lda,
@@ -67,18 +57,8 @@ inline deblasStatus_t deblasGeam(
     double* C, int ldc
     )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasDgeam(
-        handle, transA, transB,
-        m, n,
-        &alpha,
-        A, lda,
-        &beta,
-        B, ldb,
-        C, ldc
-    );
-#elif defined(DDLA_USE_HIP)
-    return hipblasDgeam(
+#if DDLA_GPU_VENDOR
+    return gpublasDgeam(
         handle, transA, transB,
         m, n,
         &alpha,
@@ -98,14 +78,14 @@ inline deblasStatus_t deblasGeam(
             C[i + j*ldc] = alpha * a_val + beta * b_val;
         }
     }
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
-inline deblasStatus_t deblasGeam(
-    deblasHandle_t handle, deblasOperation_t transA, deblasOperation_t transB,
+inline gpublasStatus_t gpublasGeam(
+    gpublasHandle_t handle, gpublasOperation_t transA, gpublasOperation_t transB,
     int m, int n,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
@@ -114,25 +94,15 @@ inline deblasStatus_t deblasGeam(
     std::complex<float>* C, int ldc
     )
 {
-    #if defined(DDLA_USE_CUDA)
-    return cublasCgeam(
+    #if DDLA_GPU_VENDOR
+    return gpublasCgeam(
         handle, transA, transB,
         m, n,
-        (cuFloatComplex*)&alpha,
-        (cuFloatComplex*)A, lda,
-        (cuFloatComplex*)&beta,
-        (cuFloatComplex*)B, ldb,
-        (cuFloatComplex*)C, ldc
-    );
-    #elif defined(DDLA_USE_HIP)
-    return hipblasCgeam(
-        handle, transA, transB,
-        m, n,
-        (hipblasComplex*)&alpha,
-        (hipblasComplex*)A, lda,
-        (hipblasComplex*)&beta,
-        (hipblasComplex*)B, ldb,
-        (hipblasComplex*)C, ldc
+        (gpublasComplex*)&alpha,
+        (gpublasComplex*)A, lda,
+        (gpublasComplex*)&beta,
+        (gpublasComplex*)B, ldb,
+        (gpublasComplex*)C, ldc
     );
     #elif defined(DDLA_USE_CPU)
     (void)handle;
@@ -149,14 +119,14 @@ inline deblasStatus_t deblasGeam(
             C[i + j*ldc] = alpha * a_val + beta * b_val;
         }
     }
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
     #endif
 }
 
-inline deblasStatus_t deblasGeam(
-    deblasHandle_t handle, deblasOperation_t transA, deblasOperation_t transB,
+inline gpublasStatus_t gpublasGeam(
+    gpublasHandle_t handle, gpublasOperation_t transA, gpublasOperation_t transB,
     int m, int n,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
@@ -165,25 +135,15 @@ inline deblasStatus_t deblasGeam(
     std::complex<double>* C, int ldc
     )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasZgeam(
+#if DDLA_GPU_VENDOR
+    return gpublasZgeam(
         handle, transA, transB,
         m, n,
-        (cuDoubleComplex*)&alpha,
-        (cuDoubleComplex*)A, lda,
-        (cuDoubleComplex*)&beta,
-        (cuDoubleComplex*)B, ldb,
-        (cuDoubleComplex*)C, ldc
-    );
-#elif defined(DDLA_USE_HIP)
-    return hipblasZgeam(
-        handle, transA, transB,
-        m, n,
-        (hipblasDoubleComplex*)&alpha,
-        (hipblasDoubleComplex*)A, lda,
-        (hipblasDoubleComplex*)&beta,
-        (hipblasDoubleComplex*)B, ldb,
-        (hipblasDoubleComplex*)C, ldc
+        (gpublasDoubleComplex*)&alpha,
+        (gpublasDoubleComplex*)A, lda,
+        (gpublasDoubleComplex*)&beta,
+        (gpublasDoubleComplex*)B, ldb,
+        (gpublasDoubleComplex*)C, ldc
     );
 #elif defined(DDLA_USE_CPU)
     (void)handle;
@@ -200,27 +160,27 @@ inline deblasStatus_t deblasGeam(
             C[i + j*ldc] = alpha * a_val + beta * b_val;
         }
     }
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
 // ---------------------------------------------------------------------------
-// deblasOmatcopy: out-of-place scaled transpose-copy, C := alpha * op(A).
+// gpublasOmatcopy: out-of-place scaled transpose-copy, C := alpha * op(A).
 //
 // This is the single-operand special case of geam that transport_block.cpp's
-// packing code actually needs -- it called deblasGeam with beta=0 and B
+// packing code actually needs -- it called gpublasGeam with beta=0 and B
 // aliased to A only to get a vendor-portable transpose+copy primitive (no
 // vendor BLAS exposes a standalone "scaled transpose copy" call). On CPU
 // this now maps directly onto OpenBLAS's cblas_?omatcopy extension instead
 // of a manual double loop; cuBLAS/hipBLAS have no separate single-operand
-// primitive, so the CUDA/HIP branches forward to the existing deblasGeam
+// primitive, so the CUDA/HIP branches forward to the existing gpublasGeam
 // idiom unchanged (beta=0, B=A).
 //
 // `rows`/`cols` describe A's shape *before* the transpose in `trans` is
 // applied (matching cblas_?omatcopy's convention, and MKL's mkl_?omatcopy);
-// the output C is cols x rows if `trans` is DEBLAS_OP_T/DEBLAS_OP_C, else
+// the output C is cols x rows if `trans` is GPUBLAS_OP_T/GPUBLAS_OP_C, else
 // rows x cols.
 // ---------------------------------------------------------------------------
 #if defined(DDLA_USE_CPU)
@@ -252,143 +212,111 @@ constexpr int kCblasTrans = 112;
 constexpr int kCblasConjTrans = 113;
 
 // Conjugation is a no-op on real data, so 'C' behaves exactly like 'T'.
-inline int omatcopy_trans_real(deblasOperation_t trans) {
+inline int omatcopy_trans_real(gpublasOperation_t trans) {
     return (trans == 'N' || trans == 'n') ? kCblasNoTrans : kCblasTrans;
 }
-inline int omatcopy_trans_complex(deblasOperation_t trans) {
+inline int omatcopy_trans_complex(gpublasOperation_t trans) {
     if (trans == 'N' || trans == 'n') return kCblasNoTrans;
     return (trans == 'C' || trans == 'c') ? kCblasConjTrans : kCblasTrans;
 }
 } // namespace detail
 #endif // DDLA_USE_CPU
 
-inline deblasStatus_t deblasOmatcopy(
-    deblasHandle_t handle, deblasOperation_t trans, int rows, int cols,
+inline gpublasStatus_t gpublasOmatcopy(
+    gpublasHandle_t handle, gpublasOperation_t trans, int rows, int cols,
     const float& alpha,
     const float* A, int lda,
     float* B, int ldb
     )
 {
-#if defined(DDLA_USE_CUDA)
+#if DDLA_GPU_VENDOR
     const float zero = 0.0f;
-    return cublasSgeam(
+    return gpublasSgeam(
         handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        &alpha, A, lda, &zero, A, lda, B, ldb
-    );
-#elif defined(DDLA_USE_HIP)
-    const float zero = 0.0f;
-    return hipblasSgeam(
-        handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
+        (trans == GPUBLAS_OP_N) ? rows : cols, (trans == GPUBLAS_OP_N) ? cols : rows,
         &alpha, A, lda, &zero, A, lda, B, ldb
     );
 #elif defined(DDLA_USE_CPU)
     (void)handle;
     cblas_somatcopy(detail::kCblasColMajor, detail::omatcopy_trans_real(trans),
                      rows, cols, alpha, A, lda, B, ldb);
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
-inline deblasStatus_t deblasOmatcopy(
-    deblasHandle_t handle, deblasOperation_t trans, int rows, int cols,
+inline gpublasStatus_t gpublasOmatcopy(
+    gpublasHandle_t handle, gpublasOperation_t trans, int rows, int cols,
     const double& alpha,
     const double* A, int lda,
     double* B, int ldb
     )
 {
-#if defined(DDLA_USE_CUDA)
+#if DDLA_GPU_VENDOR
     const double zero = 0.0;
-    return cublasDgeam(
+    return gpublasDgeam(
         handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        &alpha, A, lda, &zero, A, lda, B, ldb
-    );
-#elif defined(DDLA_USE_HIP)
-    const double zero = 0.0;
-    return hipblasDgeam(
-        handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
+        (trans == GPUBLAS_OP_N) ? rows : cols, (trans == GPUBLAS_OP_N) ? cols : rows,
         &alpha, A, lda, &zero, A, lda, B, ldb
     );
 #elif defined(DDLA_USE_CPU)
     (void)handle;
     cblas_domatcopy(detail::kCblasColMajor, detail::omatcopy_trans_real(trans),
                      rows, cols, alpha, A, lda, B, ldb);
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
-inline deblasStatus_t deblasOmatcopy(
-    deblasHandle_t handle, deblasOperation_t trans, int rows, int cols,
+inline gpublasStatus_t gpublasOmatcopy(
+    gpublasHandle_t handle, gpublasOperation_t trans, int rows, int cols,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
     std::complex<float>* B, int ldb
     )
 {
-#if defined(DDLA_USE_CUDA)
+#if DDLA_GPU_VENDOR
     const std::complex<float> zero(0.0f, 0.0f);
-    return cublasCgeam(
+    return gpublasCgeam(
         handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda,
-        (cuFloatComplex*)&zero, (cuFloatComplex*)A, lda,
-        (cuFloatComplex*)B, ldb
-    );
-#elif defined(DDLA_USE_HIP)
-    const std::complex<float> zero(0.0f, 0.0f);
-    return hipblasCgeam(
-        handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        (hipblasComplex*)&alpha, (hipblasComplex*)A, lda,
-        (hipblasComplex*)&zero, (hipblasComplex*)A, lda,
-        (hipblasComplex*)B, ldb
+        (trans == GPUBLAS_OP_N) ? rows : cols, (trans == GPUBLAS_OP_N) ? cols : rows,
+        (gpublasComplex*)&alpha, (gpublasComplex*)A, lda,
+        (gpublasComplex*)&zero, (gpublasComplex*)A, lda,
+        (gpublasComplex*)B, ldb
     );
 #elif defined(DDLA_USE_CPU)
     (void)handle;
     cblas_comatcopy(detail::kCblasColMajor, detail::omatcopy_trans_complex(trans),
                      rows, cols, &alpha, A, lda, B, ldb);
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
 }
 
-inline deblasStatus_t deblasOmatcopy(
-    deblasHandle_t handle, deblasOperation_t trans, int rows, int cols,
+inline gpublasStatus_t gpublasOmatcopy(
+    gpublasHandle_t handle, gpublasOperation_t trans, int rows, int cols,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
     std::complex<double>* B, int ldb
     )
 {
-#if defined(DDLA_USE_CUDA)
+#if DDLA_GPU_VENDOR
     const std::complex<double> zero(0.0, 0.0);
-    return cublasZgeam(
+    return gpublasZgeam(
         handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda,
-        (cuDoubleComplex*)&zero, (cuDoubleComplex*)A, lda,
-        (cuDoubleComplex*)B, ldb
-    );
-#elif defined(DDLA_USE_HIP)
-    const std::complex<double> zero(0.0, 0.0);
-    return hipblasZgeam(
-        handle, trans, trans,
-        (trans == DEBLAS_OP_N) ? rows : cols, (trans == DEBLAS_OP_N) ? cols : rows,
-        (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda,
-        (hipblasDoubleComplex*)&zero, (hipblasDoubleComplex*)A, lda,
-        (hipblasDoubleComplex*)B, ldb
+        (trans == GPUBLAS_OP_N) ? rows : cols, (trans == GPUBLAS_OP_N) ? cols : rows,
+        (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)A, lda,
+        (gpublasDoubleComplex*)&zero, (gpublasDoubleComplex*)A, lda,
+        (gpublasDoubleComplex*)B, ldb
     );
 #elif defined(DDLA_USE_CPU)
     (void)handle;
     cblas_zomatcopy(detail::kCblasColMajor, detail::omatcopy_trans_complex(trans),
                      rows, cols, &alpha, A, lda, B, ldb);
-    return DEBLAS_STATUS_SUCCESS;
+    return GPUBLAS_STATUS_SUCCESS;
 #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
 #endif
@@ -397,11 +325,11 @@ inline deblasStatus_t deblasOmatcopy(
 /**
  * @brief Backend-neutral out-of-place scaled transpose-copy: B := alpha * op(A).
  *
- * The DdlaBackend-templated counterpart of deblasOmatcopy above, in the same
- * shape as ddla::gemm / ddla::scal. Prefer this over calling deblasOmatcopy
- * directly from any code compiled once for both backends: the raw deblas*
+ * The DdlaBackend-templated counterpart of gpublasOmatcopy above, in the same
+ * shape as ddla::gemm / ddla::scal. Prefer this over calling gpublasOmatcopy
+ * directly from any code compiled once for both backends: the raw gpublas*
  * wrappers pick their implementation from the translation unit's vendor
- * macros, so in a dual build deblasOmatcopy always resolves to cuBLAS geam
+ * macros, so in a dual build gpublasOmatcopy always resolves to cuBLAS geam
  * even on a CPU code path. This overload resolves on `Backend` instead.
  *
  * `rows`/`cols` describe A's shape *before* the transpose in `trans`.
@@ -415,10 +343,10 @@ void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
  *
  * The non-transposing companion to omatcopy, and the unified replacement for
  * the hand-rolled `if constexpr (CPU) { memcpy loop } else {
- * runtimeMemcpy2DAsync }` pairs that used to sit in transport_block.cpp.
+ * ddlaMemcpy2D }` pairs that used to sit in transport_block.cpp.
  *
- * CPU dispatches to cblas_?omatcopy with DEBLAS_OP_N; GPU dispatches to the
- * device 2D memcpy (runtimeMemcpy2DAsync, device-to-device) rather than to a
+ * CPU dispatches to cblas_?omatcopy with GPUBLAS_OP_N; GPU dispatches to the
+ * device 2D memcpy (ddlaMemcpy2D, device-to-device) rather than to a
  * geam kernel, because a pure strided copy is bandwidth-bound and a memcpy
  * beats a scaling kernel for it.
  */

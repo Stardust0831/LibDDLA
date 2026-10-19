@@ -40,9 +40,8 @@ void pswap(
     const size_t b_offset = ib_loc + jb_loc * array_descB[DDLA_LLD_];
 
     T* temp_swap;
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&temp_swap, sizeof(T) * std::max(
-        num_loc(array_descA[DDLA_M_], array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows),
-        num_loc(array_descA[DDLA_N_], array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols)), handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, (void**)&temp_swap,
+                          sizeof(T) * std::max( num_loc(array_descA[DDLA_M_], array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows), num_loc(array_descA[DDLA_N_], array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols))));
     if(inca == 1){
         const int Na_loc = num_loc(N + ia, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
         const int Nb_loc = num_loc(N + ib, array_descB[DDLA_MB_], myprow, array_descB[DDLA_RSRC_], nprows);
@@ -53,21 +52,17 @@ void pswap(
         if(length_v > 0){
             if(owner_col_A == owner_col_B){
                 if(mypcol == owner_col_A)
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, A + a_offset, 1, B + b_offset, 1));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, A + a_offset, 1, B + b_offset, 1));
             }else{
                 if(mypcol == owner_col_A){
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        temp_swap, sizeof(T), 
-                        A + a_offset, sizeof(T),
-                        sizeof(T), length_v,
-                        runtimeMemcpyDeviceToDevice, handle->stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(handle, temp_swap, sizeof(T), A + a_offset, sizeof(T), sizeof(T),
+                                            length_v));
                     commSend(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
                     commRecv(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, temp_swap, 1, A + a_offset, 1));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, temp_swap, 1, A + a_offset, 1));
                 }else if(mypcol == owner_col_B){
                     commRecv(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, temp_swap, 1, B + b_offset, 1));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, temp_swap, 1, B + b_offset, 1));
                     commSend(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
                 }
             }
@@ -82,27 +77,23 @@ void pswap(
         if(length_v > 0){
             if(owner_row_A == owner_row_B){
                 if(myprow == owner_row_A)
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, A + a_offset, array_descA[DDLA_LLD_], B + b_offset, array_descB[DDLA_LLD_]));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, A + a_offset, array_descA[DDLA_LLD_], B + b_offset, array_descB[DDLA_LLD_]));
             }else{
                 if(myprow == owner_row_A){
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        temp_swap, sizeof(T), 
-                        A + a_offset, array_descA[DDLA_LLD_] * sizeof(T),
-                        sizeof(T), length_v,
-                        runtimeMemcpyDeviceToDevice, handle->stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(handle, temp_swap, sizeof(T), A + a_offset,
+                                            array_descA[DDLA_LLD_] * sizeof(T), sizeof(T), length_v));
                     commSend(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
                     commRecv(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, temp_swap, 1, A + a_offset, array_descA[DDLA_LLD_]));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, temp_swap, 1, A + a_offset, array_descA[DDLA_LLD_]));
                 }else if(myprow == owner_row_B){
                     commRecv(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
-                    BLAS_CHECK(deblasSwap(handle->blasH, length_v, temp_swap, 1, B + b_offset, array_descB[DDLA_LLD_]));
+                    BLAS_CHECK(gpublasSwap(handle->blasH, length_v, temp_swap, 1, B + b_offset, array_descB[DDLA_LLD_]));
                     commSend(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
                 }
             }
         }
     }
-    RUNTIME_CHECK(runtimeFreeAsync(temp_swap, handle->stream));
+    DDLA_CHECK(ddlaFree(handle, temp_swap));
 }
 
 template void pswap<std::complex<double>>(

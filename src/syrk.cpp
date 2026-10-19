@@ -47,21 +47,21 @@ void dsyrk_(const char*, const char*, const int*, const int*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasSyrk overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasSyrk overloads so the
 // dispatch below stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::syrk declared in <ddla/ddla.h>.
 //
 // Only the two REAL overloads exist: xSYRK has no complex counterpart, and the
-// complex rank-k updates go through ddla::herk / deblasHerk.
+// complex rank-k updates go through ddla::herk / gpublasHerk.
 // ---------------------------------------------------------------------------
 #if DDLA_HAS_GPU
 
 namespace ddla {
 
-inline deblasStatus_t deblasSyrk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasSyrk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const float& alpha,
     const float* A, int lda,
@@ -69,14 +69,8 @@ inline deblasStatus_t deblasSyrk(
     float* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasSsyrk(
-        handle, uplo, trans, n, k,
-        &alpha, A, lda,
-        &beta, C, ldc
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSsyrk(
+    #if DDLA_GPU_VENDOR
+    return gpublasSsyrk(
         handle, uplo, trans, n, k,
         &alpha, A, lda,
         &beta, C, ldc
@@ -86,13 +80,13 @@ inline deblasStatus_t deblasSyrk(
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasSyrk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasSyrk: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasSyrk(
-    deblasHandle_t handle,
-    deblasFillMode_t uplo, deblasOperation_t trans,
+inline gpublasStatus_t gpublasSyrk(
+    gpublasHandle_t handle,
+    gpublasFillMode_t uplo, gpublasOperation_t trans,
     int n, int k,
     const double& alpha,
     const double* A, int lda,
@@ -100,20 +94,14 @@ inline deblasStatus_t deblasSyrk(
     double* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDsyrk(
-        handle, uplo, trans, n, k,
-        &alpha, A, lda,
-        &beta, C, ldc
-    );
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDsyrk(
+    #if DDLA_GPU_VENDOR
+    return gpublasDsyrk(
         handle, uplo, trans, n, k,
         &alpha, A, lda,
         &beta, C, ldc
     );
     #else
-    throw std::runtime_error("deblasSyrk: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasSyrk: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -171,10 +159,10 @@ void syrk(
     } else {
 #if DDLA_HAS_GPU
         if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
-            BLAS_CHECK(deblasSyrk(handle->blasH,
-                                  detail::to_fill_mode(uplo),
-                                  detail::to_blas_op(detail::trans_real(trans)),
-                                  n, k, alpha, A, lda, beta, C, ldc));
+            BLAS_CHECK(gpublasSyrk(handle->blasH,
+                                   detail::to_fill_mode(uplo),
+                                   detail::to_blas_op(detail::trans_real(trans)),
+                                   n, k, alpha, A, lda, beta, C, ldc));
         } else {
             static_assert(sizeof(T) == 0, "syrk: complex scalar types should use herk");
         }

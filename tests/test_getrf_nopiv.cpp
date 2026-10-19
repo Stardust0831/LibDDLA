@@ -35,46 +35,48 @@ void check_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     std::complex<double> *d_A, *d_A_ref;
     int *d_info, *d_info_ref, *d_ipiv;
 
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A, bytes, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_ref, bytes, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_info, sizeof(int), ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_info_ref, sizeof(int), ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_ipiv, n * sizeof(int), ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A, bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A_ref, bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_info, sizeof(int)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_info_ref, sizeof(int)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_ipiv, n * sizeof(int)));
 
     // Fill with random values on device, then copy to the reference buffer.
     random_generate(d_A, nelem);
-    BLAS_CHECK(deblasScal(ddla_handle->blasH, n * n, 0.01, d_A, 1));
+    BLAS_CHECK(gpublasScal(ddla_handle->blasH, n * n, 0.01, d_A, 1));
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < n; i++){
-        RUNTIME_CHECK(runtimeMemcpyAsync(d_A + i + i * n, &cons_i, sizeof(std::complex<double>), runtimeMemcpyHostToDevice, ddla_handle->stream));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i + i * n, &cons_i, sizeof(std::complex<double>)));
     }
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_A_ref, d_A, bytes, runtimeMemcpyDeviceToDevice, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMemsetAsync(d_info, 0, sizeof(int), ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMemsetAsync(d_info_ref, 0, sizeof(int), ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_ref, d_A, bytes));
+    DDLA_CHECK(ddlaMemset(ddla_handle, d_info, 0, sizeof(int)));
+    DDLA_CHECK(ddlaMemset(ddla_handle, d_info_ref, 0, sizeof(int)));
 
     // Run the local nopiv LU factorization.
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     double t_nopiv = MPI_Wtime();
     getrf_nopiv(n, n, d_A, lda, d_info, ddla_handle);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     t_nopiv = MPI_Wtime() - t_nopiv;
 
     // Run cuSOLVER/hipSOLVER LU with partial pivoting as the reference.
     double t_ref = MPI_Wtime();
-    SOLVER_CHECK(desolverGetrf(ddla_handle->solverH, n, n, d_A_ref, lda, d_ipiv, d_info_ref));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    SOLVER_CHECK(gpusolverGetrf(ddla_handle->solverH, n, n, d_A_ref, lda, d_ipiv, d_info_ref));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     t_ref = MPI_Wtime() - t_ref;
 
     // Copy results back to host.
     std::vector<std::complex<double>> h_A(nelem);
     std::vector<std::complex<double>> h_A_ref(nelem);
-    RUNTIME_CHECK(runtimeMemcpyAsync(h_A.data(), d_A, bytes, runtimeMemcpyDeviceToHost, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(h_A_ref.data(), d_A_ref, bytes, runtimeMemcpyDeviceToHost, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_A.data(), d_A, bytes));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_A_ref.data(), d_A_ref, bytes));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     int info = 0, info_ref = 0;
-    RUNTIME_CHECK(runtimeMemcpy(&info, d_info, sizeof(int), runtimeMemcpyDeviceToHost));
-    RUNTIME_CHECK(runtimeMemcpy(&info_ref, d_info_ref, sizeof(int), runtimeMemcpyDeviceToHost));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, &info_ref, d_info_ref, sizeof(int)));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     double logdet_nopiv = log_abs_det(h_A, n, lda);
     double logdet_ref   = log_abs_det(h_A_ref, n, lda);
@@ -99,12 +101,12 @@ void check_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
         std::exit(1);
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A_ref, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info_ref, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_ipiv, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A_ref));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_info_ref));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 int main(int argc, char* argv[])
@@ -118,7 +120,7 @@ int main(int argc, char* argv[])
     std::cout << "Testing getrf_nopiv against cuSOLVER/hipSOLVER LU" << std::endl;
 
     for (int n = 5000; n <= 20000; n += 5000) {
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         MPI_Barrier(MPI_COMM_WORLD);
         std::cout << "Testing matrix size: " << n << std::endl;
         check_getrf_nopiv(n, ddla_handle);

@@ -36,7 +36,6 @@ void pgetrf(
     int m_loc = num_loc(m, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
-    runtimeStream_t stream=ddla_handle->stream;
 
     int mm_row_start = 0;
     int mm_col_start = 0;
@@ -44,13 +43,13 @@ void pgetrf(
     int owner_row,owner_col;
 
     T *d_temp_block;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_block, sizeof(T)*nb*nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_block, sizeof(T)*nb*nb));
 
     T *d_temp_L;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_L, sizeof(T)*m_loc*nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_L, sizeof(T)*m_loc*nb));
 
     T *d_temp_U;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_U, sizeof(T)*nb*n_loc, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T)*nb*n_loc));
 
     info = 0;
 
@@ -81,21 +80,14 @@ void pgetrf(
         if(j_loc>=0){
             mm_col_start+=nb;
             if(i_loc>=0){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_block, nb_real * sizeof(T),
-                    d_A + i_loc + j_loc * lld, lld * sizeof(T),
-                    nb_real * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_block, nb_real * sizeof(T), d_A + i_loc + j_loc * lld,
+                                        lld * sizeof(T), nb_real * sizeof(T), nb_real));
                 
             }
             if(mm_row_start<m_loc){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_L, (m_loc-mm_row_start) * sizeof(T),
-                    d_A + mm_row_start + j_loc * lld, lld * sizeof(T),
-                    (m_loc - mm_row_start) * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_L, (m_loc-mm_row_start) * sizeof(T),
+                                        d_A + mm_row_start + j_loc * lld, lld * sizeof(T),
+                                        (m_loc - mm_row_start) * sizeof(T), nb_real));
             }
         }
         if(mm_row_start<m_loc){
@@ -110,12 +102,8 @@ void pgetrf(
                     nb_real, n_loc - mm_col_start, T(1),
                     d_temp_block, nb_real,
                     d_A + i_loc + mm_col_start * lld, lld);
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_U, nb_real * sizeof(T),
-                    d_A + i_loc + mm_col_start * lld, lld * sizeof(T),
-                    nb_real * sizeof(T), n_loc - mm_col_start,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, nb_real * sizeof(T), d_A + i_loc + mm_col_start * lld,
+                                        lld * sizeof(T), nb_real * sizeof(T), n_loc - mm_col_start));
             }   
         }
         if(mm_col_start<n_loc){
@@ -131,10 +119,10 @@ void pgetrf(
                 d_A + mm_row_start + mm_col_start * lld, lld);
         }
     }
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_block, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_L, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_block));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_L));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
 }
 

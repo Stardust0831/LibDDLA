@@ -66,15 +66,14 @@ void pgeadd(
     int m_loc_C = num_loc(m, array_descC[DDLA_MB_], myprow, array_descC[DDLA_RSRC_], nprows);
     int n_loc_C = num_loc(n, array_descC[DDLA_NB_], mypcol, array_descC[DDLA_CSRC_], npcols);
 
-    runtimeStream_t stream = ddla_handle->stream;
 
-    deblasOperation_t opA = (transa == 'N') ? DEBLAS_OP_N :
-                            (transa == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
-    deblasOperation_t opB = (transb == 'N') ? DEBLAS_OP_N :
-                            (transb == 'T') ? DEBLAS_OP_T : DEBLAS_OP_C;
+    gpublasOperation_t opA = (transa == 'N') ? GPUBLAS_OP_N :
+                             (transa == 'T') ? GPUBLAS_OP_T : GPUBLAS_OP_C;
+    gpublasOperation_t opB = (transb == 'N') ? GPUBLAS_OP_N :
+                             (transb == 'T') ? GPUBLAS_OP_T : GPUBLAS_OP_C;
 
     if(transa == 'N' && transb == 'N'){
-        BLAS_CHECK(deblasGeam(
+        BLAS_CHECK(gpublasGeam(
             ddla_handle->blasH, opA, opB,
             m_loc_C, n_loc_C,
             alpha, 
@@ -86,7 +85,7 @@ void pgeadd(
         
     }else if (transa != 'N' && transb != 'N'){
         if(myprow == mypcol){
-            BLAS_CHECK(deblasGeam(
+            BLAS_CHECK(gpublasGeam(
                 ddla_handle->blasH, opA, opB,
                 m_loc_C, n_loc_C,
                 alpha, 
@@ -97,8 +96,8 @@ void pgeadd(
             ));
         }else{
             T* d_temp;
-            RUNTIME_CHECK(runtimeMallocAsync((void**)&d_temp, m_loc_C * n_loc_C * sizeof(T), stream));
-            BLAS_CHECK(deblasGeam(
+            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
+            BLAS_CHECK(gpublasGeam(
                 ddla_handle->blasH, opA, opB,
                 n_loc_C, m_loc_C,
                 alpha,
@@ -117,11 +116,11 @@ void pgeadd(
                 commSend(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
             commGroupEnd(ddla_handle);
-            RUNTIME_CHECK(runtimeFreeAsync(d_temp, stream));
+            DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
         }
     }else{
         if(myprow == mypcol){
-            BLAS_CHECK(deblasGeam(
+            BLAS_CHECK(gpublasGeam(
                 ddla_handle->blasH, opA, opB,
                 m_loc_C, n_loc_C,
                 alpha, 
@@ -132,12 +131,12 @@ void pgeadd(
             ));
         }else{
             T* d_temp;
-            RUNTIME_CHECK(runtimeMallocAsync((void**)&d_temp, m_loc_C * n_loc_C * sizeof(T), stream));
+            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
             const T* d_comm = transa != 'N' ? d_A : d_B;
             const T* d_nt = transa == 'N' ? d_A : d_B;
             const T& trans_scale = transa != 'N' ? alpha : beta;
             const T& nontrans_scale = transa == 'N' ? alpha : beta;
-            deblasOperation_t op_trans = transa != 'N' ? opA : opB;
+            gpublasOperation_t op_trans = transa != 'N' ? opA : opB;
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             commGroupStart(ddla_handle);
             if(myprow > mypcol){
@@ -148,8 +147,8 @@ void pgeadd(
                 commSend(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
             commGroupEnd(ddla_handle);
-            BLAS_CHECK(deblasGeam(
-                ddla_handle->blasH, op_trans, DEBLAS_OP_N,
+            BLAS_CHECK(gpublasGeam(
+                ddla_handle->blasH, op_trans, GPUBLAS_OP_N,
                 m_loc_C, n_loc_C,
                 trans_scale,
                 d_temp, n_loc_C,
@@ -157,7 +156,7 @@ void pgeadd(
                 d_nt, m_loc_C,
                 d_C, m_loc_C
             ));
-            RUNTIME_CHECK(runtimeFreeAsync(d_temp, stream));
+            DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
         }
     }
 

@@ -38,43 +38,47 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
 
     const size_t size = ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)*sizeof(std::complex<double>);
 
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A_copy, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_ipiv, ddla_test::m_loc(ddla_handle, matrix_desc) * sizeof(int), ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A_copy, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_ipiv, ddla_test::m_loc(ddla_handle, matrix_desc) * sizeof(int)));
     
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
     random_generate(d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
-    BLAS_CHECK(deblasScal(ddla_handle->blasH, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), 0.01, d_A, 1));
+    BLAS_CHECK(gpublasScal(ddla_handle->blasH, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), 0.01, d_A, 1));
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < matrix_desc[DDLA_M_]; i++){
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);
         if(i_loc < 0 ) continue;
         int j_loc = indx_g2l_c(matrix_desc, ddla_handle, i);
         if(j_loc < 0 ) continue;
-        RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &cons_i, sizeof(std::complex<double>), runtimeMemcpyHostToDevice));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &cons_i,
+                              sizeof(std::complex<double>)));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
     
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_A_copy, d_A, sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), runtimeMemcpyDeviceToDevice, ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_copy, d_A,
+                          sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));
 
     if(verbose)
     {
         std::vector<std::complex<double>> a(ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
-        RUNTIME_CHECK(runtimeMemcpyAsync(a.data(), d_A, sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), runtimeMemcpyDeviceToHost, ddla_handle->stream));
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, a.data(), d_A,
+                              sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         std::string filename = "before_trf_myid_";
         filename += std::to_string(myid);
         filename += ".txt";
         write_matrix<DdlaBackend::CPU>(a.data(), ddla_test::m_loc(ddla_handle, matrix_desc), ddla_test::n_loc(ddla_handle, matrix_desc), filename.c_str());
     }
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     printf("myid:%d, start sv\n",myid);
     int info = -1;
     double start_time_trf = MPI_Wtime();
     pgetrf(ddla_handle, n, n, d_A, matrix_desc, ipiv.data(), info);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double end_time_trf = MPI_Wtime();
     assert(info == 0);
@@ -86,8 +90,9 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     if(verbose)
     {
         std::vector<std::complex<double>> a(ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
-        RUNTIME_CHECK(runtimeMemcpyAsync(a.data(), d_A, sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), runtimeMemcpyDeviceToHost, ddla_handle->stream));
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, a.data(), d_A,
+                              sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         std::string filename = "identity_myid_";
         filename += std::to_string(myid);
         filename += ".txt";
@@ -96,8 +101,10 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     {
         std::vector<std::complex<double>> a(ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
         std::vector<std::complex<double>> b(ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
-        RUNTIME_CHECK(runtimeMemcpyAsync(a.data(), d_A, sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), runtimeMemcpyDeviceToHost, ddla_handle->stream));
-        RUNTIME_CHECK(runtimeMemcpyAsync(b.data(), d_A_copy, sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), runtimeMemcpyDeviceToHost, ddla_handle->stream));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, a.data(), d_A,
+                              sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, b.data(), d_A_copy,
+                              sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));
         printf("myid:%d, start check trf result\n", myid);
         int loc_pi;
         std::complex<double> tmp;
@@ -122,10 +129,10 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
         MPI_Barrier(ddla_handle->comm);
         printf("myid:%d, ln_det_a:%lf+i%lf, ln_det_b:%lf+i%lf\n", myid, ln_det_all_a.real(), ln_det_all_a.imag(), ln_det_all_b.real(), ln_det_all_b.imag());
     }
-    RUNTIME_CHECK(runtimeFreeAsync(d_ipiv, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A_copy, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A_copy));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 int main(int argc, char* argv[]) {  
     MPI_Init(&argc, &argv);
@@ -133,11 +140,11 @@ int main(int argc, char* argv[]) {
     DdlaHandle_t ddla_handle = nullptr;
     ddlaInit(ddla_handle);
     ddlaSet(ddla_handle);
-    // RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    // DDLA_CHECK(ddlaSynchronize(ddla_handle));
     printf("after stream init\n");
     check_pzgetrf(5000, ddla_handle);
     for(int i = 5000; i <= 4 * 5000; i += 5000){
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n",i);
         check_pzgetrf(i, ddla_handle);

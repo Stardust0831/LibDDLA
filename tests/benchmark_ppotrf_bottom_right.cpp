@@ -369,10 +369,9 @@ void reset_matrix(const ddla::DdlaHandle_t& handle, Complex* d_work,
                   const Complex* d_reference, std::size_t count)
 {
     if(count > 0){
-        RUNTIME_CHECK(runtimeMemcpyAsync(d_work, d_reference, count * sizeof(Complex),
-                                       runtimeMemcpyDeviceToDevice, handle->stream));
+        DDLA_CHECK(ddlaMemcpy(handle, d_work, d_reference, count * sizeof(Complex)));
     }
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 double run_once(Algorithm algorithm, int n, Complex* d_work,
@@ -392,7 +391,7 @@ double run_once(Algorithm algorithm, int n, Complex* d_work,
     }else{
         ddla::ppotrf_bottom_right(handle, options.uplo, n, d_work, desc, info);
     }
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     const double local_elapsed = MPI_Wtime() - start;
 
     const int local_failure = (info != 0 || sign_correction) ? 1 : 0;
@@ -449,19 +448,15 @@ void benchmark_size(int n, const Options& options,
     const std::size_t allocation_count = std::max<std::size_t>(count, 1);
     Complex* d_reference = nullptr;
     Complex* d_work = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_reference),
-                                   allocation_count * sizeof(Complex), handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync(reinterpret_cast<void**>(&d_work),
-                                   allocation_count * sizeof(Complex), handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_reference), allocation_count * sizeof(Complex)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_work), allocation_count * sizeof(Complex)));
 
     {
         const std::vector<Complex> h_reference = make_local_hpd(handle, desc);
         if(count > 0){
-            RUNTIME_CHECK(runtimeMemcpyAsync(d_reference, h_reference.data(),
-                                           count * sizeof(Complex),
-                                           runtimeMemcpyHostToDevice, handle->stream));
+            DDLA_CHECK(ddlaMemcpy(handle, d_reference, h_reference.data(), count * sizeof(Complex)));
         }
-        RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+        DDLA_CHECK(ddlaSynchronize(handle));
     }
 
     for(int iteration = 0; iteration < options.warmup; ++iteration){
@@ -530,9 +525,9 @@ void benchmark_size(int n, const Options& options,
                   << std::endl;
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_reference, handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_work, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaFree(handle, d_reference));
+    DDLA_CHECK(ddlaFree(handle, d_work));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 } // namespace

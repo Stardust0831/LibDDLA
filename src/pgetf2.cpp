@@ -60,8 +60,7 @@ void pgetf2(
     int lld = array_descA[DDLA_LLD_];
     int nb = array_descA[DDLA_NB_];
 
-    runtimeStream_t stream=ddla_handle->stream;
-    deblasHandle_t blasH=ddla_handle->blasH;
+    gpublasHandle_t blasH=ddla_handle->blasH;
     
     int max_row;
     int max_prow;
@@ -69,14 +68,13 @@ void pgetf2(
 
     T *d_temp;
     const size_t row_buffer_elems = static_cast<size_t>(n_loc > 0 ? n_loc : 1);
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp, sizeof(T)*row_buffer_elems, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp, sizeof(T)*row_buffer_elems));
 
     T *d_temp_peer = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_peer, sizeof(T)*row_buffer_elems, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_peer, sizeof(T)*row_buffer_elems));
 
     void* d_pivot_workspace = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        &d_pivot_workspace, detail::pgetf2_pivot_workspace_size<T>(), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_pivot_workspace, detail::pgetf2_pivot_workspace_size<T>()));
     
 
     int i_loc = indx_g2l_r(array_descA, handle, n_s);
@@ -107,8 +105,8 @@ void pgetf2(
             if(i_panel<m_loc){
                 int local_max_index = 0;
                 detail::pgetf2_find_local_pivot(
-                    d_A + j_panel * lld + i_panel, m_loc - i_panel,
-                    d_pivot_workspace, stream,
+                    ddla_handle, d_A + j_panel * lld + i_panel, m_loc - i_panel,
+                    d_pivot_workspace,
                     local_max.value, local_max_index, local_max_value);
                 const int local_row = i_panel + local_max_index;
                 local_max.index = indx_l2g_r(array_descA, handle, local_row);
@@ -142,46 +140,30 @@ void pgetf2(
         // exchange rows
         if(owner_row == max_prow){
             if(myprow == owner_row && max_loc_row != i_panel)
-                BLAS_CHECK(deblasSwap(
+                BLAS_CHECK(gpublasSwap(
                     blasH, n_loc,
                     d_A + i_panel, lld,
                     d_A + max_loc_row, lld
                 ));
         }else{
             if(myprow == owner_row){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp, sizeof(T),
-                    d_A + i_panel, lld * sizeof(T),
-                    sizeof(T), n_loc,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, sizeof(T), d_A + i_panel, lld * sizeof(T), sizeof(T),
+                                        n_loc));
                 commGroupStart(ddla_handle);
                 commSend(ddla_handle, CommScope::Col, d_temp, (std::size_t)n_loc, max_prow);
                 commRecv(ddla_handle, CommScope::Col, d_temp_peer, (std::size_t)n_loc, max_prow);
                 commGroupEnd(ddla_handle);
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_A + i_panel, lld * sizeof(T),
-                    d_temp_peer, sizeof(T),
-                    sizeof(T), n_loc,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_A + i_panel, lld * sizeof(T), d_temp_peer, sizeof(T),
+                                        sizeof(T), n_loc));
             }else if(myprow == max_prow){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp, sizeof(T),
-                    d_A + max_loc_row, lld * sizeof(T),
-                    sizeof(T), n_loc,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, sizeof(T), d_A + max_loc_row, lld * sizeof(T), sizeof(T),
+                                        n_loc));
                 commGroupStart(ddla_handle);
                 commSend(ddla_handle, CommScope::Col, d_temp, (std::size_t)n_loc, owner_row);
                 commRecv(ddla_handle, CommScope::Col, d_temp_peer, (std::size_t)n_loc, owner_row);
                 commGroupEnd(ddla_handle);
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_A + max_loc_row, lld * sizeof(T),
-                    d_temp_peer, sizeof(T),
-                    sizeof(T), n_loc,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_A + max_loc_row, lld * sizeof(T), d_temp_peer, sizeof(T),
+                                        sizeof(T), n_loc));
             }
         }
         if(std::abs(max_value) == 0.0){
@@ -202,26 +184,22 @@ void pgetf2(
             }
             int length_col = nb_real - i_tf2 - 1;
             if(myprow == owner_row && length_col>0){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp, 1 * sizeof(T),
-                    d_A + i_panel + (j_panel + 1) * lld, lld * sizeof(T),
-                    1*sizeof(T), length_col,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, 1 * sizeof(T), d_A + i_panel + (j_panel + 1) * lld,
+                                        lld * sizeof(T), 1*sizeof(T), length_col));
             }
             if(length_col>0)
                 commBcast(ddla_handle, CommScope::Col, d_temp, (std::size_t)length_col, owner_row);
             T* d_trailing = length_col > 0 ? d_A + a_off + lld : d_A + a_off;
             detail::pgetf2_scale_update(
-                length_row, length_col, inverse_pivot,
-                d_A + a_off, d_temp, d_trailing, lld, stream);
+                ddla_handle, length_row, length_col, inverse_pivot,
+                d_A + a_off, d_temp, d_trailing, lld);
         }
     }
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_peer, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_pivot_workspace, stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_peer));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_pivot_workspace));
     if(info != 0){
-        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
 }
 

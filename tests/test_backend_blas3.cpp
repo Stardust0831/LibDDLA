@@ -118,8 +118,7 @@ template <typename T>
 bool upload(const DdlaHandle_t& handle, T* d, const std::vector<T>& h, std::size_t count)
 {
     if (h.size() < count) throw std::runtime_error("upload: host vector too small");
-    const ddlaStatus_t st = ddlaMemcpy(d, h.data(), count * sizeof(T),
-                                       DdlaMemoryCopyKind::HostToDevice, handle);
+    const ddlaStatus_t st = ddlaMemcpy(handle, d, h.data(), count * sizeof(T));
     const ddlaStatus_t sy = ddlaSynchronize(handle);
     return st == ddlaStatus_t::DDLA_STATUS_SUCCESS &&
            sy == ddlaStatus_t::DDLA_STATUS_SUCCESS;
@@ -129,8 +128,7 @@ template <typename T>
 bool download(const DdlaHandle_t& handle, std::vector<T>& h, const T* d, std::size_t count)
 {
     if (h.size() < count) throw std::runtime_error("download: host vector too small");
-    if (ddlaMemcpy(h.data(), d, count * sizeof(T),
-                   DdlaMemoryCopyKind::DeviceToHost, handle) != ddlaStatus_t::DDLA_STATUS_SUCCESS)
+    if (ddlaMemcpy(handle, h.data(), d, count * sizeof(T)) != ddlaStatus_t::DDLA_STATUS_SUCCESS)
         return false;
     return ddlaSynchronize(handle) == ddlaStatus_t::DDLA_STATUS_SUCCESS;
 }
@@ -139,7 +137,7 @@ template <typename T>
 T* dev_alloc(const DdlaHandle_t& handle, std::size_t n)
 {
     T* p = nullptr;
-    const ddlaStatus_t st = ddlaMalloc(reinterpret_cast<void**>(&p), n * sizeof(T), handle);
+    const ddlaStatus_t st = ddlaMalloc(handle, reinterpret_cast<void**>(&p), n * sizeof(T));
     if (st != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
         throw std::runtime_error("dev_alloc failed");
     }
@@ -522,23 +520,20 @@ int check_gemmBatched_standalone(const DdlaHandle_t& handle)
     T** d_aptr = nullptr;
     T** d_bptr = nullptr;
     T** d_cptr = nullptr;
-    ddlaMalloc(reinterpret_cast<void**>(&d_aptr), batch * sizeof(T*), handle);
-    ddlaMalloc(reinterpret_cast<void**>(&d_bptr), batch * sizeof(T*), handle);
-    ddlaMalloc(reinterpret_cast<void**>(&d_cptr), batch * sizeof(T*), handle);
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_aptr), batch * sizeof(T*));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_bptr), batch * sizeof(T*));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_cptr), batch * sizeof(T*));
 
     const T* const* A_ptr = da.data();
     const T* const* B_ptr = db.data();
     T* const* C_ptr = dc.data();
     bool ok = true;
     if constexpr (Backend == DdlaBackend::GPU) {
-        ok = ddlaMemcpy(d_aptr, da.data(), batch * sizeof(T*),
-                        DdlaMemoryCopyKind::HostToDevice, handle)
+        ok = ddlaMemcpy(handle, d_aptr, da.data(), batch * sizeof(T*))
                == ddlaStatus_t::DDLA_STATUS_SUCCESS &&
-             ddlaMemcpy(d_bptr, db.data(), batch * sizeof(T*),
-                        DdlaMemoryCopyKind::HostToDevice, handle)
+             ddlaMemcpy(handle, d_bptr, db.data(), batch * sizeof(T*))
                == ddlaStatus_t::DDLA_STATUS_SUCCESS &&
-             ddlaMemcpy(d_cptr, dc.data(), batch * sizeof(T*),
-                        DdlaMemoryCopyKind::HostToDevice, handle)
+             ddlaMemcpy(handle, d_cptr, dc.data(), batch * sizeof(T*))
                == ddlaStatus_t::DDLA_STATUS_SUCCESS &&
              ddlaSynchronize(handle) == ddlaStatus_t::DDLA_STATUS_SUCCESS;
         A_ptr = const_cast<const T* const*>(d_aptr);
@@ -559,13 +554,13 @@ int check_gemmBatched_standalone(const DdlaHandle_t& handle)
     if (!ok) ++bad;
 
     for (int b = 0; b < batch; ++b) {
-        ddlaFree(da[b], handle);
-        ddlaFree(db[b], handle);
-        ddlaFree(dc[b], handle);
+        ddlaFree(handle, da[b]);
+        ddlaFree(handle, db[b]);
+        ddlaFree(handle, dc[b]);
     }
-    ddlaFree(d_aptr, handle);
-    ddlaFree(d_bptr, handle);
-    ddlaFree(d_cptr, handle);
+    ddlaFree(handle, d_aptr);
+    ddlaFree(handle, d_bptr);
+    ddlaFree(handle, d_cptr);
     return bad;
 }
 
@@ -622,7 +617,7 @@ int run_backend()
     const std::size_t slice = kArenaElems * sizeof(std::complex<double>);
     const std::size_t arena_bytes = 4 * slice;
     void* arena = nullptr;
-    if (ddlaMalloc(&arena, arena_bytes, handle) != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
+    if (ddlaMalloc(handle, &arena, arena_bytes) != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
         ddlaDestroy(handle);
         return 1;
     }
@@ -632,7 +627,7 @@ int run_backend()
     failures += run_type<Backend, std::complex<float>>(handle, base + 2 * slice, slice);
     failures += run_type<Backend, std::complex<double>>(handle, base + 3 * slice, slice);
     // Report the check result BEFORE teardown: an error surfaced by
-    // cudaStreamDestroy (ddla_stream_impl.h:229) is a teardown condition, and
+    // gpuStreamDestroy (ddla_stream_impl.h) is a teardown condition, and
     // conflating it with a failing check would misattribute the cause.
     ddlaSynchronize(handle);
     {
@@ -646,7 +641,7 @@ int run_backend()
                                          : "  *** some checks FAILED ***")
                       << std::endl;
     }
-    ddlaFree(arena, handle);
+    ddlaFree(handle, arena);
     ddlaSynchronize(handle);
     ddlaDestroy(handle);
     return failures;

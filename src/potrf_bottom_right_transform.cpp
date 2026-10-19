@@ -1,4 +1,5 @@
 #include "potrf_bottom_right_transform.h"
+#include "ddla_stream_impl.h"
 
 #include <cassert>
 #include <cstddef>
@@ -66,9 +67,10 @@ constexpr int kTileSize = 16;
 
 template <typename T>
 void reverse_upper_to_lower(
-    int n, const T* d_A, int lda,
-    T* d_B, int ldb, runtimeStream_t stream)
+    const DdlaHandle_t& handle, int n, const T* d_A, int lda,
+    T* d_B, int ldb)
 {
+    const gpuStream_t stream = handle->stream;
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
     assert(ldb >= (n > 0 ? n : 1));
@@ -87,14 +89,15 @@ void reverse_upper_to_lower(
     reverse_upper_to_lower_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
         n, reinterpret_cast<const DeviceT*>(d_A), lda,
         reinterpret_cast<DeviceT*>(d_B), ldb);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 }
 
 template <typename T>
 void reverse_lower_to_upper(
-    int n, const T* d_B, int ldb,
-    T* d_A, int lda, runtimeStream_t stream)
+    const DdlaHandle_t& handle, int n, const T* d_B, int ldb,
+    T* d_A, int lda)
 {
+    const gpuStream_t stream = handle->stream;
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
     assert(ldb >= (n > 0 ? n : 1));
@@ -113,29 +116,29 @@ void reverse_lower_to_upper(
     reverse_lower_to_upper_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
         n, reinterpret_cast<const DeviceT*>(d_B), ldb,
         reinterpret_cast<DeviceT*>(d_A), lda);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 }
 
 template void reverse_upper_to_lower<float>(
-    int, const float*, int, float*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const float*, int, float*, int);
 template void reverse_upper_to_lower<double>(
-    int, const double*, int, double*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const double*, int, double*, int);
 template void reverse_upper_to_lower<std::complex<float>>(
-    int, const std::complex<float>*, int,
-    std::complex<float>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const std::complex<float>*, int,
+    std::complex<float>*, int);
 template void reverse_upper_to_lower<std::complex<double>>(
-    int, const std::complex<double>*, int,
-    std::complex<double>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const std::complex<double>*, int,
+    std::complex<double>*, int);
 
 template void reverse_lower_to_upper<float>(
-    int, const float*, int, float*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const float*, int, float*, int);
 template void reverse_lower_to_upper<double>(
-    int, const double*, int, double*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const double*, int, double*, int);
 template void reverse_lower_to_upper<std::complex<float>>(
-    int, const std::complex<float>*, int,
-    std::complex<float>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const std::complex<float>*, int,
+    std::complex<float>*, int);
 template void reverse_lower_to_upper<std::complex<double>>(
-    int, const std::complex<double>*, int,
-    std::complex<double>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, const std::complex<double>*, int,
+    std::complex<double>*, int);
 
 } // namespace ddla::detail

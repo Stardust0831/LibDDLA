@@ -22,7 +22,7 @@ inline const char* transport_block_backend_name(DdlaBackend backend)
 
 // ---------------------------------------------------------------------------
 // Unified transport_block<Backend,T>: merges the formerly GPU-only
-// transport_block.cpp (NCCL/RCCL/host-tunnel communication, deblasOmatcopy
+// transport_block.cpp (NCCL/RCCL/host-tunnel communication, gpublasOmatcopy
 // transpose-copy, runtime* device memcpy/alloc) and the formerly CPU-only
 // transport_panel_cpu (plain blocking MPI, manual transpose+conjugate loops,
 // std::malloc/memcpy) hand-duplicated inside pgemm.cpp. The two were already
@@ -33,7 +33,7 @@ inline const char* transport_block_backend_name(DdlaBackend backend)
 // each is a single call into a unified primitive that owns the split itself:
 //   copy_block     -> ddla::copy2D<Backend,T>       (geam.h / omatcopy.cpp)
 //   pack_transpose -> ddla::omatcopy<Backend,T>     (geam.h / omatcopy.cpp)
-//   alloc_buf/free_buf -> runtimeMalloc/runtimeFree<Backend> (ddla_connector.h)
+//   alloc_buf/free_buf -> ddlaMalloc/ddlaFree (ddla_handle_t.h)
 // All collective communication (broadcast/send/recv/group) goes through the
 // CommTraits<Backend>-based comm* primitives in comm_traits.h, which already
 // select the right MPI/NCCL/RCCL/tunnel mechanism per backend.
@@ -83,12 +83,11 @@ void transport_block(
     auto alloc_buf = [&](std::size_t count) -> T* {
         if (count == 0) return nullptr;
         T* p = nullptr;
-        RUNTIME_CHECK<Backend>(runtimeMalloc<Backend>(
-            reinterpret_cast<void**>(&p), count * sizeof(T)));
+        DDLA_CHECK(ddlaMalloc(h, &p, count * sizeof(T)));
         return p;
     };
     auto free_buf = [&](T* p) {
-        RUNTIME_CHECK<Backend>(runtimeFree<Backend>(p));
+        DDLA_CHECK(ddlaFree(h, p));
     };
 
     // ---- index math: identical across both formerly-separate implementations

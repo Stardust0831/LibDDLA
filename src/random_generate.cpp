@@ -41,22 +41,22 @@ void random_generate(T* data, const int64_t& lengthOfData)
 #endif
     } else {
 #if DDLA_HAS_GPU
-        derandGenerator_t gen;
-        DERAND_CHECK(derandCreateGenerator(&gen, DERAND_RNG_PSEUDO_DEFAULT));
-        DERAND_CHECK(derandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)));
+        gpurandGenerator_t gen;
+        GPURAND_CHECK(gpurandCreateGenerator(&gen, GPURAND_RNG_PSEUDO_DEFAULT));
+        GPURAND_CHECK(gpurandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)));
         if constexpr (std::is_same_v<T, float>) {
-            DERAND_CHECK(derandGenerateUniform(gen, data, lengthOfData));
+            GPURAND_CHECK(gpurandGenerateUniform(gen, data, lengthOfData));
         } else if constexpr (std::is_same_v<T, double>) {
-            DERAND_CHECK(derandGenerateUniformDouble(gen, data, lengthOfData));
+            GPURAND_CHECK(gpurandGenerateUniformDouble(gen, data, lengthOfData));
         } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-            DERAND_CHECK(derandGenerateUniform(gen, reinterpret_cast<float*>(data), lengthOfData * 2));
+            GPURAND_CHECK(gpurandGenerateUniform(gen, reinterpret_cast<float*>(data), lengthOfData * 2));
         } else if constexpr (std::is_same_v<T, std::complex<double>>) {
-            DERAND_CHECK(derandGenerateUniformDouble(gen, reinterpret_cast<double*>(data), lengthOfData * 2));
+            GPURAND_CHECK(gpurandGenerateUniformDouble(gen, reinterpret_cast<double*>(data), lengthOfData * 2));
         } else {
             static_assert(sizeof(T) == 0,
                           "random_generate supports only float, double, std::complex<float>, std::complex<double>");
         }
-        DERAND_CHECK(derandDestroyGenerator(gen));
+        GPURAND_CHECK(gpurandDestroyGenerator(gen));
 #endif
     }
 }

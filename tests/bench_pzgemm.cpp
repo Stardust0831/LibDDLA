@@ -145,13 +145,16 @@ void bench_one(char transa, char transb, int N, int nb,
     std::complex<double>* d_A = nullptr;
     std::complex<double>* d_B = nullptr;
     std::complex<double>* d_C = nullptr;
-    RUNTIME_CHECK(runtimeMalloc(&d_A, sizeof(std::complex<double>) * h_A.size()));
-    RUNTIME_CHECK(runtimeMalloc(&d_B, sizeof(std::complex<double>) * h_B.size()));
-    RUNTIME_CHECK(runtimeMalloc(&d_C, sizeof(std::complex<double>) * h_C.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_A, sizeof(std::complex<double>) * h_A.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_B, sizeof(std::complex<double>) * h_B.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_C, sizeof(std::complex<double>) * h_C.size()));
 
-    RUNTIME_CHECK(runtimeMemcpy(d_A, h_A.data(), sizeof(std::complex<double>) * h_A.size(), runtimeMemcpyHostToDevice));
-    RUNTIME_CHECK(runtimeMemcpy(d_B, h_B.data(), sizeof(std::complex<double>) * h_B.size(), runtimeMemcpyHostToDevice));
-    RUNTIME_CHECK(runtimeMemcpy(d_C, h_C.data(), sizeof(std::complex<double>) * h_C.size(), runtimeMemcpyHostToDevice));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A, h_A.data(), sizeof(std::complex<double>) * h_A.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B, h_B.data(), sizeof(std::complex<double>) * h_B.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C, h_C.data(), sizeof(std::complex<double>) * h_C.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     std::complex<double> alpha(1.0, 0.0);
     std::complex<double> beta(0.0, 0.0);
@@ -159,21 +162,22 @@ void bench_one(char transa, char transb, int N, int nb,
     // Warmup
     for(int it = 0; it < n_warmup; it++){
         pgemm(ddla_handle, transa, transb, m, n, k, alpha, d_A, descA, d_B, descB, beta, d_C, descC);
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
 
     // Timed iterations
     double t_start = MPI_Wtime();
     for(int it = 0; it < n_iter; it++){
         pgemm(ddla_handle, transa, transb, m, n, k, alpha, d_A, descA, d_B, descB, beta, d_C, descC);
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
     double t_end = MPI_Wtime();
     double elapsed = (t_end - t_start) / n_iter;
 
     // Correctness check for small sizes only
     if(N <= 1000){
-        RUNTIME_CHECK(runtimeMemcpy(h_C.data(), d_C, sizeof(std::complex<double>) * h_C.size(), runtimeMemcpyDeviceToHost));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, h_C.data(), d_C, sizeof(std::complex<double>) * h_C.size()));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         check_correctness(transa, transb, m, n, k, ddla_handle, descA, descB, descC,
                           h_A, h_B, h_C, myid, nprocs);
     }
@@ -193,9 +197,9 @@ void bench_one(char transa, char transb, int N, int nb,
                   << std::endl;
     }
 
-    RUNTIME_CHECK(runtimeFree(d_A));
-    RUNTIME_CHECK(runtimeFree(d_B));
-    RUNTIME_CHECK(runtimeFree(d_C));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_B));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_C));
 }
 
 } // anonymous namespace

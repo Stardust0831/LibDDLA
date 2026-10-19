@@ -53,7 +53,7 @@ void zher2_(const char*, const int*, const std::complex<double>*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasHer2 overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasHer2 overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::her2 declared in <ddla/ddla.h>.
@@ -62,8 +62,8 @@ void zher2_(const char*, const int*, const std::complex<double>*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasHer2(
-    deblasHandle_t handle, deblasFillMode_t uplo, int n,
+inline gpublasStatus_t gpublasHer2(
+    gpublasHandle_t handle, gpublasFillMode_t uplo, int n,
     const float& alpha,
     const float* x, int incx,
     const float* y, int incy,
@@ -71,67 +71,57 @@ inline deblasStatus_t deblasHer2(
 )
 {
     // Real HER2 == SYR2.
-    #if defined(DDLA_USE_HIP)
-    return hipblasSsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
+    #if DDLA_GPU_VENDOR
+    return gpublasSsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
     #else
-    throw std::runtime_error("deblasHer2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHer2(
-    deblasHandle_t handle, deblasFillMode_t uplo, int n,
+inline gpublasStatus_t gpublasHer2(
+    gpublasHandle_t handle, gpublasFillMode_t uplo, int n,
     const double& alpha,
     const double* x, int incx,
     const double* y, int incy,
     double* A, int lda
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
+    #if DDLA_GPU_VENDOR
+    return gpublasDsyr2(handle, uplo, n, &alpha, x, incx, y, incy, A, lda);
     #else
-    throw std::runtime_error("deblasHer2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHer2(
-    deblasHandle_t handle, deblasFillMode_t uplo, int n,
+inline gpublasStatus_t gpublasHer2(
+    gpublasHandle_t handle, gpublasFillMode_t uplo, int n,
     const std::complex<float>& alpha,
     const std::complex<float>* x, int incx,
     const std::complex<float>* y, int incy,
     std::complex<float>* A, int lda
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCher2(handle, uplo, n, (hipblasComplex*)&alpha,
-        (hipblasComplex*)x, incx, (hipblasComplex*)y, incy, (hipblasComplex*)A, lda);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCher2(handle, uplo, n, (cuFloatComplex*)&alpha,
-        (cuFloatComplex*)x, incx, (cuFloatComplex*)y, incy, (cuFloatComplex*)A, lda);
+    #if DDLA_GPU_VENDOR
+    return gpublasCher2(handle, uplo, n, (gpublasComplex*)&alpha,
+        (gpublasComplex*)x, incx, (gpublasComplex*)y, incy, (gpublasComplex*)A, lda);
     #else
-    throw std::runtime_error("deblasHer2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHer2(
-    deblasHandle_t handle, deblasFillMode_t uplo, int n,
+inline gpublasStatus_t gpublasHer2(
+    gpublasHandle_t handle, gpublasFillMode_t uplo, int n,
     const std::complex<double>& alpha,
     const std::complex<double>* x, int incx,
     const std::complex<double>* y, int incy,
     std::complex<double>* A, int lda
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZher2(handle, uplo, n, (hipblasDoubleComplex*)&alpha,
-        (hipblasDoubleComplex*)x, incx, (hipblasDoubleComplex*)y, incy, (hipblasDoubleComplex*)A, lda);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZher2(handle, uplo, n, (cuDoubleComplex*)&alpha,
-        (cuDoubleComplex*)x, incx, (cuDoubleComplex*)y, incy, (cuDoubleComplex*)A, lda);
+    #if DDLA_GPU_VENDOR
+    return gpublasZher2(handle, uplo, n, (gpublasDoubleComplex*)&alpha,
+        (gpublasDoubleComplex*)x, incx, (gpublasDoubleComplex*)y, incy, (gpublasDoubleComplex*)A, lda);
     #else
-    throw std::runtime_error("deblasHer2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHer2: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -193,14 +183,14 @@ void her2(
 #endif
     } else {
 #if DDLA_HAS_GPU
-        // The real types map onto xSYR2 inside deblasHer2.
+        // The real types map onto xSYR2 inside gpublasHer2.
         if constexpr (std::is_same_v<T, float> ||
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasHer2(handle->blasH,
-                                  detail::to_fill_mode(uplo),
-                                  n, alpha, x, incx, y, incy, A, lda));
+            BLAS_CHECK(gpublasHer2(handle->blasH,
+                                   detail::to_fill_mode(uplo),
+                                   n, alpha, x, incx, y, incy, A, lda));
         } else {
             static_assert(sizeof(T) == 0, "her2: unsupported scalar type T");
         }

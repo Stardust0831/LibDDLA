@@ -78,34 +78,31 @@ void potrf_bottom_right_block(
     assert(d_info != nullptr);
     assert(lda >= n);
 
-    const runtimeStream_t stream = handle->stream;
-    RUNTIME_CHECK(runtimeMemsetAsync(d_info, 0, sizeof(int), stream));
-    const deblasFillMode_t solver_uplo = uplo == 'U'
-        ? DEBLAS_FILL_MODE_LOWER
-        : DEBLAS_FILL_MODE_UPPER;
+    DDLA_CHECK(ddlaMemset(handle, d_info, 0, sizeof(int)));
+    const gpublasFillMode_t solver_uplo = uplo == 'U'
+        ? GPUBLAS_FILL_MODE_LOWER
+        : GPUBLAS_FILL_MODE_UPPER;
     if(uplo == 'U'){
-        reverse_upper_to_lower(n, d_A, lda, d_work, n, stream);
+        reverse_upper_to_lower(handle, n, d_A, lda, d_work, n);
     }else{
-        reverse_lower_to_upper(n, d_A, lda, d_work, n, stream);
+        reverse_lower_to_upper(handle, n, d_A, lda, d_work, n);
     }
-    SOLVER_CHECK(desolverPotrf(
+    SOLVER_CHECK(gpusolverPotrf(
         handle->solverH, solver_uplo,
         n, d_work, n, d_info));
 
     int solver_info = 0;
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        &solver_info, d_info, sizeof(int),
-        runtimeMemcpyDeviceToHost, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaMemcpy(handle, &solver_info, d_info, sizeof(int)));
+    DDLA_CHECK(ddlaSynchronize(handle));
     if(solver_info != 0){
         info = global_offset + n - solver_info + 1;
         return;
     }
 
     if(uplo == 'U'){
-        reverse_lower_to_upper(n, d_work, n, d_A, lda, stream);
+        reverse_lower_to_upper(handle, n, d_work, n, d_A, lda);
     }else{
-        reverse_upper_to_lower(n, d_work, n, d_A, lda, stream);
+        reverse_upper_to_lower(handle, n, d_work, n, d_A, lda);
     }
 }
 
@@ -142,16 +139,11 @@ void potrf_bottom_right(
     assert(d_A != nullptr);
     assert(lda >= n);
 
-    const runtimeStream_t stream = handle->stream;
     T* d_work = nullptr;
     int* d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_work),
-        static_cast<std::size_t>(detail::kBlockSize)
-            * detail::kBlockSize * sizeof(T),
-        stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_info), sizeof(int), stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_work),
+                          static_cast<std::size_t>(detail::kBlockSize) * detail::kBlockSize * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
 
     const int last_block_start =
         ((n - 1) / detail::kBlockSize) * detail::kBlockSize;
@@ -196,9 +188,9 @@ void potrf_bottom_right(
             d_A);
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_work, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaFree(handle, d_work));
+    DDLA_CHECK(ddlaFree(handle, d_info));
+    DDLA_CHECK(ddlaSynchronize(handle));
 }
 
 template void potrf_bottom_right<float>(

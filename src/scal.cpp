@@ -72,8 +72,8 @@ void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx)
 #endif
     } else {
 #if DDLA_HAS_GPU
-        BLAS_CHECK(deblasScal(handle->blasH, static_cast<int64_t>(n), alpha, x,
-                              static_cast<int64_t>(incx)));
+        BLAS_CHECK(gpublasScal(handle->blasH, static_cast<int64_t>(n), alpha, x,
+                               static_cast<int64_t>(incx)));
 #endif
     }
 }

@@ -403,7 +403,7 @@ VendorProblem create_vendor_problem(int n, int process_row, int process_col,
         kBlockSize, kBlockSize, kSourceRow, kSourceCol, problem.lld));
 
     BENCH_CUSOLVERMP_CHECK(cusolverMpPotrf_bufferSize(
-        context.handle, ddla::DEBLAS_FILL_MODE_LOWER, n, problem.d_matrix, 1, 1,
+        context.handle, ddla::GPUBLAS_FILL_MODE_LOWER, n, problem.d_matrix, 1, 1,
         problem.descriptor, CUDA_C_64F, &problem.device_workspace_bytes,
         &problem.host_workspace_bytes));
 
@@ -678,7 +678,7 @@ RunResult run_cusolvermp(VendorProblem& problem,
     BENCH_MPI_CHECK(MPI_Barrier(handle->comm));
     const double start = MPI_Wtime();
     BENCH_CUSOLVERMP_CHECK(cusolverMpPotrf(
-        context.handle, ddla::DEBLAS_FILL_MODE_LOWER, problem.n, problem.d_matrix,
+        context.handle, ddla::GPUBLAS_FILL_MODE_LOWER, problem.n, problem.d_matrix,
         1, 1, problem.descriptor, CUDA_C_64F, problem.d_workspace,
         problem.device_workspace_bytes, problem.h_workspace,
         problem.host_workspace_bytes, problem.d_info));

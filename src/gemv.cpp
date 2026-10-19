@@ -49,7 +49,7 @@ void zgemv_(const char*, const int*, const int*, const std::complex<double>*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasGemv overloads so the dispatch
+// GPU arm: the vendor calls.  Kept as free gpublasGemv overloads so the dispatch
 // above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::gemv declared in <ddla/ddla.h>.
@@ -58,8 +58,8 @@ void zgemv_(const char*, const int*, const int*, const std::complex<double>*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasGemv(
-    deblasHandle_t handle, deblasOperation_t trans,
+inline gpublasStatus_t gpublasGemv(
+    gpublasHandle_t handle, gpublasOperation_t trans,
     int m, int n,
     const float& alpha,
     const float* A, int lda,
@@ -68,21 +68,19 @@ inline deblasStatus_t deblasGemv(
     float* y, int incy
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasSgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
+    #if DDLA_GPU_VENDOR
+    return gpublasSgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
     #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasGemv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemv(
-    deblasHandle_t handle, deblasOperation_t trans,
+inline gpublasStatus_t gpublasGemv(
+    gpublasHandle_t handle, gpublasOperation_t trans,
     int m, int n,
     const double& alpha,
     const double* A, int lda,
@@ -91,17 +89,15 @@ inline deblasStatus_t deblasGemv(
     double* y, int incy
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
+    #if DDLA_GPU_VENDOR
+    return gpublasDgemv(handle, trans, m, n, &alpha, A, lda, x, incx, &beta, y, incy);
     #else
-    throw std::runtime_error("deblasGemv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemv(
-    deblasHandle_t handle, deblasOperation_t trans,
+inline gpublasStatus_t gpublasGemv(
+    gpublasHandle_t handle, gpublasOperation_t trans,
     int m, int n,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
@@ -110,21 +106,17 @@ inline deblasStatus_t deblasGemv(
     std::complex<float>* y, int incy
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCgemv(handle, trans, m, n,
-        (hipblasComplex*)&alpha, (hipblasComplex*)A, lda,
-        (hipblasComplex*)x, incx, (hipblasComplex*)&beta, (hipblasComplex*)y, incy);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCgemv(handle, trans, m, n,
-        (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda,
-        (cuFloatComplex*)x, incx, (cuFloatComplex*)&beta, (cuFloatComplex*)y, incy);
+    #if DDLA_GPU_VENDOR
+    return gpublasCgemv(handle, trans, m, n,
+        (gpublasComplex*)&alpha, (gpublasComplex*)A, lda,
+        (gpublasComplex*)x, incx, (gpublasComplex*)&beta, (gpublasComplex*)y, incy);
     #else
-    throw std::runtime_error("deblasGemv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasGemv(
-    deblasHandle_t handle, deblasOperation_t trans,
+inline gpublasStatus_t gpublasGemv(
+    gpublasHandle_t handle, gpublasOperation_t trans,
     int m, int n,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
@@ -133,16 +125,12 @@ inline deblasStatus_t deblasGemv(
     std::complex<double>* y, int incy
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZgemv(handle, trans, m, n,
-        (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda,
-        (hipblasDoubleComplex*)x, incx, (hipblasDoubleComplex*)&beta, (hipblasDoubleComplex*)y, incy);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZgemv(handle, trans, m, n,
-        (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda,
-        (cuDoubleComplex*)x, incx, (cuDoubleComplex*)&beta, (cuDoubleComplex*)y, incy);
+    #if DDLA_GPU_VENDOR
+    return gpublasZgemv(handle, trans, m, n,
+        (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)A, lda,
+        (gpublasDoubleComplex*)x, incx, (gpublasDoubleComplex*)&beta, (gpublasDoubleComplex*)y, incy);
     #else
-    throw std::runtime_error("deblasGemv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasGemv: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -204,9 +192,9 @@ void gemv(
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasGemv(handle->blasH,
-                                  detail::to_blas_op(trans),
-                                  m, n, alpha, A, lda, x, incx, beta, y, incy));
+            BLAS_CHECK(gpublasGemv(handle->blasH,
+                                   detail::to_blas_op(trans),
+                                   m, n, alpha, A, lda, x, incx, beta, y, incy));
         } else {
             static_assert(sizeof(T) == 0, "gemv: unsupported scalar type T");
         }

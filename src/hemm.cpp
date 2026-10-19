@@ -55,7 +55,7 @@ void zhemm_(const char*, const char*, const int*, const int*, const std::complex
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasHemm overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasHemm overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::hemm declared in <ddla/ddla.h>.
@@ -64,8 +64,8 @@ void zhemm_(const char*, const char*, const int*, const int*, const std::complex
 
 namespace ddla {
 
-inline deblasStatus_t deblasHemm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
+inline gpublasStatus_t gpublasHemm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
     int m, int n,
     const float& alpha,
     const float* A, int lda,
@@ -75,17 +75,15 @@ inline deblasStatus_t deblasHemm(
 )
 {
     // Real HEMM == SYMM.
-    #if defined(DDLA_USE_HIP)
-    return hipblasSsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasSsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasSsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHemm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHemm: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHemm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
+inline gpublasStatus_t gpublasHemm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
     int m, int n,
     const double& alpha,
     const double* A, int lda,
@@ -94,17 +92,15 @@ inline deblasStatus_t deblasHemm(
     double* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasDsymm(handle, side, uplo, m, n, &alpha, A, lda, B, ldb, &beta, C, ldc);
     #else
-    throw std::runtime_error("deblasHemm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHemm: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHemm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
+inline gpublasStatus_t gpublasHemm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
     int m, int n,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
@@ -113,21 +109,17 @@ inline deblasStatus_t deblasHemm(
     std::complex<float>* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasChemm(handle, side, uplo, m, n,
-        (hipblasComplex*)&alpha, (hipblasComplex*)A, lda,
-        (hipblasComplex*)B, ldb, (hipblasComplex*)&beta, (hipblasComplex*)C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasChemm(handle, side, uplo, m, n,
-        (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda,
-        (cuFloatComplex*)B, ldb, (cuFloatComplex*)&beta, (cuFloatComplex*)C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasChemm(handle, side, uplo, m, n,
+        (gpublasComplex*)&alpha, (gpublasComplex*)A, lda,
+        (gpublasComplex*)B, ldb, (gpublasComplex*)&beta, (gpublasComplex*)C, ldc);
     #else
-    throw std::runtime_error("deblasHemm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHemm: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasHemm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
+inline gpublasStatus_t gpublasHemm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
     int m, int n,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
@@ -136,16 +128,12 @@ inline deblasStatus_t deblasHemm(
     std::complex<double>* C, int ldc
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZhemm(handle, side, uplo, m, n,
-        (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda,
-        (hipblasDoubleComplex*)B, ldb, (hipblasDoubleComplex*)&beta, (hipblasDoubleComplex*)C, ldc);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZhemm(handle, side, uplo, m, n,
-        (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda,
-        (cuDoubleComplex*)B, ldb, (cuDoubleComplex*)&beta, (cuDoubleComplex*)C, ldc);
+    #if DDLA_GPU_VENDOR
+    return gpublasZhemm(handle, side, uplo, m, n,
+        (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)A, lda,
+        (gpublasDoubleComplex*)B, ldb, (gpublasDoubleComplex*)&beta, (gpublasDoubleComplex*)C, ldc);
     #else
-    throw std::runtime_error("deblasHemm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasHemm: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -209,15 +197,15 @@ void hemm(
 #endif
     } else {
 #if DDLA_HAS_GPU
-        // The real types map onto xSYMM inside deblasHemm.
+        // The real types map onto xSYMM inside gpublasHemm.
         if constexpr (std::is_same_v<T, float> ||
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasHemm(handle->blasH,
-                                  detail::to_side_mode(side),
-                                  detail::to_fill_mode(uplo),
-                                  m, n, alpha, A, lda, B, ldb, beta, C, ldc));
+            BLAS_CHECK(gpublasHemm(handle->blasH,
+                                   detail::to_side_mode(side),
+                                   detail::to_fill_mode(uplo),
+                                   m, n, alpha, A, lda, B, ldb, beta, C, ldc));
         } else {
             static_assert(sizeof(T) == 0, "hemm: unsupported scalar type T");
         }

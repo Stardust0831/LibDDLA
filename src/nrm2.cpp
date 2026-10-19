@@ -55,7 +55,7 @@ double dznrm2_(const int*, const std::complex<double>*, const int*);
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasNrm2 overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasNrm2 overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::nrm2 declared in <ddla/ddla.h>.
@@ -69,75 +69,63 @@ double dznrm2_(const int*, const std::complex<double>*, const int*);
 
 namespace ddla {
 
-inline deblasStatus_t deblasNrm2(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasNrm2(
+    gpublasHandle_t handle, int n,
     const float* x, int incx,
     float* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasSnrm2(handle, n, x, incx, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasSnrm2(handle, n, x, incx, result);
+    return gpublasSnrm2(handle, n, x, incx, result);
     #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasNrm2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasNrm2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasNrm2(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasNrm2(
+    gpublasHandle_t handle, int n,
     const double* x, int incx,
     double* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasDnrm2(handle, n, x, incx, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasDnrm2(handle, n, x, incx, result);
+    return gpublasDnrm2(handle, n, x, incx, result);
     #else
-    throw std::runtime_error("deblasNrm2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasNrm2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasNrm2(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasNrm2(
+    gpublasHandle_t handle, int n,
     const std::complex<float>* x, int incx,
     float* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasScnrm2(handle, n, (hipblasComplex*)x, incx, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasScnrm2(handle, n, (cuFloatComplex*)x, incx, result);
+    return gpublasScnrm2(handle, n, (gpublasComplex*)x, incx, result);
     #else
-    throw std::runtime_error("deblasNrm2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasNrm2: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasNrm2(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasNrm2(
+    gpublasHandle_t handle, int n,
     const std::complex<double>* x, int incx,
     double* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasDznrm2(handle, n, (hipblasDoubleComplex*)x, incx, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasDznrm2(handle, n, (cuDoubleComplex*)x, incx, result);
+    return gpublasDznrm2(handle, n, (gpublasDoubleComplex*)x, incx, result);
     #else
-    throw std::runtime_error("deblasNrm2: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasNrm2: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -196,7 +184,7 @@ void nrm2(
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasNrm2(handle->blasH, n, x, incx, result));
+            BLAS_CHECK(gpublasNrm2(handle->blasH, n, x, incx, result));
         } else {
             static_assert(sizeof(T) == 0, "nrm2: unsupported scalar type T");
         }

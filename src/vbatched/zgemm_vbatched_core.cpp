@@ -44,43 +44,43 @@ struct Config
 
 extern "C" Config
 ddla_internal_zgemm_vbatched_config(
-    ddla::deblasOperation_t transA, ddla::deblasOperation_t transB,
+    ddla::gpublasOperation_t transA, ddla::gpublasOperation_t transB,
     int max_m, int max_n, int max_k)
 {
     int shape = 0;
-    if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_N)
+    if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 0;
     } // nn
-    else if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 1;
     } // nt
-    else if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 2;
     } // nc
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_N)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 3;
     } // tn
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 4;
     } // tt
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 5;
     } // tc
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_N)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 6;
     } // cn
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 7;
     } // ct
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 8;
     } // cc
@@ -164,43 +164,43 @@ ddla_internal_zgemm_vbatched_config(
 
 extern "C" Func_gemm_template_vbatched_kernel<DdlaDoubleComplex>
 ddla_internal_zgemm_vbatched_function(
-    ddla::deblasOperation_t transA, ddla::deblasOperation_t transB,
+    ddla::gpublasOperation_t transA, ddla::gpublasOperation_t transB,
     int max_m, int max_n, int max_k)
 {
     int shape = 0;
-    if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_N)
+    if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 0;
     } // nn
-    else if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 1;
     } // nt
-    else if (transA == ddla::DEBLAS_OP_N && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_N && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 2;
     } // nc
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_N)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 3;
     } // tn
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 4;
     } // tt
-    else if (transA == ddla::DEBLAS_OP_T && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_T && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 5;
     } // tc
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_N)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_N)
     {
         shape = 6;
     } // cn
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_T)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_T)
     {
         shape = 7;
     } // ct
-    else if (transA == ddla::DEBLAS_OP_C && transB == ddla::DEBLAS_OP_C)
+    else if (transA == ddla::GPUBLAS_OP_C && transB == ddla::GPUBLAS_OP_C)
     {
         shape = 8;
     } // cc
@@ -285,7 +285,7 @@ ddla_internal_zgemm_vbatched_function(
 /******************************************************************************/
 extern "C" void
 ddla_internal_zgemm_vbatched_core(
-    ddla::deblasOperation_t transA, ddla::deblasOperation_t transB,
+    const ddla::DdlaHandle_t& handle, ddla::gpublasOperation_t transA, ddla::gpublasOperation_t transB,
     int max_m, int max_n, int max_k,
     int *m, int *n, int *k,
     DdlaDoubleComplex alpha,
@@ -293,7 +293,7 @@ ddla_internal_zgemm_vbatched_core(
     DdlaDoubleComplex const *const *dB_array, int Bi, int Bj, int *lddb,
     DdlaDoubleComplex beta,
     DdlaDoubleComplex **dC_array, int Ci, int Cj, int *lddc,
-    int batchCount, ddla::runtimeStream_t stream)
+    int batchCount)
 {
     if (max_m <= 0 || max_n <= 0 || max_k < 0)
         return;
@@ -303,13 +303,13 @@ ddla_internal_zgemm_vbatched_core(
     Config config = ddla_internal_zgemm_vbatched_config(transA, transB, max_m, max_n, max_k);
     const int DIM_X = config.DIM_X, DIM_Y = config.DIM_Y, BLK_M = config.BLK_M, BLK_N = config.BLK_N, BLK_K = config.BLK_K;
 
-    gemm_template_vbatched(func_gemm_template_vbatched_kernel,
-                           max_m, max_n, max_k, m, n, k, alpha, dA_array, Ai, Aj, ldda, dB_array, Bi, Bj, lddb, beta, dC_array, Ci, Cj, lddc, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, batchCount, stream);
+    gemm_template_vbatched(handle, func_gemm_template_vbatched_kernel,
+                           max_m, max_n, max_k, m, n, k, alpha, dA_array, Ai, Aj, ldda, dB_array, Bi, Bj, lddb, beta, dC_array, Ci, Cj, lddc, DIM_X, DIM_Y, BLK_M, BLK_N, BLK_K, batchCount);
 }
 
 extern "C" void
 ddla_internal_zgemm_vbatched_core_2s(
-    ddla::deblasOperation_t transA_0, ddla::deblasOperation_t transB_0,
+    const ddla::DdlaHandle_t& handle, ddla::gpublasOperation_t transA_0, ddla::gpublasOperation_t transB_0,
     int max_m_0, int max_n_0, int max_k_0,
     int* m_0, int* n_0, int* k_0,
     DdlaDoubleComplex alpha_0,
@@ -317,7 +317,7 @@ ddla_internal_zgemm_vbatched_core_2s(
     DdlaDoubleComplex const * const * dB_array_0, int Bi_0, int Bj_0, int* lddb_0,
     DdlaDoubleComplex beta_0,
     DdlaDoubleComplex              ** dC_array_0, int Ci_0, int Cj_0, int* lddc_0,
-    ddla::deblasOperation_t transA_1, ddla::deblasOperation_t transB_1,
+    ddla::gpublasOperation_t transA_1, ddla::gpublasOperation_t transB_1,
     int max_m_1, int max_n_1, int max_k_1,
     int* m_1, int* n_1, int* k_1,
     DdlaDoubleComplex alpha_1,
@@ -326,7 +326,7 @@ ddla_internal_zgemm_vbatched_core_2s(
     DdlaDoubleComplex beta_1,
     DdlaDoubleComplex              ** dC_array_1, int Ci_1, int Cj_1, int* lddc_1,
     bool C0_left,
-    int batchCount, int const * segment_sizes, ddla::runtimeStream_t stream )
+    int batchCount, int const * segment_sizes)
 {
     if (max_m_0 <= 0 || max_n_0 <= 0 || max_k_0 < 0) return;
 
@@ -337,10 +337,10 @@ ddla_internal_zgemm_vbatched_core_2s(
     Config config_1 = ddla_internal_zgemm_vbatched_config(transA_1, transB_1, max_m_1, max_n_1, max_k_1);
 
     gemm_template_vbatched_2s(
-        func_gemm_template_vbatched_kernel_0,
+        handle, func_gemm_template_vbatched_kernel_0,
         max_m_0, max_n_0, max_k_0, m_0, n_0, k_0, alpha_0, dA_array_0, Ai_0, Aj_0, ldda_0, dB_array_0, Bi_0, Bj_0, lddb_0, beta_0, dC_array_0, Ci_0, Cj_0, lddc_0, config_0.DIM_X, config_0.DIM_Y, config_0.BLK_M, config_0.BLK_N, config_0.BLK_K,
         func_gemm_template_vbatched_kernel_1,
         max_m_1, max_n_1, max_k_1, m_1, n_1, k_1, alpha_1, dAB_array_1, Ai_1, Aj_1, ldda_1,            Bi_1, Bj_1, lddb_1, beta_1, dC_array_1, Ci_1, Cj_1, lddc_1, config_1.DIM_X, config_1.DIM_Y, config_1.BLK_M, config_1.BLK_N, config_1.BLK_K,
         C0_left,
-        batchCount, segment_sizes, stream);
+        batchCount, segment_sizes);
 }

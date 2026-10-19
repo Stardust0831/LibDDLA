@@ -80,58 +80,42 @@ void gemm(
 #endif
     } else {
 #if DDLA_HAS_GPU
-        const deblasOperation_t opA = transa == 'N' ? DEBLAS_OP_N :
-                                      transa == 'T' ? DEBLAS_OP_T : DEBLAS_OP_C;
-        const deblasOperation_t opB = transb == 'N' ? DEBLAS_OP_N :
-                                      transb == 'T' ? DEBLAS_OP_T : DEBLAS_OP_C;
+        const gpublasOperation_t opA = transa == 'N' ? GPUBLAS_OP_N :
+                                       transa == 'T' ? GPUBLAS_OP_T : GPUBLAS_OP_C;
+        const gpublasOperation_t opB = transb == 'N' ? GPUBLAS_OP_N :
+                                       transb == 'T' ? GPUBLAS_OP_T : GPUBLAS_OP_C;
         if constexpr (std::is_same_v<T, float>) {
-#if defined(DDLA_USE_CUDA)
-            BLAS_CHECK(cublasSgemm(handle->blasH, opA, opB, m, n, k,
-                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
-#elif defined(DDLA_USE_HIP)
-            BLAS_CHECK(hipblasSgemm(handle->blasH, opA, opB, m, n, k,
+#if DDLA_GPU_VENDOR
+            BLAS_CHECK(gpublasSgemm(handle->blasH, opA, opB, m, n, k,
                                     &alpha, A, lda, B, ldb, &beta, C, ldc));
 #else
             throw std::runtime_error(
                 "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
 #endif
         } else if constexpr (std::is_same_v<T, double>) {
-#if defined(DDLA_USE_CUDA)
-            BLAS_CHECK(cublasDgemm(handle->blasH, opA, opB, m, n, k,
-                                   &alpha, A, lda, B, ldb, &beta, C, ldc));
-#elif defined(DDLA_USE_HIP)
-            BLAS_CHECK(hipblasDgemm(handle->blasH, opA, opB, m, n, k,
+#if DDLA_GPU_VENDOR
+            BLAS_CHECK(gpublasDgemm(handle->blasH, opA, opB, m, n, k,
                                     &alpha, A, lda, B, ldb, &beta, C, ldc));
 #else
             throw std::runtime_error(
                 "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
 #endif
         } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-#if defined(DDLA_USE_CUDA)
-            BLAS_CHECK(cublasCgemm(handle->blasH, opA, opB, m, n, k,
-                                   (cuFloatComplex*)&alpha, (cuFloatComplex*)A, lda,
-                                   (cuFloatComplex*)B, ldb,
-                                   (cuFloatComplex*)&beta, (cuFloatComplex*)C, ldc));
-#elif defined(DDLA_USE_HIP)
-            BLAS_CHECK(hipblasCgemm(handle->blasH, opA, opB, m, n, k,
-                                    (hipblasComplex*)&alpha, (hipblasComplex*)A, lda,
-                                    (hipblasComplex*)B, ldb,
-                                    (hipblasComplex*)&beta, (hipblasComplex*)C, ldc));
+#if DDLA_GPU_VENDOR
+            BLAS_CHECK(gpublasCgemm(handle->blasH, opA, opB, m, n, k,
+                                    (gpublasComplex*)&alpha, (gpublasComplex*)A, lda,
+                                    (gpublasComplex*)B, ldb,
+                                    (gpublasComplex*)&beta, (gpublasComplex*)C, ldc));
 #else
             throw std::runtime_error(
                 "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");
 #endif
         } else if constexpr (std::is_same_v<T, std::complex<double>>) {
-#if defined(DDLA_USE_CUDA)
-            BLAS_CHECK(cublasZgemm(handle->blasH, opA, opB, m, n, k,
-                                   (cuDoubleComplex*)&alpha, (cuDoubleComplex*)A, lda,
-                                   (cuDoubleComplex*)B, ldb,
-                                   (cuDoubleComplex*)&beta, (cuDoubleComplex*)C, ldc));
-#elif defined(DDLA_USE_HIP)
-            BLAS_CHECK(hipblasZgemm(handle->blasH, opA, opB, m, n, k,
-                                    (hipblasDoubleComplex*)&alpha, (hipblasDoubleComplex*)A, lda,
-                                    (hipblasDoubleComplex*)B, ldb,
-                                    (hipblasDoubleComplex*)&beta, (hipblasDoubleComplex*)C, ldc));
+#if DDLA_GPU_VENDOR
+            BLAS_CHECK(gpublasZgemm(handle->blasH, opA, opB, m, n, k,
+                                    (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)A, lda,
+                                    (gpublasDoubleComplex*)B, ldb,
+                                    (gpublasDoubleComplex*)&beta, (gpublasDoubleComplex*)C, ldc));
 #else
             throw std::runtime_error(
                 "gemm: GPU backend requires DDLA_USE_CUDA or DDLA_USE_HIP");

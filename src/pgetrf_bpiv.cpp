@@ -26,7 +26,7 @@ namespace ddla {
  * For each panel step k (global column n_s):
  *   1. Panel LU:     P1 * A11 = L1 * U1          (getrf on local nb×nb block)
  *   2. Apply pivot:  swap rows in right panel and in the factored columns
- *                    [0, n_s) of the current block rows   (desolverLaswp)
+ *                    [0, n_s) of the current block rows   (gpusolverLaswp)
  *   3. Compute U12:  U12 = L1^{-1} * B           (trsm LEFT/LOWER/UNIT)
  *   4. Compute L21:  L21 = C * U1^{-1}           (trsm RIGHT/UPPER/NON-UNIT)
  *   5. Update trail: D <- D - L21 * U12          (gemm)
@@ -58,9 +58,8 @@ void pgetrf_bpiv(
     int m_loc = num_loc(m, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
-    runtimeStream_t stream = ddla_handle->stream;
-    deblasHandle_t blasH = ddla_handle->blasH;
-    desolverHandle_t solverH = ddla_handle->solverH;
+    gpublasHandle_t blasH = ddla_handle->blasH;
+    gpusolverHandle_t solverH = ddla_handle->solverH;
 
     int nb_real;
     int mm_row_start = 0;  // local row start of trailing submatrix
@@ -68,14 +67,14 @@ void pgetrf_bpiv(
 
     // Temp buffers
     T* d_temp_block;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_block, sizeof(T) * nb * nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_block, sizeof(T) * nb * nb));
     T* d_temp_L;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_L, sizeof(T) * m_loc * nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_L, sizeof(T) * m_loc * nb));
     T* d_temp_U;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_U, sizeof(T) * nb * n_loc, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T) * nb * n_loc));
 
     int* d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_info, sizeof(int), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_info, sizeof(int)));
 
     info = 0;
 
@@ -96,9 +95,9 @@ void pgetrf_bpiv(
         
 
         if (myprow == owner_row && mypcol == owner_col) {
-            SOLVER_CHECK(desolverGetrf(solverH, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info));
-            RUNTIME_CHECK(runtimeMemcpyAsync(&info, d_info, sizeof(int), runtimeMemcpyDeviceToHost, stream));
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            SOLVER_CHECK(gpusolverGetrf(solverH, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
 
         MPI_CHECK(MPI_Bcast(&info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
@@ -116,16 +115,15 @@ void pgetrf_bpiv(
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
                 if(l_cols > 0){
-#ifdef DDLA_USE_CUDA
-                    SOLVER_CHECK(desolverLaswp(
+#if GPU_HAS_SOLVER_LASWP
+                    SOLVER_CHECK(gpusolverLaswp(
                         solverH, l_cols,
                         d_A + mm_row_start, lld,
                         1, nb_real,   // 1-based local row range
                         d_ipiv + mm_row_start, 1
                     ));
-#endif
-#ifdef DDLA_USE_HIP
-                    BLAS_CHECK(deblasLaswp(
+#elif DDLA_GPU_VENDOR
+                    BLAS_CHECK(gpublasLaswp(
                         blasH, l_cols,
                         d_A + mm_row_start, lld,
                         1, nb_real,   // 1-based local row range
@@ -143,7 +141,7 @@ void pgetrf_bpiv(
         // Instead of using pswap (which involves many pairwise point-to-point
         // communications), we:
         //   1. broadcast the pivot to the row of the owner process.
-        //   2. Call desolverLaswp on device to apply all swaps at once.
+        //   2. Call gpusolverLaswp on device to apply all swaps at once.
         //
         // Only processes in the same row as owner_row own the pivoted rows,
         // so only they need to apply the swaps.
@@ -151,12 +149,8 @@ void pgetrf_bpiv(
         // Step 3: Extract/broadcast the factored diagonal block (L1+U1)
         // ================================================================
         if (myprow == owner_row && mypcol == owner_col) {
-            RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                d_temp_block, nb_real * sizeof(T),
-                d_A + i_loc + j_loc * lld, lld * sizeof(T),
-                nb_real * sizeof(T), nb_real,
-                runtimeMemcpyDeviceToDevice, stream
-            ));
+            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_block, nb_real * sizeof(T), d_A + i_loc + j_loc * lld,
+                                    lld * sizeof(T), nb_real * sizeof(T), nb_real));
         }
         int right_panel_col_start = (j_loc >= 0) ? (j_loc + nb_real) : mm_col_start;
         if (myprow == owner_row) {
@@ -169,16 +163,15 @@ void pgetrf_bpiv(
             // purely local laswp.
             const int l_cols = num_loc(n_s, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
             if(l_cols > 0){
-#ifdef DDLA_USE_CUDA
-                SOLVER_CHECK(desolverLaswp(
+#if GPU_HAS_SOLVER_LASWP
+                SOLVER_CHECK(gpusolverLaswp(
                     solverH, l_cols,
                     d_A + mm_row_start, lld,
                     1, nb_real,   // 1-based local row range
                     d_ipiv + mm_row_start, 1
                 ));
-#endif
-#ifdef DDLA_USE_HIP
-                BLAS_CHECK(deblasLaswp(
+#elif DDLA_GPU_VENDOR
+                BLAS_CHECK(gpublasLaswp(
                     blasH, l_cols,
                     d_A + mm_row_start, lld,
                     1, nb_real,   // 1-based local row range
@@ -195,16 +188,15 @@ void pgetrf_bpiv(
                 // When j_loc < 0, all local columns are in the right panel, starting at 0.
                 
                 T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
-#ifdef DDLA_USE_CUDA
-                SOLVER_CHECK(desolverLaswp(
+#if GPU_HAS_SOLVER_LASWP
+                SOLVER_CHECK(gpusolverLaswp(
                     solverH, n_loc - right_panel_col_start,
                     d_right_panel, lld,
                     1, nb_real,   // 1-based local row range
                     d_ipiv + mm_row_start, 1
                 ));
-#endif
-#ifdef DDLA_USE_HIP
-                BLAS_CHECK(deblasLaswp(
+#elif DDLA_GPU_VENDOR
+                BLAS_CHECK(gpublasLaswp(
                     blasH, n_loc - right_panel_col_start,
                     d_right_panel, lld,
                     1, nb_real,   // 1-based local row range
@@ -223,12 +215,8 @@ void pgetrf_bpiv(
                     d_temp_block, nb_real,
                     d_right_panel, lld
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_U, nb_real * sizeof(T),
-                    d_right_panel, lld * sizeof(T),
-                    nb_real * sizeof(T), n_loc - right_panel_col_start,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, nb_real * sizeof(T), d_right_panel, lld * sizeof(T),
+                                        nb_real * sizeof(T), n_loc - right_panel_col_start));
             }
             
         }
@@ -248,12 +236,9 @@ void pgetrf_bpiv(
                     d_temp_block, nb_real,
                     d_left_panel, lld
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
-                    d_left_panel, lld * sizeof(T),
-                    (m_loc - left_panel_row_start) * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
+                                        d_left_panel, lld * sizeof(T), (m_loc - left_panel_row_start) * sizeof(T),
+                                        nb_real));
             }
         }
         if(n_loc > right_panel_col_start) {
@@ -279,7 +264,7 @@ void pgetrf_bpiv(
                 d_A + left_panel_row_start + right_panel_col_start * lld, lld);
         }
 
-        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
         // Advance local pointers for next panel
         if (i_loc >= 0)
@@ -288,11 +273,11 @@ void pgetrf_bpiv(
             mm_col_start += nb;
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_block, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_L, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_block));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_L));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 // Explicit instantiations

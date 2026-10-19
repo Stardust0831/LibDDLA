@@ -52,9 +52,9 @@ void benchmark_pgemm(int n, char transa, char transb,
     std::complex<double>* d_A = nullptr;
     std::complex<double>* d_B = nullptr;
     std::complex<double>* d_C = nullptr;
-    RUNTIME_CHECK(runtimeMalloc(&d_A, size));
-    RUNTIME_CHECK(runtimeMalloc(&d_B, size));
-    RUNTIME_CHECK(runtimeMalloc(&d_C, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_A, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_B, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_C, size));
 
     random_generate(d_A, nelem);
     random_generate(d_B, nelem);
@@ -65,7 +65,7 @@ void benchmark_pgemm(int n, char transa, char transb,
 
     // Warm up
     pgemm(ddla_handle, transa, transb, n, n, n, alpha, d_A, descA, d_B, descB, beta, d_C, descC);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
 
     // Timed runs: more iterations for small matrices
@@ -74,7 +74,7 @@ void benchmark_pgemm(int n, char transa, char transb,
     for (int iter = 0; iter < niter; iter++) {
         pgemm(ddla_handle, transa, transb, n, n, n, alpha, d_A, descA, d_B, descB, beta, d_C, descC);
     }
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double elapsed = (MPI_Wtime() - start) / niter;
 
@@ -91,9 +91,9 @@ void benchmark_pgemm(int n, char transa, char transb,
         results.push_back({n, transa, transb, max_elapsed});
     }
 
-    RUNTIME_CHECK(runtimeFree(d_A));
-    RUNTIME_CHECK(runtimeFree(d_B));
-    RUNTIME_CHECK(runtimeFree(d_C));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_B));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_C));
 }
 
 int main(int argc, char* argv[])

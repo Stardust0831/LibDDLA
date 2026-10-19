@@ -69,7 +69,7 @@ int main(int argc, char** argv)
         ddla::ddlaInit(handle);
 
         int device_count = 0;
-        RUNTIME_CHECK(runtimeGetDeviceCount(&device_count));
+        DDLA_CHECK(ddlaGetDeviceCount(handle, &device_count));
         if(device_count <= 0){
             MPI_Abort(MPI_COMM_WORLD, 1);
         }

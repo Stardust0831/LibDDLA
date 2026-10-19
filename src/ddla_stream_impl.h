@@ -27,25 +27,17 @@ public:
     int myprow_ = -1, nprows_ = 0, mypcol_ = -1, npcols_ = 0;
 
 #ifdef DDLA_USE_CCL
-    ncclComm_t nccl_comm     = nullptr;
-    ncclComm_t nccl_row_comm = nullptr;
-    ncclComm_t nccl_col_comm = nullptr;
+    gpucclComm_t nccl_comm     = nullptr;
+    gpucclComm_t nccl_row_comm = nullptr;
+    gpucclComm_t nccl_col_comm = nullptr;
 #endif
 
-    runtimeStream_t  stream =
-#ifdef DDLA_USE_CPU
-        0;
-#else
-        nullptr;
-#endif
-    runtimeStream_t  stream_data =
-#ifdef DDLA_USE_CPU
-        0;
-#else
-        nullptr;
-#endif
-    desolverHandle_t solverH = nullptr;
-    deblasHandle_t   blasH   = nullptr;
+    gpuStream_t  stream = nullptr;
+    gpuStream_t  stream_data = nullptr;
+    // Private LEVEL queue of the eigensolver back-transform (Hb2stAccum), see level_queue().
+    gpuStream_t  stream_level = nullptr;
+    gpusolverHandle_t solverH = nullptr;
+    gpublasHandle_t   blasH   = nullptr;
 
     char major = 'R';
 
@@ -67,6 +59,20 @@ public:
     std::vector<std::byte> tunnel_host_staging_a;
     std::vector<std::byte> tunnel_host_staging_b;
 
+    // The level kernels of the eigensolver back-transform run longer than the stage that feeds them, so they get a
+    // queue of their own instead of sharing the handle's.  Created on first use, on the calling thread's current
+    // device (a helper thread calls ddlaSetDevice first), destroyed with the handle.  nullptr on a CPU handle.
+    // Library code only: the public API has no stream.
+    gpuStream_t level_queue()
+    {
+        if (stream_level == nullptr && backend == DdlaBackend::GPU) {
+#if DDLA_GPU_VENDOR
+            GPU_CHECK(gpuStreamCreate(&stream_level));
+#endif
+        }
+        return stream_level;
+    }
+
     // -----------------------------------------------------------------------
     // Device selection (per-handle)
     // -----------------------------------------------------------------------
@@ -83,7 +89,7 @@ public:
         MPI_CHECK(MPI_Comm_free(&localCommInner));
 
         int deviceCount = 0;
-        RUNTIME_CHECK(runtimeGetDeviceCount(&deviceCount));
+        GPU_CHECK(gpuGetDeviceCount(&deviceCount));
         return localRank % deviceCount;
 #endif
     }
@@ -91,11 +97,8 @@ public:
     void set_local_device(int dev)
     {
         local_device = dev;
-#ifdef DDLA_USE_CUDA
-        RUNTIME_CHECK(cudaSetDevice(local_device));
-#endif
-#ifdef DDLA_USE_HIP
-        RUNTIME_CHECK(hipSetDevice(local_device));
+#if DDLA_GPU_VENDOR
+        GPU_CHECK(gpuSetDevice(local_device));
 #endif
 #if DDLA_HAS_CPU
         (void)dev;
@@ -106,15 +109,15 @@ public:
     // NCCL helper (moved from public header)
     // -----------------------------------------------------------------------
 #ifdef DDLA_USE_CCL
-    static inline void nccl_comm_create(ncclComm_t &c, const MPI_Comm &comm_group)
+    static inline void nccl_comm_create(gpucclComm_t &c, const MPI_Comm &comm_group)
     {
         int rank, size;
         MPI_CHECK(MPI_Comm_rank(comm_group, &rank));
         MPI_CHECK(MPI_Comm_size(comm_group, &size));
-        ncclUniqueId id;
-        if (rank == 0) { CCL_CHECK(ncclGetUniqueId(&id)); }
+        gpucclUniqueId id;
+        if (rank == 0) { CCL_CHECK(gpucclGetUniqueId(&id)); }
         MPI_CHECK(MPI_Bcast(&id, sizeof(id), MPI_BYTE, 0, comm_group));
-        CCL_CHECK(ncclCommInitRank(&c, size, id, rank));
+        CCL_CHECK(gpucclCommInitRank(&c, size, id, rank));
     }
 #endif
 
@@ -189,21 +192,13 @@ public:
             DdlaStream::nccl_comm_create(nccl_col_comm, col_comm);
 #endif
 
-#ifdef DDLA_USE_CUDA
-            RUNTIME_CHECK(cudaStreamCreate(&stream));
-            RUNTIME_CHECK(cudaStreamCreate(&stream_data));
-            BLAS_CHECK(cublasCreate(&blasH));
-            BLAS_CHECK(cublasSetStream(blasH, stream));
-            SOLVER_CHECK(cusolverDnCreate(&solverH));
-            SOLVER_CHECK(cusolverDnSetStream(solverH, stream));
-#endif
-#ifdef DDLA_USE_HIP
-            RUNTIME_CHECK(hipStreamCreate(&stream));
-            RUNTIME_CHECK(hipStreamCreate(&stream_data));
-            SOLVER_CHECK(hipsolverCreate(&solverH));
-            SOLVER_CHECK(hipsolverSetStream(solverH, stream));
-            BLAS_CHECK(hipblasCreate(&blasH));
-            BLAS_CHECK(hipblasSetStream(blasH, stream));
+#if DDLA_GPU_VENDOR
+            GPU_CHECK(gpuStreamCreate(&stream));
+            GPU_CHECK(gpuStreamCreate(&stream_data));
+            SOLVER_CHECK(gpusolverCreate(&solverH));
+            SOLVER_CHECK(gpusolverSetStream(solverH, stream));
+            BLAS_CHECK(gpublasCreate(&blasH));
+            BLAS_CHECK(gpublasSetStream(blasH, stream));
 #endif
         }
 #if DDLA_HAS_CPU
@@ -225,53 +220,47 @@ public:
     {
         // Backend resources first
         if (stream != 0) {
-#ifdef DDLA_USE_CUDA
-            RUNTIME_CHECK(cudaStreamDestroy(stream));
-#endif
-#ifdef DDLA_USE_HIP
-            RUNTIME_CHECK(hipStreamDestroy(stream));
+#if DDLA_GPU_VENDOR
+            GPU_CHECK(gpuStreamDestroy(stream));
 #endif
             stream = 0;
         }
         if (stream_data != 0) {
-#ifdef DDLA_USE_CUDA
-            RUNTIME_CHECK(cudaStreamDestroy(stream_data));
-#endif
-#ifdef DDLA_USE_HIP
-            RUNTIME_CHECK(hipStreamDestroy(stream_data));
+#if DDLA_GPU_VENDOR
+            GPU_CHECK(gpuStreamDestroy(stream_data));
 #endif
             stream_data = 0;
         }
-        if (solverH != nullptr) {
-#ifdef DDLA_USE_CUDA
-            SOLVER_CHECK(cusolverDnDestroy(solverH));
+        if (stream_level != 0) {
+#if DDLA_GPU_VENDOR
+            GPU_CHECK(gpuStreamDestroy(stream_level));
 #endif
-#ifdef DDLA_USE_HIP
-            SOLVER_CHECK(hipsolverDestroy(solverH));
+            stream_level = 0;
+        }
+        if (solverH != nullptr) {
+#if DDLA_GPU_VENDOR
+            SOLVER_CHECK(gpusolverDestroy(solverH));
 #endif
             solverH = nullptr;
         }
         if (blasH != nullptr) {
-#ifdef DDLA_USE_CUDA
-            BLAS_CHECK(cublasDestroy(blasH));
-#endif
-#ifdef DDLA_USE_HIP
-            BLAS_CHECK(hipblasDestroy(blasH));
+#if DDLA_GPU_VENDOR
+            BLAS_CHECK(gpublasDestroy(blasH));
 #endif
             blasH = nullptr;
         }
 
 #ifdef DDLA_USE_CCL
         if (nccl_comm != nullptr) {
-            CCL_CHECK(ncclCommDestroy(nccl_comm));
+            CCL_CHECK(gpucclCommDestroy(nccl_comm));
             nccl_comm = nullptr;
         }
         if (nccl_row_comm != nullptr) {
-            CCL_CHECK(ncclCommDestroy(nccl_row_comm));
+            CCL_CHECK(gpucclCommDestroy(nccl_row_comm));
             nccl_row_comm = nullptr;
         }
         if (nccl_col_comm != nullptr) {
-            CCL_CHECK(ncclCommDestroy(nccl_col_comm));
+            CCL_CHECK(gpucclCommDestroy(nccl_col_comm));
             nccl_col_comm = nullptr;
         }
 #endif
@@ -313,7 +302,7 @@ public:
         } else {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
             size_t free_mem, total_mem;
-            RUNTIME_CHECK(runtimeMemGetInfo(&free_mem, &total_mem));
+            GPU_CHECK(gpuMemGetInfo(&free_mem, &total_mem));
             printf("myid:%d, local_device:%d, free_mem:%lf GB, total_mem:%lf GB\n",
                    myid, local_device,
                    free_mem / 1024. / 1024 / 1024,

@@ -96,18 +96,19 @@ class DeviceArray
   public:
     DeviceArray() = default;
 
-    explicit DeviceArray(const std::vector<T>& host)
+    DeviceArray(const ddla::DdlaHandle_t& handle, const std::vector<T>& host)
+        : handle_(handle)
     {
         if (host.empty())
             return;
-        ddla::RUNTIME_CHECK(ddla::runtimeMalloc(&pointer_, host.size() * sizeof(T)));
-        ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
-            pointer_, host.data(), host.size() * sizeof(T),
-            ddla::runtimeMemcpyHostToDevice));
+        ddla::DDLA_CHECK(ddla::ddlaMalloc(handle_, &pointer_, host.size() * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+            handle_, pointer_, host.data(), host.size() * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle_));
     }
 
-    DeviceArray(std::size_t count, const T& initial)
-        : DeviceArray(std::vector<T>(count, initial))
+    DeviceArray(const ddla::DdlaHandle_t& handle, std::size_t count, const T& initial)
+        : DeviceArray(handle, std::vector<T>(count, initial))
     {
     }
 
@@ -115,7 +116,8 @@ class DeviceArray
     DeviceArray& operator=(const DeviceArray&) = delete;
 
     DeviceArray(DeviceArray&& other) noexcept
-        : pointer_(std::exchange(other.pointer_, nullptr))
+        : handle_(other.handle_),
+          pointer_(std::exchange(other.pointer_, nullptr))
     {
     }
 
@@ -123,7 +125,8 @@ class DeviceArray
     {
         if (this != &other)
         {
-            ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer_));
+            release();
+            handle_ = other.handle_;
             pointer_ = std::exchange(other.pointer_, nullptr);
         }
         return *this;
@@ -131,7 +134,7 @@ class DeviceArray
 
     ~DeviceArray()
     {
-        ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer_));
+        release();
     }
 
     T* data() const
@@ -144,14 +147,22 @@ class DeviceArray
         std::vector<T> host(count);
         if (count != 0)
         {
-            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
-                host.data(), pointer_, count * sizeof(T),
-                ddla::runtimeMemcpyDeviceToHost));
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                handle_, host.data(), pointer_, count * sizeof(T)));
+            ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle_));
         }
         return host;
     }
 
   private:
+    void release()
+    {
+        if (pointer_ != nullptr)
+            ddla::DDLA_CHECK(ddla::ddlaFree(handle_, pointer_));
+        pointer_ = nullptr;
+    }
+
+    ddla::DdlaHandle_t handle_ = nullptr;
     T* pointer_ = nullptr;
 };
 
@@ -159,27 +170,28 @@ template <typename T>
 class DeviceMatrixBatch
 {
   public:
-    explicit DeviceMatrixBatch(const std::vector<std::vector<T>>& matrices)
+    DeviceMatrixBatch(const ddla::DdlaHandle_t& handle,
+                      const std::vector<std::vector<T>>& matrices)
+        : handle_(handle)
     {
         pointers_.resize(matrices.size(), nullptr);
         for (std::size_t i = 0; i < matrices.size(); ++i)
         {
-            ddla::RUNTIME_CHECK(ddla::runtimeMalloc(
-                &pointers_[i], matrices[i].size() * sizeof(T)));
-            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
-                pointers_[i], matrices[i].data(),
-                matrices[i].size() * sizeof(T),
-                ddla::runtimeMemcpyHostToDevice));
+            ddla::DDLA_CHECK(ddla::ddlaMalloc(
+                handle_, &pointers_[i], matrices[i].size() * sizeof(T)));
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                handle_, pointers_[i], matrices[i].data(),
+                matrices[i].size() * sizeof(T)));
         }
         if (!pointers_.empty())
         {
-            ddla::RUNTIME_CHECK(ddla::runtimeMalloc(
-                &device_pointers_, pointers_.size() * sizeof(T*)));
-            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
-                device_pointers_, pointers_.data(),
-                pointers_.size() * sizeof(T*),
-                ddla::runtimeMemcpyHostToDevice));
+            ddla::DDLA_CHECK(ddla::ddlaMalloc(
+                handle_, &device_pointers_, pointers_.size() * sizeof(T*)));
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                handle_, device_pointers_, pointers_.data(),
+                pointers_.size() * sizeof(T*)));
         }
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle_));
     }
 
     DeviceMatrixBatch(const DeviceMatrixBatch&) = delete;
@@ -187,9 +199,9 @@ class DeviceMatrixBatch
 
     ~DeviceMatrixBatch()
     {
-        ddla::RUNTIME_CHECK(ddla::runtimeFree(device_pointers_));
+        ddla::DDLA_CHECK(ddla::ddlaFree(handle_, device_pointers_));
         for (T* pointer : pointers_)
-            ddla::RUNTIME_CHECK(ddla::runtimeFree(pointer));
+            ddla::DDLA_CHECK(ddla::ddlaFree(handle_, pointer));
     }
 
     T** data() const
@@ -204,14 +216,15 @@ class DeviceMatrixBatch
         for (std::size_t i = 0; i < sizes.size(); ++i)
         {
             result[i].resize(sizes[i]);
-            ddla::RUNTIME_CHECK(ddla::runtimeMemcpy(
-                result[i].data(), pointers_[i], sizes[i] * sizeof(T),
-                ddla::runtimeMemcpyDeviceToHost));
+            ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                handle_, result[i].data(), pointers_[i], sizes[i] * sizeof(T)));
         }
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle_));
         return result;
     }
 
   private:
+    ddla::DdlaHandle_t handle_ = nullptr;
     std::vector<T*> pointers_;
     T** device_pointers_ = nullptr;
 };
@@ -264,9 +277,9 @@ double run_standard_case(
     }
 
     const T alpha = value<T>(19);
-    DeviceArray<int> d_m(m), d_n(n), d_k(k);
-    DeviceArray<int> d_lda(lda), d_ldb(ldb), d_ldc(ldc);
-    DeviceMatrixBatch<T> d_A(A), d_B(B);
+    DeviceArray<int> d_m(handle, m), d_n(handle, n), d_k(handle, k);
+    DeviceArray<int> d_lda(handle, lda), d_ldb(handle, ldb), d_ldc(handle, ldc);
+    DeviceMatrixBatch<T> d_A(handle, A), d_B(handle, B);
     double maximum_error = 0.0;
     const std::array<T, 3> betas{T{}, T{1}, value<T>(23)};
     for (const T beta : betas)
@@ -280,15 +293,13 @@ double run_standard_case(
                 beta, expected[batch], ldc[batch]);
         }
 
-        DeviceMatrixBatch<T> d_C(C);
+        DeviceMatrixBatch<T> d_C(handle, C);
         ddla::gemmVbatched(
             transA, transB, d_m.data(), d_n.data(), d_k.data(),
             alpha, const_cast<const T* const*>(d_A.data()), d_lda.data(),
             const_cast<const T* const*>(d_B.data()), d_ldb.data(),
             beta, d_C.data(), d_ldc.data(), 3, handle);
-        ddla::RUNTIME_CHECK(ddla::runtimeStreamSynchronize(
-            static_cast<ddla::runtimeStream_t>(
-                ddla::ddlaGetStream(handle))));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
 
         const auto actual = d_C.download(c_sizes);
         for (int batch = 0; batch < 3; ++batch)
@@ -393,12 +404,12 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
     temporary_slots[1].resize(
         static_cast<std::size_t>(ldc0[1]) * n0[1]);
 
-    DeviceArray<int> d_m0(m0), d_n0(n0), d_k0(k0);
-    DeviceArray<int> d_lda0(lda0), d_ldb0(ldb0), d_ldc0(ldc0);
-    DeviceArray<int> d_m1(m1), d_n1(n1), d_k1(k1);
-    DeviceArray<int> d_lda1(lda1), d_ldb1(ldb1), d_ldc1(ldc1);
-    DeviceMatrixBatch<T> d_A0(A0), d_B0(B0), d_tmp(temporary_slots);
-    DeviceMatrixBatch<T> d_AB1(AB1), d_output(output);
+    DeviceArray<int> d_m0(handle, m0), d_n0(handle, n0), d_k0(handle, k0);
+    DeviceArray<int> d_lda0(handle, lda0), d_ldb0(handle, ldb0), d_ldc0(handle, ldc0);
+    DeviceArray<int> d_m1(handle, m1), d_n1(handle, n1), d_k1(handle, k1);
+    DeviceArray<int> d_lda1(handle, lda1), d_ldb1(handle, ldb1), d_ldc1(handle, ldc1);
+    DeviceMatrixBatch<T> d_A0(handle, A0), d_B0(handle, B0), d_tmp(handle, temporary_slots);
+    DeviceMatrixBatch<T> d_AB1(handle, AB1), d_output(handle, output);
 
     auto invoke = [&](T beta0, const std::vector<int>& test_segments) {
         ddla::gemmVbatched2s(
@@ -417,9 +428,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
     };
 
     invoke(T{}, segments);
-    ddla::RUNTIME_CHECK(
-        ddla::runtimeStreamSynchronize(
-            static_cast<ddla::runtimeStream_t>(ddla::ddlaGetStream(handle))));
+    ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
 
     if constexpr (std::is_same_v<T, double>)
     {

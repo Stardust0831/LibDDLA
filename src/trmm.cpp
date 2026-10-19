@@ -50,7 +50,7 @@ void ztrmm_(const char*, const char*, const char*, const char*, const int*, cons
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasTrmm overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasTrmm overloads so the
 // dispatch below stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::trmm declared in <ddla/ddla.h>.
@@ -59,9 +59,9 @@ void ztrmm_(const char*, const char*, const char*, const char*, const int*, cons
 
 namespace ddla {
 
-inline deblasStatus_t deblasTrmm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int m, int n,
     const float& alpha,
     const float* A, int lda,
@@ -69,22 +69,20 @@ inline deblasStatus_t deblasTrmm(
     float* C, int ldc
 )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasStrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
-#elif defined(DDLA_USE_HIP)
-    return hipblasStrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
+#if DDLA_GPU_VENDOR
+    return gpublasStrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
 #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasTrmm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmm: no GPU vendor selected at compile time");
 #endif
 }
 
-inline deblasStatus_t deblasTrmm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int m, int n,
     const double& alpha,
     const double* A, int lda,
@@ -92,18 +90,16 @@ inline deblasStatus_t deblasTrmm(
     double* C, int ldc
 )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasDtrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
-#elif defined(DDLA_USE_HIP)
-    return hipblasDtrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
+#if DDLA_GPU_VENDOR
+    return gpublasDtrmm(handle, side, uplo, trans, diag, m, n, &alpha, A, lda, B, ldb, C, ldc);
 #else
-    throw std::runtime_error("deblasTrmm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmm: no GPU vendor selected at compile time");
 #endif
 }
 
-inline deblasStatus_t deblasTrmm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int m, int n,
     const std::complex<float>& alpha,
     const std::complex<float>* A, int lda,
@@ -111,26 +107,20 @@ inline deblasStatus_t deblasTrmm(
     std::complex<float>* C, int ldc
 )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasCtrmm(handle, side, uplo, trans, diag, m, n,
-                       reinterpret_cast<const cuFloatComplex*>(&alpha),
-                       reinterpret_cast<const cuFloatComplex*>(A), lda,
-                       reinterpret_cast<cuFloatComplex*>(B), ldb,
-                       reinterpret_cast<cuFloatComplex*>(C), ldc);
-#elif defined(DDLA_USE_HIP)
-    return hipblasCtrmm(handle, side, uplo, trans, diag, m, n,
-                        reinterpret_cast<const hipblasComplex*>(&alpha),
-                        reinterpret_cast<const hipblasComplex*>(A), lda,
-                        reinterpret_cast<hipblasComplex*>(B), ldb,
-                        reinterpret_cast<hipblasComplex*>(C), ldc);
+#if DDLA_GPU_VENDOR
+    return gpublasCtrmm(handle, side, uplo, trans, diag, m, n,
+                        reinterpret_cast<const gpublasComplex*>(&alpha),
+                        reinterpret_cast<const gpublasComplex*>(A), lda,
+                        reinterpret_cast<gpublasComplex*>(B), ldb,
+                        reinterpret_cast<gpublasComplex*>(C), ldc);
 #else
-    throw std::runtime_error("deblasTrmm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmm: no GPU vendor selected at compile time");
 #endif
 }
 
-inline deblasStatus_t deblasTrmm(
-    deblasHandle_t handle, deblasSideMode_t side, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmm(
+    gpublasHandle_t handle, gpublasSideMode_t side, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int m, int n,
     const std::complex<double>& alpha,
     const std::complex<double>* A, int lda,
@@ -138,20 +128,14 @@ inline deblasStatus_t deblasTrmm(
     std::complex<double>* C, int ldc
 )
 {
-#if defined(DDLA_USE_CUDA)
-    return cublasZtrmm(handle, side, uplo, trans, diag, m, n,
-                       reinterpret_cast<const cuDoubleComplex*>(&alpha),
-                       reinterpret_cast<const cuDoubleComplex*>(A), lda,
-                       reinterpret_cast<cuDoubleComplex*>(B), ldb,
-                       reinterpret_cast<cuDoubleComplex*>(C), ldc);
-#elif defined(DDLA_USE_HIP)
-    return hipblasZtrmm(handle, side, uplo, trans, diag, m, n,
-                        reinterpret_cast<const hipblasDoubleComplex*>(&alpha),
-                        reinterpret_cast<const hipblasDoubleComplex*>(A), lda,
-                        reinterpret_cast<hipblasDoubleComplex*>(B), ldb,
-                        reinterpret_cast<hipblasDoubleComplex*>(C), ldc);
+#if DDLA_GPU_VENDOR
+    return gpublasZtrmm(handle, side, uplo, trans, diag, m, n,
+                        reinterpret_cast<const gpublasDoubleComplex*>(&alpha),
+                        reinterpret_cast<const gpublasDoubleComplex*>(A), lda,
+                        reinterpret_cast<gpublasDoubleComplex*>(B), ldb,
+                        reinterpret_cast<gpublasDoubleComplex*>(C), ldc);
 #else
-    throw std::runtime_error("deblasTrmm: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmm: no GPU vendor selected at compile time");
 #endif
 }
 
@@ -232,16 +216,16 @@ void trmm(
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
             // The vendor xTRMM prototypes take a non-const B pointer even
-            // though they only read it, and the real deblasTrmm overloads keep
+            // though they only read it, and the real gpublasTrmm overloads keep
             // that shape; the cast back is confined to this one call.
             T* B_mutable = const_cast<T*>(B);
-            BLAS_CHECK(deblasTrmm(handle->blasH,
-                                  detail::to_side_mode(side),
-                                  detail::to_fill_mode(uplo),
-                                  detail::to_blas_op(trans),
-                                  detail::to_diag_type(diag),
-                                  m, n, alpha, A, lda,
-                                  B_mutable, ldb, C, ldc));
+            BLAS_CHECK(gpublasTrmm(handle->blasH,
+                                   detail::to_side_mode(side),
+                                   detail::to_fill_mode(uplo),
+                                   detail::to_blas_op(trans),
+                                   detail::to_diag_type(diag),
+                                   m, n, alpha, A, lda,
+                                   B_mutable, ldb, C, ldc));
         } else {
             static_assert(sizeof(T) == 0, "trmm: unsupported scalar type T");
         }

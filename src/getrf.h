@@ -6,8 +6,8 @@
 
 namespace ddla{
 
-inline desolverStatus_t desolverGetrf(
-    desolverHandle_t handle,
+inline gpusolverStatus_t gpusolverGetrf(
+    gpusolverHandle_t handle,
     int m,
     int n,
     double *A,
@@ -19,36 +19,36 @@ inline desolverStatus_t desolverGetrf(
     double *Workspace = nullptr;
     int Lwork;
 
-    runtimeStream_t stream;
-    SOLVER_CHECK(desolverGetStream(handle, &stream));
+    gpuStream_t stream;
+    SOLVER_CHECK(gpusolverGetStream(handle, &stream));
 
-    #if defined(DDLA_USE_CUDA)
-    SOLVER_CHECK(cusolverDnDgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
-    #elif defined(DDLA_USE_HIP)
-    SOLVER_CHECK(hipsolverDgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
+    #if DDLA_GPU_VENDOR
+    SOLVER_CHECK(gpusolverDgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
     #else
     throw std::runtime_error("not ENABLE CUDA and ENABLE HIP\n");
     #endif
     
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeMallocAsync(&Workspace, Lwork * sizeof(double), stream));
+        GPU_CHECK(gpuMallocAsync(reinterpret_cast<void**>(&Workspace), Lwork * sizeof(double), stream));
+    #endif
 
-    desolverStatus_t status{};
-    #if defined(DDLA_USE_CUDA)
-    status = cusolverDnDgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo);
-    #elif defined(DDLA_USE_HIP)
-    status = hipsolverDgetrf(handle, m, n, A, lda, Workspace, Lwork, devIpiv, devInfo);
+    gpusolverStatus_t status{};
+    #if DDLA_GPU_VENDOR
+    status = gpusolverDgetrf(handle, m, n, A, lda, Workspace, Lwork, devIpiv, devInfo);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
     #endif
 
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeFreeAsync(Workspace, stream));
+        GPU_CHECK(gpuFreeAsync(Workspace, stream));
+    #endif
     return status;
 }
 
-inline desolverStatus_t desolverGetrf(
-    desolverHandle_t handle,
+inline gpusolverStatus_t gpusolverGetrf(
+    gpusolverHandle_t handle,
     int m,
     int n,
     float *A,
@@ -60,36 +60,36 @@ inline desolverStatus_t desolverGetrf(
     float *Workspace = nullptr;
     int Lwork;
 
-    runtimeStream_t stream;
-    SOLVER_CHECK(desolverGetStream(handle, &stream));
+    gpuStream_t stream;
+    SOLVER_CHECK(gpusolverGetStream(handle, &stream));
 
-    #if defined(DDLA_USE_CUDA)
-    SOLVER_CHECK(cusolverDnSgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
-    #elif defined(DDLA_USE_HIP)
-    SOLVER_CHECK(hipsolverSgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
+    #if DDLA_GPU_VENDOR
+    SOLVER_CHECK(gpusolverSgetrf_bufferSize(handle, m, n, A, lda, &Lwork));
     #else
     throw std::runtime_error("not ENABLE CUDA and ENABLE HIP\n");
     #endif
 
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeMallocAsync(&Workspace, Lwork * sizeof(float), stream));
+        GPU_CHECK(gpuMallocAsync(reinterpret_cast<void**>(&Workspace), Lwork * sizeof(float), stream));
+    #endif
 
-    desolverStatus_t status{};
-    #if defined(DDLA_USE_CUDA)
-    status = cusolverDnSgetrf(handle, m, n, A, lda, Workspace, devIpiv, devInfo);
-    #elif defined(DDLA_USE_HIP)
-    status = hipsolverSgetrf(handle, m, n, A, lda, Workspace, Lwork, devIpiv, devInfo);
+    gpusolverStatus_t status{};
+    #if DDLA_GPU_VENDOR
+    status = gpusolverSgetrf(handle, m, n, A, lda, Workspace, Lwork, devIpiv, devInfo);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
     #endif
 
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeFreeAsync(Workspace, stream));
+        GPU_CHECK(gpuFreeAsync(Workspace, stream));
+    #endif
     return status;
 }
 
-inline desolverStatus_t desolverGetrf(
-    desolverHandle_t handle,
+inline gpusolverStatus_t gpusolverGetrf(
+    gpusolverHandle_t handle,
     int m,
     int n,
     std::complex<double> *A,
@@ -101,34 +101,34 @@ inline desolverStatus_t desolverGetrf(
     std::complex<double> *Workspace = nullptr;
     int Lwork;
 
-    runtimeStream_t stream;
-    SOLVER_CHECK(desolverGetStream(handle, &stream));
+    gpuStream_t stream;
+    SOLVER_CHECK(gpusolverGetStream(handle, &stream));
 
-    #if defined(DDLA_USE_CUDA)
-    SOLVER_CHECK(cusolverDnZgetrf_bufferSize(handle, m, n, (cuDoubleComplex*)A, lda, &Lwork));
-    #elif defined(DDLA_USE_HIP)
-    SOLVER_CHECK(hipsolverZgetrf_bufferSize(handle, m, n, (hipDoubleComplex*)A, lda, &Lwork));
+    #if DDLA_GPU_VENDOR
+    SOLVER_CHECK(gpusolverZgetrf_bufferSize(handle, m, n, (gpusolverDoubleComplex*)A, lda, &Lwork));
     #else
     throw std::runtime_error("not ENABLE CUDA and ENABLE HIP\n");
     #endif
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeMallocAsync(&Workspace, Lwork * sizeof(std::complex<double>), stream));
+        GPU_CHECK(gpuMallocAsync(reinterpret_cast<void**>(&Workspace), Lwork * sizeof(std::complex<double>), stream));
+    #endif
 
-    desolverStatus_t status{};
-    #if defined(DDLA_USE_CUDA)
-    status = cusolverDnZgetrf(handle, m, n, (cuDoubleComplex*)A, lda, (cuDoubleComplex*)Workspace, devIpiv, devInfo);
-    #elif defined(DDLA_USE_HIP)
-    status = hipsolverZgetrf(handle, m, n, (hipDoubleComplex*)A, lda, (hipDoubleComplex*)Workspace, Lwork, devIpiv, devInfo);
+    gpusolverStatus_t status{};
+    #if DDLA_GPU_VENDOR
+    status = gpusolverZgetrf(handle, m, n, (gpusolverDoubleComplex*)A, lda, (gpusolverDoubleComplex*)Workspace, Lwork, devIpiv, devInfo);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
     #endif
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeFreeAsync(Workspace, stream));
+        GPU_CHECK(gpuFreeAsync(Workspace, stream));
+    #endif
     return status;
 }
 
-inline desolverStatus_t desolverGetrf(
-    desolverHandle_t handle,
+inline gpusolverStatus_t gpusolverGetrf(
+    gpusolverHandle_t handle,
     int m,
     int n,
     std::complex<float> *A,
@@ -140,31 +140,31 @@ inline desolverStatus_t desolverGetrf(
     std::complex<float> *Workspace = nullptr;
     int Lwork;
 
-    runtimeStream_t stream;
-    SOLVER_CHECK(desolverGetStream(handle, &stream));
+    gpuStream_t stream;
+    SOLVER_CHECK(gpusolverGetStream(handle, &stream));
 
-    #if defined(DDLA_USE_CUDA)
-    SOLVER_CHECK(cusolverDnCgetrf_bufferSize(handle, m, n, (cuFloatComplex*)A, lda, &Lwork));
-    #elif defined(DDLA_USE_HIP)
-    SOLVER_CHECK(hipsolverCgetrf_bufferSize(handle, m, n, (hipFloatComplex*)A, lda, &Lwork));
+    #if DDLA_GPU_VENDOR
+    SOLVER_CHECK(gpusolverCgetrf_bufferSize(handle, m, n, (gpusolverComplex*)A, lda, &Lwork));
     #else
     throw std::runtime_error("not ENABLE CUDA and ENABLE HIP\n");
     #endif
 
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeMallocAsync(&Workspace, Lwork * sizeof(std::complex<float>), stream));
+        GPU_CHECK(gpuMallocAsync(reinterpret_cast<void**>(&Workspace), Lwork * sizeof(std::complex<float>), stream));
+    #endif
 
-    desolverStatus_t status{};
-    #if defined(DDLA_USE_CUDA)
-    status = cusolverDnCgetrf(handle, m, n, (cuFloatComplex*)A, lda, (cuFloatComplex*)Workspace, devIpiv, devInfo);
-    #elif defined(DDLA_USE_HIP)
-    status = hipsolverCgetrf(handle, m, n, (hipFloatComplex*)A, lda, (hipFloatComplex*)Workspace, Lwork, devIpiv, devInfo);
+    gpusolverStatus_t status{};
+    #if DDLA_GPU_VENDOR
+    status = gpusolverCgetrf(handle, m, n, (gpusolverComplex*)A, lda, (gpusolverComplex*)Workspace, Lwork, devIpiv, devInfo);
     #else
     throw std::runtime_error("ENABLE CUDA or ENABLE HIP not enable\n");
     #endif
 
+    #if DDLA_GPU_VENDOR
     if(Lwork > 0)
-        RUNTIME_CHECK(runtimeFreeAsync(Workspace, stream));
+        GPU_CHECK(gpuFreeAsync(Workspace, stream));
+    #endif
     return status;
 }
 

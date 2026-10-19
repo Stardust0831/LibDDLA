@@ -51,7 +51,6 @@ void pgetrf_nopiv(
     int m_loc = num_loc(m, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
-    runtimeStream_t stream = ddla_handle->stream;
 
     int nb_real;
     int mm_row_start = 0;  // local row start of trailing submatrix
@@ -59,14 +58,14 @@ void pgetrf_nopiv(
 
     // Temp buffers
     T* d_temp_block;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_block, sizeof(T) * nb * nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_block, sizeof(T) * nb * nb));
     T* d_temp_L;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_L, sizeof(T) * m_loc * nb, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_L, sizeof(T) * m_loc * nb));
     T* d_temp_U;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_temp_U, sizeof(T) * nb * n_loc, stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T) * nb * n_loc));
 
     int* d_info = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_info, sizeof(int), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_info, sizeof(int)));
 
     info = 0;
 
@@ -87,8 +86,8 @@ void pgetrf_nopiv(
         int local_info = 0;
         if (myprow == owner_row && mypcol == owner_col) {
             getrf_nopiv(nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_info, ddla_handle);
-            RUNTIME_CHECK(runtimeMemcpyAsync(&local_info, d_info, sizeof(int), runtimeMemcpyDeviceToHost, stream));
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &local_info, d_info, sizeof(int)));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
 
         MPI_CHECK(MPI_Bcast(&local_info, 1, MPI_INT, ddla_handle->rc_to_rank(owner_row, owner_col), ddla_handle->comm));
@@ -105,12 +104,8 @@ void pgetrf_nopiv(
         // Step 2: Extract/broadcast the factored diagonal block (L1+U1)
         // ================================================================
         if (myprow == owner_row && mypcol == owner_col) {
-            RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                d_temp_block, nb_real * sizeof(T),
-                d_A + i_loc + j_loc * lld, lld * sizeof(T),
-                nb_real * sizeof(T), nb_real,
-                runtimeMemcpyDeviceToDevice, stream
-            ));
+            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_block, nb_real * sizeof(T), d_A + i_loc + j_loc * lld,
+                                    lld * sizeof(T), nb_real * sizeof(T), nb_real));
         }
         if (myprow == owner_row) {
             commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
@@ -134,12 +129,8 @@ void pgetrf_nopiv(
                     d_temp_block, nb_real,
                     d_right_panel, lld
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_U, nb_real * sizeof(T),
-                    d_right_panel, lld * sizeof(T),
-                    nb_real * sizeof(T), n_loc - right_panel_col_start,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, nb_real * sizeof(T), d_right_panel, lld * sizeof(T),
+                                        nb_real * sizeof(T), n_loc - right_panel_col_start));
             }
         }
 
@@ -158,12 +149,9 @@ void pgetrf_nopiv(
                     d_temp_block, nb_real,
                     d_left_panel, lld
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
-                    d_left_panel, lld * sizeof(T),
-                    (m_loc - left_panel_row_start) * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
+                                        d_left_panel, lld * sizeof(T), (m_loc - left_panel_row_start) * sizeof(T),
+                                        nb_real));
             }
         }
 
@@ -193,7 +181,7 @@ void pgetrf_nopiv(
                 d_A + left_panel_row_start + right_panel_col_start * lld, lld);
         }
 
-        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
         // Advance local pointers for next panel
         if (i_loc >= 0)
@@ -202,11 +190,11 @@ void pgetrf_nopiv(
             mm_col_start += nb;
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_block, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_L, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_temp_U, stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_block));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_L));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 // Explicit instantiations

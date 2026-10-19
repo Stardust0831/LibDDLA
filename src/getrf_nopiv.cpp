@@ -168,7 +168,7 @@ template <typename T>
 void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle)
 {
     detail::require_gpu_backend(ddla_handle, "getrf_nopiv");
-    runtimeStream_t stream = ddla_handle->stream;
+    gpuStream_t stream = ddla_handle->stream;
 
     // Block size for the blocked algorithm.  Must be <= GETF2_MAX_N
     // because the panel kernel stores one row in registers.
@@ -177,7 +177,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
     const int nb = GETF2_MAX_N;
 
     // Initialize d_info to 0 on device (caller owns d_info memory)
-    RUNTIME_CHECK(runtimeMemsetAsync(d_info, 0, sizeof(int), stream));
+    DDLA_CHECK(ddlaMemset(ddla_handle, d_info, 0, sizeof(int)));
 
     for (int j = 0; j < std::min(m, n); j += nb)
     {
@@ -216,7 +216,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                 <<<1, threads, shmem, stream>>>(
                     jb, jb, d_A + j * lda + j, lda, d_info, j);
         }
-        RUNTIME_CHECK(runtimeGetLastError());
+        DDLA_CHECK(ddlaGetLastError(ddla_handle));
 
         // ---------------------------------------------------------------
         // 2) Solve L panel: A(j+jb:m-1, j:j+jb) = A(j+jb:m-1, j:j+jb) * U^{-1}

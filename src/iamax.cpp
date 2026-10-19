@@ -76,7 +76,7 @@ void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result)
 #endif
     } else {
 #if DDLA_HAS_GPU
-        BLAS_CHECK(deblasIamax(handle->blasH, n, x, incx, &result));
+        BLAS_CHECK(gpublasIamax(handle->blasH, n, x, incx, &result));
 #endif
     }
 }

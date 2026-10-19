@@ -82,8 +82,8 @@ void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
 #endif
     } else {
 #if DDLA_HAS_GPU
-        BLAS_CHECK(deblasAxpy(handle->blasH, static_cast<int64_t>(n), alpha, x,
-                              incx, y, incy));
+        BLAS_CHECK(gpublasAxpy(handle->blasH, static_cast<int64_t>(n), alpha, x,
+                               incx, y, incy));
 #endif
     }
 }

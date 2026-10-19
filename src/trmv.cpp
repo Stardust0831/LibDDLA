@@ -48,7 +48,7 @@ void ztrmv_(const char*, const char*, const char*, const int*,
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasTrmv overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasTrmv overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::trmv declared in <ddla/ddla.h>.
@@ -61,79 +61,69 @@ void ztrmv_(const char*, const char*, const char*, const int*,
 
 namespace ddla {
 
-inline deblasStatus_t deblasTrmv(
-    deblasHandle_t handle, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmv(
+    gpublasHandle_t handle, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int n,
     const float* A, int lda,
     float* x, int incx
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasStrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasStrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
+    #if DDLA_GPU_VENDOR
+    return gpublasStrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
     #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasTrmv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasTrmv(
-    deblasHandle_t handle, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmv(
+    gpublasHandle_t handle, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int n,
     const double* A, int lda,
     double* x, int incx
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasDtrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasDtrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
+    #if DDLA_GPU_VENDOR
+    return gpublasDtrmv(handle, uplo, trans, diag, n, A, lda, x, incx);
     #else
-    throw std::runtime_error("deblasTrmv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasTrmv(
-    deblasHandle_t handle, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmv(
+    gpublasHandle_t handle, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int n,
     const std::complex<float>* A, int lda,
     std::complex<float>* x, int incx
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasCtrmv(handle, uplo, trans, diag, n,
-        (hipblasComplex*)A, lda, (hipblasComplex*)x, incx);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasCtrmv(handle, uplo, trans, diag, n,
-        (cuFloatComplex*)A, lda, (cuFloatComplex*)x, incx);
+    #if DDLA_GPU_VENDOR
+    return gpublasCtrmv(handle, uplo, trans, diag, n,
+        (gpublasComplex*)A, lda, (gpublasComplex*)x, incx);
     #else
-    throw std::runtime_error("deblasTrmv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmv: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasTrmv(
-    deblasHandle_t handle, deblasFillMode_t uplo,
-    deblasOperation_t trans, deblasDiagType_t diag,
+inline gpublasStatus_t gpublasTrmv(
+    gpublasHandle_t handle, gpublasFillMode_t uplo,
+    gpublasOperation_t trans, gpublasDiagType_t diag,
     int n,
     const std::complex<double>* A, int lda,
     std::complex<double>* x, int incx
 )
 {
-    #if defined(DDLA_USE_HIP)
-    return hipblasZtrmv(handle, uplo, trans, diag, n,
-        (hipblasDoubleComplex*)A, lda, (hipblasDoubleComplex*)x, incx);
-    #elif defined(DDLA_USE_CUDA)
-    return cublasZtrmv(handle, uplo, trans, diag, n,
-        (cuDoubleComplex*)A, lda, (cuDoubleComplex*)x, incx);
+    #if DDLA_GPU_VENDOR
+    return gpublasZtrmv(handle, uplo, trans, diag, n,
+        (gpublasDoubleComplex*)A, lda, (gpublasDoubleComplex*)x, incx);
     #else
-    throw std::runtime_error("deblasTrmv: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasTrmv: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -192,11 +182,11 @@ void trmv(
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasTrmv(handle->blasH,
-                                  detail::to_fill_mode(uplo),
-                                  detail::to_blas_op(trans),
-                                  detail::to_diag_type(diag),
-                                  n, A, lda, x, incx));
+            BLAS_CHECK(gpublasTrmv(handle->blasH,
+                                   detail::to_fill_mode(uplo),
+                                   detail::to_blas_op(trans),
+                                   detail::to_diag_type(diag),
+                                   n, A, lda, x, incx));
         } else {
             static_assert(sizeof(T) == 0, "trmv: unsupported scalar type T");
         }

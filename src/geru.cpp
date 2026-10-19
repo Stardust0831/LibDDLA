@@ -95,7 +95,7 @@ void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
 #endif
     } else {
 #if DDLA_HAS_GPU
-        BLAS_CHECK(deblasGeru(handle->blasH, m, n, alpha, x, incx, y, incy, A, lda));
+        BLAS_CHECK(gpublasGeru(handle->blasH, m, n, alpha, x, incx, y, incy, A, lda));
 #endif
     }
 }

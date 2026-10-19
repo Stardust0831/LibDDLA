@@ -177,7 +177,7 @@ void pgemm(
     const int panel_max = blocks_per_gemm * nb;  // widest stage (>= nb)
 
     // Scratch buffers (GPU stream-scratch or CPU heap) for the SUMMA panel
-    // pipeline, freed explicitly below.  DDLA_CHECK and RUNTIME_CHECK throw
+    // pipeline, freed explicitly below.  DDLA_CHECK throws
     // std::runtime_error on failure (uncaught it terminates the rank), and the
     // transport_block/gemm/scal calls below can throw on a null handle or a
     // backend mismatch -- both validated above, but a failure between these
@@ -200,14 +200,13 @@ void pgemm(
     // ddlaMalloc/ddlaFree dispatch on the handle's backend at run time -- host
     // heap on CPU, and on GPU the stream-ordered cudaMallocAsync/hipMallocAsync
     // pool on the handle's stream (no device-wide synchronize per call).  Going
-    // through the handle rather than the type-templated runtimeMallocAsync also
-    // keeps the stream type out of these call sites, so no compile-time
-    // backend split is needed.
+    // through the handle also keeps the stream type out of these call sites, so
+    // no compile-time backend split is needed.
     T* d_B_blk = nullptr;
-    DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T), h));
+    DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T)));
     for (int i = 0; i < buffer_max; i++) {
-        DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T), h));
-        DDLA_CHECK(ddlaMalloc(reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T), h));
+        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T)));
+        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T)));
     }
 
     // Wait out the in-flight panel transport before the local gemm reads it
@@ -215,8 +214,8 @@ void pgemm(
     // transport_block<DdlaBackend::CPU> is blocking).
     auto sync_panel = [&]() {
         if constexpr (Backend != DdlaBackend::CPU) {
-            RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream));
-            RUNTIME_CHECK<Backend>(runtimeStreamSynchronize<Backend>(h->stream_data));
+            DDLA_CHECK(ddlaSynchronize(h));
+            DDLA_CHECK(detail::synchronize_on(h, h->stream_data));
         }
     };
 
@@ -303,10 +302,10 @@ void pgemm(
     }
     sync_panel();
     for (int i = 0; i < buffer_max; i++) {
-        DDLA_CHECK(ddlaFree(d_A_temp[i], h));
-        DDLA_CHECK(ddlaFree(d_B_temp[i], h));
+        DDLA_CHECK(ddlaFree(h, d_A_temp[i]));
+        DDLA_CHECK(ddlaFree(h, d_B_temp[i]));
     }
-    DDLA_CHECK(ddlaFree(d_B_blk, h));
+    DDLA_CHECK(ddlaFree(h, d_B_blk));
 }
 
 // ---------------------------------------------------------------------------

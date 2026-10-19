@@ -41,16 +41,19 @@ int main(int argc, char* argv[])
 
     std::complex<double>* d_A;
     std::complex<double>* d_AT;
-    RUNTIME_CHECK(runtimeMalloc(&d_A, sizeof(std::complex<double>) * loc_size_A));
-    RUNTIME_CHECK(runtimeMalloc(&d_AT, sizeof(std::complex<double>) * loc_size_AT));
-    RUNTIME_CHECK(runtimeMemcpy(d_A, h_A.data(), sizeof(std::complex<double>) * loc_size_A, runtimeMemcpyHostToDevice));
+    DDLA_CHECK(ddlaMalloc(handle, &d_A, sizeof(std::complex<double>) * loc_size_A));
+    DDLA_CHECK(ddlaMalloc(handle, &d_AT, sizeof(std::complex<double>) * loc_size_AT));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, h_A.data(), sizeof(std::complex<double>) * loc_size_A));
+    DDLA_CHECK(ddlaSynchronize(handle));
     std::vector<std::complex<double>> h_zero_AT(loc_size_AT);
-    RUNTIME_CHECK(runtimeMemcpy(d_AT, h_zero_AT.data(), sizeof(std::complex<double>) * loc_size_AT, runtimeMemcpyHostToDevice));
+    DDLA_CHECK(ddlaMemcpy(handle, d_AT, h_zero_AT.data(), sizeof(std::complex<double>) * loc_size_AT));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     ptran(handle, d_A, descA, d_AT, descAT);
 
     std::vector<std::complex<double>> h_AT(loc_size_AT);
-    RUNTIME_CHECK(runtimeMemcpy(h_AT.data(), d_AT, sizeof(std::complex<double>) * loc_size_AT, runtimeMemcpyDeviceToHost));
+    DDLA_CHECK(ddlaMemcpy(handle, h_AT.data(), d_AT, sizeof(std::complex<double>) * loc_size_AT));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     // Gather global A and AT on host
     auto gather = [&](const int* desc, const std::vector<std::complex<double>>& local){
@@ -105,8 +108,8 @@ int main(int argc, char* argv[])
         std::cout << "ptran max_err " << global_max << std::endl;
     }
 
-    RUNTIME_CHECK(runtimeFree(d_A));
-    RUNTIME_CHECK(runtimeFree(d_AT));
+    DDLA_CHECK(ddlaFree(handle, d_A));
+    DDLA_CHECK(ddlaFree(handle, d_AT));
     ddlaDestroy(handle);
     MPI_Finalize();
     return 0;

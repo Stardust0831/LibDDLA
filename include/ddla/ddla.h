@@ -16,21 +16,6 @@ namespace ddla{
 template <typename T> struct real_type            { using type = T; };
 template <typename U> struct real_type<std::complex<U>> { using type = U; };
 
-/// Check a ddlaStatus_t returned by a public API function.
-///
-/// Throws std::runtime_error with file:line context when @p status is not
-/// DDLA_STATUS_SUCCESS, mirroring the private CHECK-family style.
-inline void DDLA_CHECK(ddlaStatus_t status,
-                       const char* file = __builtin_FILE(),
-                       int line = __builtin_LINE())
-{
-    if (status != ddlaStatus_t::DDLA_STATUS_SUCCESS) {
-        throw std::runtime_error(std::string("ddla error ") +
-            std::to_string(static_cast<int>(status)) + " at " + file + ":" +
-            std::to_string(line));
-    }
-}
-
 #if DDLA_HAS_GPU
 
 /**

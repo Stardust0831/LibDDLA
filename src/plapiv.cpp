@@ -51,10 +51,9 @@ void plapiv(
     const int length_rowcol_C = num_loc(n, mb, myprow, array_descA[DDLA_RSRC_], nprows);
 
     T*temp_A_target;
-    RUNTIME_CHECK(runtimeMallocAsync(&temp_A_target, sizeof(T)*std::max(length_rowcol_R, length_rowcol_C), ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_A_target, sizeof(T)*std::max(length_rowcol_R, length_rowcol_C)));
 
-    runtimeStream_t stream = ddla_handle->stream;
-    deblasHandle_t blasH = ddla_handle->blasH;
+    gpublasHandle_t blasH = ddla_handle->blasH;
 
     // 初始化 NCCL
     MPI_Comm col_comm = ddla_handle->col_comm;
@@ -98,21 +97,17 @@ void plapiv(
             const int length_v = length_rowcol_C;
             if(owner_col_i == owner_col_t){
                 if(mypcol == owner_col_i)
-                    BLAS_CHECK(deblasSwap(blasH, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1));
+                    BLAS_CHECK(gpublasSwap(blasH, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1));
             }else{
                 if(mypcol == owner_col_t){
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        temp_A_target, 1 * sizeof(T),
-                        d_A + target_i_col * lldA, 1 * sizeof(T),
-                        1 * sizeof(T), length_v,
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_col * lldA,
+                                            1 * sizeof(T), 1 * sizeof(T), length_v));
                     commSend(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
                     commRecv(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
-                    BLAS_CHECK(deblasSwap(blasH, length_v, d_A + target_i_col * lldA, 1, temp_A_target, 1));
+                    BLAS_CHECK(gpublasSwap(blasH, length_v, d_A + target_i_col * lldA, 1, temp_A_target, 1));
                 }else if(mypcol == owner_col_i){
                     commRecv(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
-                    BLAS_CHECK(deblasSwap(blasH, length_v, d_A + i_col * lldA, 1, temp_A_target, 1));
+                    BLAS_CHECK(gpublasSwap(blasH, length_v, d_A + i_col * lldA, 1, temp_A_target, 1));
                     commSend(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
                 }
             }
@@ -126,29 +121,25 @@ void plapiv(
             target_i_loc = indx_g2l_r(array_descA, handle, target_i_global);
             if(target_row==owner_row){
                 if(myprow==owner_row)
-                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA));
+                    BLAS_CHECK(gpublasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA));
             }else{
                 if(myprow==target_row){
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        temp_A_target, 1 * sizeof(T),
-                        d_A + target_i_loc, lldA * sizeof(T),
-                        1 * sizeof(T), length_rowcol_R,
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_loc,
+                                            lldA * sizeof(T), 1 * sizeof(T), length_rowcol_R));
                     commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
                     commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
-                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1));
+                    BLAS_CHECK(gpublasSwap(blasH, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1));
                 }else if(myprow==owner_row){
                     commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
-                    BLAS_CHECK(deblasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1));
+                    BLAS_CHECK(gpublasSwap(blasH, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1));
                     commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
                 }
             }
         }
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(temp_A_target, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_A_target));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
 }
 

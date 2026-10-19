@@ -42,17 +42,17 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
     std::complex<double>* d_I   = nullptr; // 单位矩阵 I / 解 X = A^-1
     std::complex<double>* d_R   = nullptr; // 结果 A^\dagger * X
 
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_B,   size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_Bcp, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_A,   size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_Acp, size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_I,   size, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeMallocAsync((void**)&d_R,   size, ddla_handle->stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_B, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_Bcp, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_Acp, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_I, size));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_R, size));
 
     // ---- 1. 生成随机矩阵 B，缩小幅度以控制 A 的条件数 ----
     random_generate(d_B, nelem);
-    BLAS_CHECK(deblasScal(ddla_handle->blasH, nelem, 0.01, d_B, 1));
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_Bcp, d_B, size, runtimeMemcpyDeviceToDevice, ddla_handle->stream));
+    BLAS_CHECK(gpublasScal(ddla_handle->blasH, nelem, 0.01, d_B, 1));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_Bcp, d_B, size));
 
     // ---- 2. 构造 Hermitian 正定矩阵 A = B^H * B（pgemm 'C','N'）----
     pgemm(ddla_handle, 'C', 'N', n, n, n,
@@ -69,12 +69,13 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
         if (i_loc < 0) continue;
         int j_loc = indx_g2l_c(matrix_desc, ddla_handle, i);
         if (j_loc < 0) continue;
-        RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &diag_shift,
-                                  sizeof(std::complex<double>), runtimeMemcpyHostToDevice));
+        DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i_loc + j_loc * matrix_desc[DDLA_LLD_], &diag_shift,
+                              sizeof(std::complex<double>)));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
     }
 
     // 保存 A 的副本（pgesv 会覆盖 d_A 为 LU 因子）
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_Acp, d_A, size, runtimeMemcpyDeviceToDevice, ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_Acp, d_A, size));
 
     // ---- 4. 构造分布式单位矩阵 I ----
     std::vector<std::complex<double>> h_identity(nelem, std::complex<double>(0.0, 0.0));
@@ -85,16 +86,16 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
         if (j_loc < 0) continue;
         h_identity[i_loc + j_loc * matrix_desc[DDLA_LLD_]] = std::complex<double>(1.0, 0.0);
     }
-    RUNTIME_CHECK(runtimeMemcpyAsync(d_I, h_identity.data(), size, runtimeMemcpyHostToDevice, ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_I, h_identity.data(), size));
 
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
 
     // ---- 5. LU 分解解 A * X = I → d_I 变为 X = A^-1，d_A 变为 LU 因子 ----
     printf("myid:%d, start pgesv\n", myid);
     double start_time_sv = MPI_Wtime();
     pgesv(ddla_handle, 'L', 'N', n, n, d_A, matrix_desc, d_I, matrix_desc);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_sv = MPI_Wtime() - start_time_sv;
     printf("myid:%d, pgesv time:%lf\n", myid, t_sv);
@@ -108,15 +109,15 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
           d_I, matrix_desc,
           std::complex<double>(0.0, 0.0),
           d_R, matrix_desc);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     MPI_Barrier(MPI_COMM_WORLD);
     double t_gemm = MPI_Wtime() - start_time_gemm;
     printf("myid:%d, pgemm time:%lf\n", myid, t_gemm);
 
     // ---- 7. 检查结果是否为单位矩阵 ----
     std::vector<std::complex<double>> h_result(nelem);
-    RUNTIME_CHECK(runtimeMemcpyAsync(h_result.data(), d_R, size, runtimeMemcpyDeviceToHost, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_result.data(), d_R, size));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     double local_max_err = 0.0;
     for (int i = 0; i < matrix_desc[DDLA_M_]; i++) {
@@ -147,13 +148,13 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
         printf("n:%d, PASS: A^dagger * A^-1 == I (Hermitian positive matrix)\n", n);
     }
 
-    RUNTIME_CHECK(runtimeFreeAsync(d_R,   ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_I,   ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_Acp, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A,   ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_Bcp, ddla_handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_B,   ddla_handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_R));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_I));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_Acp));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_Bcp));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_B));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 int main(int argc, char* argv[])
@@ -173,7 +174,7 @@ int main(int argc, char* argv[])
         }
     }
     for (int n : sizes) {
-        RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+        DDLA_CHECK(ddlaSynchronize(ddla_handle));
         MPI_Barrier(MPI_COMM_WORLD);
         printf("testing matrix size: %d\n", n);
         check_sv_gemm_hermitian_positive(n, ddla_handle);

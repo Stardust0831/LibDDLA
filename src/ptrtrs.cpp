@@ -38,7 +38,6 @@ void ptrtrs(
     int lldB = array_descB[DDLA_LLD_];
 
 
-    runtimeStream_t stream=ddla_handle->stream;
 
     // Order of the triangular system: op(A) is n_solve x n_solve, matching the
     // rows of B for side='L' (B is m x n) and the columns of B for side='R'.
@@ -60,10 +59,10 @@ void ptrtrs(
     }
     
     T* d_block_diag,*d_block_A,*d_block_B;
-    RUNTIME_CHECK(runtimeMallocAsync(&d_block_diag, nb * nb * sizeof(T), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_diag, nb * nb * sizeof(T)));
     // side='L' stages an nb x n_loc block row of B; side='R' an m_loc x nb block column.
-    RUNTIME_CHECK(runtimeMallocAsync(&d_block_B, nb * std::max(m_loc_B, n_loc_B) * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync(&d_block_A, std::max(m_loc_A, n_loc_A) * nb * sizeof(T), stream));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_B, nb * std::max(m_loc_B, n_loc_B) * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_A, std::max(m_loc_A, n_loc_A) * nb * sizeof(T)));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start, mm_row_step, mm_col_step;
@@ -104,14 +103,11 @@ void ptrtrs(
                 mm_col_step = 0;
 
             if(myprow == owner_row && mypcol == owner_col){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_block_diag, nb_real * sizeof(T),
-                    d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
-                    nb_real * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
+                                        d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                                        nb_real * sizeof(T), nb_real));
             }
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             // 广播当前块行
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
@@ -174,7 +170,7 @@ void ptrtrs(
                 length_block_A = m_loc_A - mm_row_start - mm_row_step;
                 B_offset = mm_row_start + mm_row_step;
             }
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             if(length_block_A > 0){
                 gemm<DdlaBackend::GPU, T>(ddla_handle, trans, 'N',
                     length_block_A, n_loc_B, nb_real,
@@ -184,7 +180,7 @@ void ptrtrs(
                     (T)1.0,
                     d_B + B_offset, lldB);
             }
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }else{
         // Right solve: X := B * op(A)^{-1}, i.e. X * op(A) = B. Column-mirror of
@@ -222,14 +218,11 @@ void ptrtrs(
                 mm_col_step = 0;
 
             if(myprow == owner_row && mypcol == owner_col){
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_block_diag, nb_real * sizeof(T),
-                    d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
-                    nb_real * sizeof(T), nb_real,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
+                                        d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                                        nb_real * sizeof(T), nb_real));
             }
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             // broadcast the diagonal block within the column, then solve the
             // block column of B on the owner column's processes
             if(mypcol == owner_col){
@@ -293,7 +286,7 @@ void ptrtrs(
                 d_A, g_ia, g_ja, array_descA,
                 d_block_A
             );
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             if(length_block_A > 0 && m_loc_B > 0){
                 gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
                     m_loc_B, length_block_A, nb_real,
@@ -303,12 +296,12 @@ void ptrtrs(
                     (T)1.0,
                     d_B + B_offset, lldB);
             }
-            RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }
-    RUNTIME_CHECK(runtimeFreeAsync(d_block_A,stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_block_B,stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_block_diag,stream));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_block_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_block_B));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_block_diag));
 }
 
 

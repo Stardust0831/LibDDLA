@@ -70,11 +70,13 @@ void ppotrs(
         int i_loc = indx_g2l_r(array_descA, handle, n - 1);
         int j_loc = indx_g2l_c(array_descA, handle, n - 1);
         if(i_loc >= 0 && j_loc >= 0){
-            RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             T correction;
-            RUNTIME_CHECK(runtimeMemcpy(&correction, d_A + i_loc + j_loc * array_descA[DDLA_LLD_], sizeof(T), runtimeMemcpyDeviceToHost));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &correction, d_A + i_loc + j_loc * array_descA[DDLA_LLD_], sizeof(T)));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
             correction = -correction;
-            RUNTIME_CHECK(runtimeMemcpy(d_A + i_loc + j_loc * array_descA[DDLA_LLD_], &correction, sizeof(T), runtimeMemcpyHostToDevice));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i_loc + j_loc * array_descA[DDLA_LLD_], &correction, sizeof(T)));
+            DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }
     ptrtrs(handle, 

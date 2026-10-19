@@ -13,16 +13,15 @@ std::size_t pgetf2_pivot_workspace_size();
 // Returns a zero-based index relative to d_column. The call synchronizes
 // stream once because the MPI pivot reduction consumes the host result.
 template <typename T>
-void pgetf2_find_local_pivot(const T* d_column, int length,
-                             void* d_workspace, runtimeStream_t stream,
+void pgetf2_find_local_pivot(const DdlaHandle_t& handle, const T* d_column, int length,
+                             void* d_workspace,
                              double& metric, int& local_index, T& value);
 
 template <typename T>
-void pgetf2_scale_update(int length_row, int length_col,
+void pgetf2_scale_update(const DdlaHandle_t& handle, int length_row, int length_col,
                          const T& inverse_pivot,
                          T* d_column, const T* d_pivot_row,
-                         T* d_trailing, int lld,
-                         runtimeStream_t stream);
+                         T* d_trailing, int lld);
 
 } // namespace ddla::detail
 

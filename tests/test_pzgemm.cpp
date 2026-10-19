@@ -55,24 +55,28 @@ void check_pgemm(char transa, char transb,
     std::complex<double>* d_A;
     std::complex<double>* d_B;
     std::complex<double>* d_C;
-    RUNTIME_CHECK(runtimeMalloc(&d_A, sizeof(std::complex<double>) * h_A.size()));
-    RUNTIME_CHECK(runtimeMalloc(&d_B, sizeof(std::complex<double>) * h_B.size()));
-    RUNTIME_CHECK(runtimeMalloc(&d_C, sizeof(std::complex<double>) * h_C.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_A, sizeof(std::complex<double>) * h_A.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_B, sizeof(std::complex<double>) * h_B.size()));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_C, sizeof(std::complex<double>) * h_C.size()));
 
-    RUNTIME_CHECK(runtimeMemcpy(d_A, h_A.data(), sizeof(std::complex<double>) * h_A.size(), runtimeMemcpyHostToDevice));
-    RUNTIME_CHECK(runtimeMemcpy(d_B, h_B.data(), sizeof(std::complex<double>) * h_B.size(), runtimeMemcpyHostToDevice));
-    RUNTIME_CHECK(runtimeMemcpy(d_C, h_C.data(), sizeof(std::complex<double>) * h_C.size(), runtimeMemcpyHostToDevice));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A, h_A.data(), sizeof(std::complex<double>) * h_A.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B, h_B.data(), sizeof(std::complex<double>) * h_B.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C, h_C.data(), sizeof(std::complex<double>) * h_C.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     std::complex<double> alpha(1.0, 0.0);
     std::complex<double> beta(0.0, 0.0);
 
     double start = MPI_Wtime();
     pgemm(ddla_handle, transa, transb, m, n, k, alpha, d_A, descA, d_B, descB, beta, d_C, descC);
-    RUNTIME_CHECK(runtimeStreamSynchronize(ddla_handle->stream));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
     double elapsed = MPI_Wtime() - start;
 
     std::vector<std::complex<double>> h_C_out(ddla_test::m_loc(ddla_handle, descC) * ddla_test::n_loc(ddla_handle, descC));
-    RUNTIME_CHECK(runtimeMemcpy(h_C_out.data(), d_C, sizeof(std::complex<double>) * h_C_out.size(), runtimeMemcpyDeviceToHost));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_C_out.data(), d_C, sizeof(std::complex<double>) * h_C_out.size()));
+    DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     int nprocs;
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
@@ -149,9 +153,9 @@ void check_pgemm(char transa, char transb,
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    RUNTIME_CHECK(runtimeFree(d_A));
-    RUNTIME_CHECK(runtimeFree(d_B));
-    RUNTIME_CHECK(runtimeFree(d_C));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_B));
+    DDLA_CHECK(ddlaFree(ddla_handle, d_C));
 }
 
 } // anonymous namespace

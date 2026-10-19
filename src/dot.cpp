@@ -28,7 +28,7 @@
 // The file is named dot.cpp to mirror the private header it replaces
 // (src/dot.h); the wrapper family itself is Dotc (conjugate in the first
 // argument) and the templated entry point is ddla::dotc, so this TU defines
-// deblasDotc.  For the real scalar types xDOTC degenerates to the plain dot
+// gpublasDotc.  For the real scalar types xDOTC degenerates to the plain dot
 // product.
 //
 // CPU ARM OF THE COMPLEX OVERLOADS: they accumulate in plain C++ instead of
@@ -63,7 +63,7 @@ double ddot_(const int*, const double*, const int*, const double*, const int*);
 #endif
 
 // ---------------------------------------------------------------------------
-// GPU arm: the vendor calls.  Kept as free deblasDotc overloads so the
+// GPU arm: the vendor calls.  Kept as free gpublasDotc overloads so the
 // dispatch above stays a single BLAS_CHECK call per scalar type, exactly as
 // ddla::gemm does it inline.  Private to this translation unit -- the public
 // interface is the templated ddla::dotc declared in <ddla/ddla.h>.
@@ -81,83 +81,69 @@ double ddot_(const int*, const double*, const int*, const double*, const int*);
 
 namespace ddla {
 
-inline deblasStatus_t deblasDotc(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasDotc(
+    gpublasHandle_t handle, int n,
     const float* x, int incx,
     const float* y, int incy,
     float* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasSdot(handle, n, x, incx, y, incy, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasSdot(handle, n, x, incx, y, incy, result);
+    return gpublasSdot(handle, n, x, incx, y, incy, result);
     #else
     // Neither vendor macro: this can only happen if the translation unit was
     // built without a GPU language while DDLA_HAS_GPU is set, which the build
     // system does not do (see the LANGUAGE CUDA/HIP source lists).  Throw
     // rather than fall through to a host pointer.
-    throw std::runtime_error("deblasDotc: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasDotc: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasDotc(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasDotc(
+    gpublasHandle_t handle, int n,
     const double* x, int incx,
     const double* y, int incy,
     double* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasDdot(handle, n, x, incx, y, incy, result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasDdot(handle, n, x, incx, y, incy, result);
+    return gpublasDdot(handle, n, x, incx, y, incy, result);
     #else
-    throw std::runtime_error("deblasDotc: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasDotc: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasDotc(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasDotc(
+    gpublasHandle_t handle, int n,
     const std::complex<float>* x, int incx,
     const std::complex<float>* y, int incy,
     std::complex<float>* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasCdotc(handle, n, (hipblasComplex*)x, incx, (hipblasComplex*)y, incy,
-                        (hipblasComplex*)result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasCdotc(handle, n, (cuFloatComplex*)x, incx, (cuFloatComplex*)y, incy,
-                       (cuFloatComplex*)result);
+    return gpublasCdotc(handle, n, (gpublasComplex*)x, incx, (gpublasComplex*)y, incy,
+                        (gpublasComplex*)result);
     #else
-    throw std::runtime_error("deblasDotc: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasDotc: no GPU vendor selected at compile time");
     #endif
 }
 
-inline deblasStatus_t deblasDotc(
-    deblasHandle_t handle, int n,
+inline gpublasStatus_t gpublasDotc(
+    gpublasHandle_t handle, int n,
     const std::complex<double>* x, int incx,
     const std::complex<double>* y, int incy,
     std::complex<double>* result
 )
 {
-    #if defined(DDLA_USE_HIP)
+    #if DDLA_GPU_VENDOR
     detail::blas_device_pointer_mode_scope pm(handle);
-    return hipblasZdotc(handle, n, (hipblasDoubleComplex*)x, incx, (hipblasDoubleComplex*)y, incy,
-                        (hipblasDoubleComplex*)result);
-    #elif defined(DDLA_USE_CUDA)
-    detail::blas_device_pointer_mode_scope pm(handle);
-    return cublasZdotc(handle, n, (cuDoubleComplex*)x, incx, (cuDoubleComplex*)y, incy,
-                       (cuDoubleComplex*)result);
+    return gpublasZdotc(handle, n, (gpublasDoubleComplex*)x, incx, (gpublasDoubleComplex*)y, incy,
+                        (gpublasDoubleComplex*)result);
     #else
-    throw std::runtime_error("deblasDotc: no GPU vendor selected at compile time");
+    throw std::runtime_error("gpublasDotc: no GPU vendor selected at compile time");
     #endif
 }
 
@@ -226,7 +212,7 @@ void dotc(
                       std::is_same_v<T, double> ||
                       std::is_same_v<T, std::complex<float>> ||
                       std::is_same_v<T, std::complex<double>>) {
-            BLAS_CHECK(deblasDotc(handle->blasH, n, x, incx, y, incy, result));
+            BLAS_CHECK(gpublasDotc(handle->blasH, n, x, incx, y, incy, result));
         } else {
             static_assert(sizeof(T) == 0, "dotc: unsupported scalar type T");
         }

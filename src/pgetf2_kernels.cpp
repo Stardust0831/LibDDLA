@@ -1,4 +1,5 @@
 #include "pgetf2_kernels.h"
+#include "ddla_stream_impl.h"
 
 #include <climits>
 #include <complex>
@@ -182,22 +183,22 @@ std::size_t pgetf2_pivot_workspace_size()
 }
 
 template <typename T>
-void pgetf2_find_local_pivot(const T* d_column, int length,
-                             void* d_workspace, runtimeStream_t stream,
+void pgetf2_find_local_pivot(const DdlaHandle_t& handle, const T* d_column, int length,
+                             void* d_workspace,
                              double& metric, int& local_index, T& value)
 {
+    const gpuStream_t stream = handle->stream;
     using DeviceT = DeviceScalarT<T>;
     static_assert(sizeof(DeviceT) == sizeof(T));
 
     auto* d_result = static_cast<PivotCandidate<DeviceT>*>(d_workspace);
     find_local_pivot_kernel<<<1, kPivotThreads, 0, stream>>>(
         reinterpret_cast<const DeviceT*>(d_column), length, d_result);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 
     PivotCandidate<DeviceT> result{};
-    RUNTIME_CHECK(runtimeMemcpyAsync(&result, d_result, sizeof(result),
-                                   runtimeMemcpyDeviceToHost, stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+    DDLA_CHECK(ddlaMemcpy(handle, &result, d_result, sizeof(result)));
+    DDLA_CHECK(ddlaSynchronize(handle));
 
     metric = result.metric;
     local_index = result.local_index;
@@ -206,12 +207,12 @@ void pgetf2_find_local_pivot(const T* d_column, int length,
 }
 
 template <typename T>
-void pgetf2_scale_update(int length_row, int length_col,
+void pgetf2_scale_update(const DdlaHandle_t& handle, int length_row, int length_col,
                          const T& inverse_pivot,
                          T* d_column, const T* d_pivot_row,
-                         T* d_trailing, int lld,
-                         runtimeStream_t stream)
+                         T* d_trailing, int lld)
 {
+    const gpuStream_t stream = handle->stream;
     if(length_row <= 0){
         return;
     }
@@ -224,7 +225,7 @@ void pgetf2_scale_update(int length_row, int length_col,
         reinterpret_cast<DeviceT*>(d_column),
         reinterpret_cast<const DeviceT*>(d_pivot_row),
         reinterpret_cast<DeviceT*>(d_trailing), lld);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
     return;
 }
 
@@ -234,25 +235,25 @@ template std::size_t pgetf2_pivot_workspace_size<std::complex<float>>();
 template std::size_t pgetf2_pivot_workspace_size<std::complex<double>>();
 
 template void pgetf2_find_local_pivot<float>(
-    const float*, int, void*, runtimeStream_t, double&, int&, float&);
+    const DdlaHandle_t&, const float*, int, void*, double&, int&, float&);
 template void pgetf2_find_local_pivot<double>(
-    const double*, int, void*, runtimeStream_t, double&, int&, double&);
+    const DdlaHandle_t&, const double*, int, void*, double&, int&, double&);
 template void pgetf2_find_local_pivot<std::complex<float>>(
-    const std::complex<float>*, int, void*, runtimeStream_t,
+    const DdlaHandle_t&, const std::complex<float>*, int, void*,
     double&, int&, std::complex<float>&);
 template void pgetf2_find_local_pivot<std::complex<double>>(
-    const std::complex<double>*, int, void*, runtimeStream_t,
+    const DdlaHandle_t&, const std::complex<double>*, int, void*,
     double&, int&, std::complex<double>&);
 
 template void pgetf2_scale_update<float>(
-    int, int, const float&, float*, const float*, float*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, int, const float&, float*, const float*, float*, int);
 template void pgetf2_scale_update<double>(
-    int, int, const double&, double*, const double*, double*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, int, const double&, double*, const double*, double*, int);
 template void pgetf2_scale_update<std::complex<float>>(
-    int, int, const std::complex<float>&, std::complex<float>*,
-    const std::complex<float>*, std::complex<float>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, int, const std::complex<float>&, std::complex<float>*,
+    const std::complex<float>*, std::complex<float>*, int);
 template void pgetf2_scale_update<std::complex<double>>(
-    int, int, const std::complex<double>&, std::complex<double>*,
-    const std::complex<double>*, std::complex<double>*, int, runtimeStream_t);
+    const DdlaHandle_t&, int, int, const std::complex<double>&, std::complex<double>*,
+    const std::complex<double>*, std::complex<double>*, int);
 
 } // namespace ddla::detail

@@ -217,20 +217,17 @@ bool run_success_case(char uplo, int n, const ddla::DdlaHandle_t& handle)
     const size_t bytes = input.size() * sizeof(T);
 
     T* d_A = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_A), bytes, handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        d_A, input.data(), bytes, runtimeMemcpyHostToDevice, handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), bytes));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), bytes));
 
     int info = -1;
     ddla::potrf_bottom_right(uplo, n, d_A, lda, info, handle);
-    RUNTIME_CHECK(runtimeGetLastError());
+    DDLA_CHECK(ddlaGetLastError(handle));
 
     std::vector<T> actual(input.size());
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        actual.data(), d_A, bytes, runtimeMemcpyDeviceToHost, handle->stream));
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
+    DDLA_CHECK(ddlaMemcpy(handle, actual.data(), d_A, bytes));
+    DDLA_CHECK(ddlaSynchronize(handle));
+    DDLA_CHECK(ddlaFree(handle, d_A));
 
     const double error = factor_error(uplo, actual, expected, n, lda);
     const double triangle_error =
@@ -281,16 +278,14 @@ bool run_failure_case(
     const size_t bytes = input.size() * sizeof(T);
 
     T* d_A = nullptr;
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_A), bytes, handle->stream));
-    RUNTIME_CHECK(runtimeMemcpyAsync(
-        d_A, input.data(), bytes, runtimeMemcpyHostToDevice, handle->stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_A), bytes));
+    DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), bytes));
 
     int info = -1;
     ddla::potrf_bottom_right(uplo, n, d_A, lda, info, handle);
-    RUNTIME_CHECK(runtimeGetLastError());
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
-    RUNTIME_CHECK(runtimeFreeAsync(d_A, handle->stream));
+    DDLA_CHECK(ddlaGetLastError(handle));
+    DDLA_CHECK(ddlaSynchronize(handle));
+    DDLA_CHECK(ddlaFree(handle, d_A));
 
     const int expected_info = failed_pivot + 1;
     const bool passed = info == expected_info;
@@ -342,7 +337,7 @@ int main(int argc, char** argv)
     passed = run_type<std::complex<float>>(handle) && passed;
     passed = run_type<std::complex<double>>(handle) && passed;
 
-    RUNTIME_CHECK(runtimeStreamSynchronize(handle->stream));
+    DDLA_CHECK(ddlaSynchronize(handle));
     ddla::ddlaDestroy(handle);
     MPI_Finalize();
     return passed ? 0 : 1;

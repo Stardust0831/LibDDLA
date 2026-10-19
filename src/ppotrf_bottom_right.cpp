@@ -88,7 +88,6 @@ void ppotrf_bottom_right(
     const int nprocs_dim = nprows;
     const int lld = descA[DDLA_LLD_];
 
-    const runtimeStream_t stream = handle->stream;
 
     const int max_local_rows = num_loc(
         n, nb, myprow, descA[DDLA_RSRC_], nprocs_dim);
@@ -109,26 +108,18 @@ void ppotrf_bottom_right(
     const std::size_t max_batch_count =
         static_cast<std::size_t>(max_row_blocks) * max_col_blocks;
 
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_diag),
-        static_cast<std::size_t>(nb) * nb * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_row_panel),
-        static_cast<std::size_t>(max_local_rows) * nb * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_col_panel),
-        static_cast<std::size_t>(max_local_cols) * nb * sizeof(T), stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_info), sizeof(int), stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_diag), static_cast<std::size_t>(nb) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_row_panel),
+                          static_cast<std::size_t>(max_local_rows) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_col_panel),
+                          static_cast<std::size_t>(max_local_cols) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
 
     const std::size_t pointer_buffer_bytes =
         max_batch_count * sizeof(T*);
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_left_array), pointer_buffer_bytes, stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_right_array), pointer_buffer_bytes, stream));
-    RUNTIME_CHECK(runtimeMallocAsync(
-        reinterpret_cast<void**>(&d_target_array), pointer_buffer_bytes, stream));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_left_array), pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_right_array), pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_target_array), pointer_buffer_bytes));
 
     std::vector<T*> h_left_array(max_batch_count);
     std::vector<T*> h_right_array(max_batch_count);
@@ -136,14 +127,14 @@ void ppotrf_bottom_right(
 
     auto cleanup = [&]()
     {
-        RUNTIME_CHECK(runtimeFreeAsync(d_left_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_right_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_target_array, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_diag, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_row_panel, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_col_panel, stream));
-        RUNTIME_CHECK(runtimeFreeAsync(d_info, stream));
-        RUNTIME_CHECK(runtimeStreamSynchronize(stream));
+        DDLA_CHECK(ddlaFree(handle, d_left_array));
+        DDLA_CHECK(ddlaFree(handle, d_right_array));
+        DDLA_CHECK(ddlaFree(handle, d_target_array));
+        DDLA_CHECK(ddlaFree(handle, d_diag));
+        DDLA_CHECK(ddlaFree(handle, d_row_panel));
+        DDLA_CHECK(ddlaFree(handle, d_col_panel));
+        DDLA_CHECK(ddlaFree(handle, d_info));
+        DDLA_CHECK(ddlaSynchronize(handle));
     };
 
     const int last_block_start = ((n - 1) / nb) * nb;
@@ -187,12 +178,9 @@ void ppotrf_bottom_right(
         if(myprow == owner_row && mypcol == owner_col){
             const T* const d_local_diag = d_A + local_row_prefix
                                         + static_cast<std::size_t>(local_col_prefix) * lld;
-            RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                d_diag, static_cast<std::size_t>(block_width) * sizeof(T),
-                d_local_diag, static_cast<std::size_t>(lld) * sizeof(T),
-                static_cast<std::size_t>(block_width) * sizeof(T), block_width,
-                runtimeMemcpyDeviceToDevice, stream
-            ));
+            DDLA_CHECK(ddlaMemcpy2D(handle, d_diag, static_cast<std::size_t>(block_width) * sizeof(T), d_local_diag,
+                                    static_cast<std::size_t>(lld) * sizeof(T),
+                                    static_cast<std::size_t>(block_width) * sizeof(T), block_width));
         }
 
         if(uplo == 'U' && mypcol == owner_col){
@@ -219,15 +207,9 @@ void ppotrf_bottom_right(
                     d_diag, block_width,
                     d_local_panel, lld
                 );
-                RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                    d_row_panel,
-                    static_cast<std::size_t>(local_row_prefix) * sizeof(T),
-                    d_local_panel,
-                    static_cast<std::size_t>(lld) * sizeof(T),
-                    static_cast<std::size_t>(local_row_prefix) * sizeof(T),
-                    block_width,
-                    runtimeMemcpyDeviceToDevice, stream
-                ));
+                DDLA_CHECK(ddlaMemcpy2D(handle, d_row_panel, static_cast<std::size_t>(local_row_prefix) * sizeof(T),
+                                        d_local_panel, static_cast<std::size_t>(lld) * sizeof(T),
+                                        static_cast<std::size_t>(local_row_prefix) * sizeof(T), block_width));
             }
 
             commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
@@ -245,12 +227,8 @@ void ppotrf_bottom_right(
                         block_start, nb, relay_row,
                         descA[DDLA_RSRC_], nprocs_dim);
                     assert(relay_row_count == local_col_prefix);
-                    RUNTIME_CHECK(runtimeMemcpyAsync(
-                        d_col_panel, d_row_panel,
-                        static_cast<std::size_t>(local_col_prefix)
-                            * block_width * sizeof(T),
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy(handle, d_col_panel, d_row_panel,
+                                          static_cast<std::size_t>(local_col_prefix) * block_width * sizeof(T)));
                 }
 
                 commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
@@ -276,15 +254,9 @@ void ppotrf_bottom_right(
                         d_diag, block_width,
                         d_local_panel, lld
                     );
-                    RUNTIME_CHECK(runtimeMemcpy2DAsync(
-                        d_col_panel,
-                        static_cast<std::size_t>(block_width) * sizeof(T),
-                        d_local_panel,
-                        static_cast<std::size_t>(lld) * sizeof(T),
-                        static_cast<std::size_t>(block_width) * sizeof(T),
-                        local_col_prefix,
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy2D(handle, d_col_panel, static_cast<std::size_t>(block_width) * sizeof(T),
+                                            d_local_panel, static_cast<std::size_t>(lld) * sizeof(T),
+                                            static_cast<std::size_t>(block_width) * sizeof(T), local_col_prefix));
                 }
 
                 commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
@@ -301,12 +273,8 @@ void ppotrf_bottom_right(
                         block_start, nb, relay_col,
                         descA[DDLA_CSRC_], nprocs_dim);
                     assert(relay_col_count == local_row_prefix);
-                    RUNTIME_CHECK(runtimeMemcpyAsync(
-                        d_row_panel, d_col_panel,
-                        static_cast<std::size_t>(local_row_prefix)
-                            * block_width * sizeof(T),
-                        runtimeMemcpyDeviceToDevice, stream
-                    ));
+                    DDLA_CHECK(ddlaMemcpy(handle, d_row_panel, d_col_panel,
+                                          static_cast<std::size_t>(local_row_prefix) * block_width * sizeof(T)));
                 }
 
                 commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
@@ -368,15 +336,9 @@ void ppotrf_bottom_right(
         if(batch_count > 0){
             const std::size_t active_pointer_bytes =
                 static_cast<std::size_t>(batch_count) * sizeof(T*);
-            RUNTIME_CHECK(runtimeMemcpyAsync(
-                d_left_array, h_left_array.data(), active_pointer_bytes,
-                runtimeMemcpyHostToDevice, stream));
-            RUNTIME_CHECK(runtimeMemcpyAsync(
-                d_right_array, h_right_array.data(), active_pointer_bytes,
-                runtimeMemcpyHostToDevice, stream));
-            RUNTIME_CHECK(runtimeMemcpyAsync(
-                d_target_array, h_target_array.data(), active_pointer_bytes,
-                runtimeMemcpyHostToDevice, stream));
+            DDLA_CHECK(ddlaMemcpy(handle, d_left_array, h_left_array.data(), active_pointer_bytes));
+            DDLA_CHECK(ddlaMemcpy(handle, d_right_array, h_right_array.data(), active_pointer_bytes));
+            DDLA_CHECK(ddlaMemcpy(handle, d_target_array, h_target_array.data(), active_pointer_bytes));
 
             const T minus_one = T(-1);
             const T one = T(1);
