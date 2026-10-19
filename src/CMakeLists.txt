@@ -32,7 +32,7 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         trmm.cpp
         gemmBatched.cpp
         scal.cpp
-        omatcopy.cpp
+        geam.cpp
         axpy.cpp
         iamax.cpp
         geru.cpp
@@ -61,7 +61,7 @@ else()
         trmm.cpp
         gemmBatched.cpp
         scal.cpp
-        omatcopy.cpp
+        geam.cpp
         axpy.cpp
         iamax.cpp
         geru.cpp
@@ -192,6 +192,26 @@ if(DDLA_USE_HIP)
     )
 endif()
 target_link_libraries(ddla_lib PUBLIC ${math_libs})
+
+# ---------------------------------------------------------------------------
+# geam.cpp: the CPU arm of ddla::geam runs on OpenMP threads.  That translation unit is compiled by the plain
+# host compiler in every build (never by nvcc/hipcc) with -ffp-contract=off; with OpenMP found it gets -fopenmp
+# and libgomp is linked PRIVATE (the shared library records the NEEDED entry); without OpenMP it runs serially
+# with identical results.
+# ---------------------------------------------------------------------------
+option(DDLA_USE_OPENMP "OpenMP threads for the host kernels (geam, and the CPU eigensolver kernels)" ON)
+set(_ddla_cpu_kernel_opts "-ffp-contract=off")
+if(DDLA_USE_OPENMP)
+    find_package(OpenMP COMPONENTS CXX)
+    if(OpenMP_CXX_FOUND)
+        list(APPEND _ddla_cpu_kernel_opts ${OpenMP_CXX_FLAGS})
+        target_link_libraries(ddla_lib PRIVATE ${OpenMP_CXX_LIBRARIES})
+        message(STATUS "ddla: OpenMP host kernels enabled (${OpenMP_CXX_FLAGS})")
+    else()
+        message(WARNING "ddla: OpenMP not found; the host kernels run serially")
+    endif()
+endif()
+set_source_files_properties(geam.cpp PROPERTIES COMPILE_OPTIONS "${_ddla_cpu_kernel_opts}")
 
 install(TARGETS ddla_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

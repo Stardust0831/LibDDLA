@@ -45,6 +45,11 @@ public:
     // Placeholder until ddlaInit overwrites it; never consulted before that.
     DdlaBackend backend = DdlaBackend::CPU;
 
+    // -- host threading (CPU handles) ---------------------------------------
+    // Threads the handle's own host loops (geam) may use.  Set by ddlaSet (host_threads.h): that call is
+    // collective over the handle's communicator, which the budget needs.  1 until then.
+    int host_threads = 1;
+
     // -- lifecycle guards ---------------------------------------------------
     bool initialized = false;
     bool destroyed   = false;

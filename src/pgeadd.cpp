@@ -6,7 +6,6 @@
 #include "require_gpu.h"
 #include <vector>
 #include "transport_block.h"
-#include "geam.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -67,45 +66,40 @@ void pgeadd(
     int n_loc_C = num_loc(n, array_descC[DDLA_NB_], mypcol, array_descC[DDLA_CSRC_], npcols);
 
 
-    gpublasOperation_t opA = (transa == 'N') ? GPUBLAS_OP_N :
-                             (transa == 'T') ? GPUBLAS_OP_T : GPUBLAS_OP_C;
-    gpublasOperation_t opB = (transb == 'N') ? GPUBLAS_OP_N :
-                             (transb == 'T') ? GPUBLAS_OP_T : GPUBLAS_OP_C;
-
     if(transa == 'N' && transb == 'N'){
-        BLAS_CHECK(gpublasGeam(
-            ddla_handle->blasH, opA, opB,
+        geam<DdlaBackend::GPU, T>(
+            ddla_handle, transa, transb,
             m_loc_C, n_loc_C,
             alpha, 
             d_A, array_descA[DDLA_LLD_],
             beta,
             d_B, array_descB[DDLA_LLD_],
             d_C, array_descC[DDLA_LLD_]
-        ));
+        );
         
     }else if (transa != 'N' && transb != 'N'){
         if(myprow == mypcol){
-            BLAS_CHECK(gpublasGeam(
-                ddla_handle->blasH, opA, opB,
+            geam<DdlaBackend::GPU, T>(
+                ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
                 d_A, array_descA[DDLA_LLD_],
                 beta,
                 d_B, array_descB[DDLA_LLD_],
                 d_C, array_descC[DDLA_LLD_]
-            ));
+            );
         }else{
             T* d_temp;
             DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
-            BLAS_CHECK(gpublasGeam(
-                ddla_handle->blasH, opA, opB,
+            geam<DdlaBackend::GPU, T>(
+                ddla_handle, transa, transb,
                 n_loc_C, m_loc_C,
                 alpha,
                 d_A, array_descA[DDLA_LLD_],
                 beta,
                 d_B, array_descB[DDLA_LLD_],
                 d_temp, n_loc_C
-            ));
+            );
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             commGroupStart(ddla_handle);
             if(myprow > mypcol){
@@ -120,15 +114,15 @@ void pgeadd(
         }
     }else{
         if(myprow == mypcol){
-            BLAS_CHECK(gpublasGeam(
-                ddla_handle->blasH, opA, opB,
+            geam<DdlaBackend::GPU, T>(
+                ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
                 d_A, array_descA[DDLA_LLD_],
                 beta,
                 d_B, array_descB[DDLA_LLD_],
                 d_C, array_descC[DDLA_LLD_]
-            ));
+            );
         }else{
             T* d_temp;
             DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
@@ -136,7 +130,6 @@ void pgeadd(
             const T* d_nt = transa == 'N' ? d_A : d_B;
             const T& trans_scale = transa != 'N' ? alpha : beta;
             const T& nontrans_scale = transa == 'N' ? alpha : beta;
-            gpublasOperation_t op_trans = transa != 'N' ? opA : opB;
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             commGroupStart(ddla_handle);
             if(myprow > mypcol){
@@ -147,15 +140,15 @@ void pgeadd(
                 commSend(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
             commGroupEnd(ddla_handle);
-            BLAS_CHECK(gpublasGeam(
-                ddla_handle->blasH, op_trans, GPUBLAS_OP_N,
+            geam<DdlaBackend::GPU, T>(
+                ddla_handle, (transa != 'N' ? transa : transb), 'N',
                 m_loc_C, n_loc_C,
                 trans_scale,
                 d_temp, n_loc_C,
                 nontrans_scale,
                 d_nt, m_loc_C,
                 d_C, m_loc_C
-            ));
+            );
             DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
         }
     }

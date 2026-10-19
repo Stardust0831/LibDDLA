@@ -259,10 +259,10 @@ void pgemm(
                         w, n,
                         B, g, 0, descB,
                         d_B_blk);
-                    ddla::copy2D<Backend, T>(h,
-                        d_B_temp[temp_buffer] + (std::size_t)b * w, kk,
-                        d_B_blk, w,
-                        w, n_loc_B);
+                    DDLA_CHECK(ddlaMemcpy2D(h,
+                        d_B_temp[temp_buffer] + (std::size_t)b * w, (std::size_t)kk * sizeof(T),
+                        d_B_blk, (std::size_t)w * sizeof(T),
+                        (std::size_t)w * sizeof(T), (std::size_t)n_loc_B));
                 } else {
                     ddla::transport_block<Backend, T>(handle,
                         'R', transb,

@@ -1226,13 +1226,46 @@ void gemmBatched(
     T* const Carray[], int ldc,
     int batchCount);
 
+/**
+ * @brief Backend-neutral matrix add / transpose-copy: C := alpha * op(A) + beta * op(B).
+ *
+ * op(X) is X, X^T or X^H for transX = 'N', 'T', 'C' (either case).  C is m x n (column-major, leading
+ * dimension ldc); op(A) and op(B) are m x n, so A is m x n for 'N' and n x m otherwise, and likewise B.
+ * Same call shape as ddla::gemm: the handle, then the LAPACK character flags.  The template backend must
+ * equal the handle's.
+ *
+ * - Scaled transpose-copy (what omatcopy was): beta = 0, B = nullptr,
+ *   `geam<Backend, T>(h, 'T', 'N', m, n, alpha, A, lda, T(0), nullptr, 1, C, ldc)`.
+ * - beta == 0 means B is not read (and may be nullptr).  On the CPU backend alpha == 0 likewise leaves A
+ *   unread.  The GPU backend is cuBLAS / hipBLAS geam, which reads the operands it is given (0 * NaN is NaN
+ *   there) and, for beta == 0, aliases B to A.
+ * - alpha == 1 with beta == 0 on a CPU handle moves the bits of A unchanged (-0.0, Inf and NaN survive).
+ * - C may be A (or B) when that operand is 'N' and the leading dimensions agree.
+ * - A CPU handle runs the loop on OpenMP threads: OMP_NUM_THREADS, else the CPUs this process may use divided
+ *   by the ranks of its node; DDLA_EIG_THREADS overrides.  The result does not depend on the thread count.
+ * - Throws std::runtime_error for a null handle, a template backend that differs from the handle's, an
+ *   invalid flag, a null A or C, a null B with beta != 0, or a leading dimension smaller than the row count of
+ *   its matrix.  m <= 0 or n <= 0 returns without touching memory.
+ *
+ * @param handle  Handle whose backend must equal @p Backend.
+ * @param transa  'N', 'T' or 'C' -- op(A).
+ * @param transb  'N', 'T' or 'C' -- op(B); ignored when beta == 0.
+ * @param m       Rows of op(A), op(B) and C.
+ * @param n       Columns of op(A), op(B) and C.
+ * @param alpha   Scaling factor for op(A).
+ * @param A       First operand (never null).
+ * @param lda     Leading dimension of A.
+ * @param beta    Scaling factor for op(B).
+ * @param B       Second operand; may be nullptr when beta == 0.
+ * @param ldb     Leading dimension of B (not looked at when beta == 0).
+ * @param C       Result.
+ * @param ldc     Leading dimension of C.
+ */
 template <DdlaBackend Backend = default_backend_v, typename T>
-void omatcopy(const DdlaHandle_t& handle, char trans, int rows, int cols,
-              const T& alpha, const T* A, int lda, T* B, int ldb);
-
-template <DdlaBackend Backend = default_backend_v, typename T>
-void copy2D(const DdlaHandle_t& handle, T* dst, int dst_ld,
-            const T* src, int src_ld, int rows, int cols);
+void geam(const DdlaHandle_t& handle, char transa, char transb, int m, int n,
+          const T& alpha, const T* A, int lda,
+          const T& beta, const T* B, int ldb,
+          T* C, int ldc);
 
 template <typename T>
 void gemmVbatched(

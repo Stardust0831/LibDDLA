@@ -11,7 +11,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "comm_traits.h"
-#include "geam.h"
 
 namespace ddla {
 
@@ -22,7 +21,7 @@ inline const char* transport_block_backend_name(DdlaBackend backend)
 
 // ---------------------------------------------------------------------------
 // Unified transport_block<Backend,T>: merges the formerly GPU-only
-// transport_block.cpp (NCCL/RCCL/host-tunnel communication, gpublasOmatcopy
+// transport_block.cpp (NCCL/RCCL/host-tunnel communication, the cuBLAS geam
 // transpose-copy, runtime* device memcpy/alloc) and the formerly CPU-only
 // transport_panel_cpu (plain blocking MPI, manual transpose+conjugate loops,
 // std::malloc/memcpy) hand-duplicated inside pgemm.cpp. The two were already
@@ -31,8 +30,8 @@ inline const char* transport_block_backend_name(DdlaBackend backend)
 // math via num_loc/indxg2p/indxg2l/rc_to_rank) -- only a few leaf operations
 // genuinely differ, and none of them needs an `if constexpr` here any more:
 // each is a single call into a unified primitive that owns the split itself:
-//   copy_block     -> ddla::copy2D<Backend,T>       (geam.h / omatcopy.cpp)
-//   pack_transpose -> ddla::omatcopy<Backend,T>     (geam.h / omatcopy.cpp)
+//   copy_block     -> ddlaMemcpy2D                  (ddla_handle_t.h)
+//   pack_transpose -> ddla::geam<Backend,T>         (geam.cpp)
 //   alloc_buf/free_buf -> ddlaMalloc/ddlaFree (ddla_handle_t.h)
 // All collective communication (broadcast/send/recv/group) goes through the
 // CommTraits<Backend>-based comm* primitives in comm_traits.h, which already
@@ -72,13 +71,16 @@ void transport_block(
     // ---- divergent leaf operations: the only genuine CPU/GPU differences --
     // Plain column-contiguous block copy: dst[j*dst_pitch + i] <- src[i + j*src_ld].
     auto copy_block = [&](T* dst, int dst_pitch, const T* src, int rows, int cols, int src_ld) {
-        ddla::copy2D<Backend, T>(h, dst, dst_pitch, src, src_ld, rows, cols);
+        if (rows <= 0 || cols <= 0) return;
+        DDLA_CHECK(ddlaMemcpy2D(h, dst, static_cast<std::size_t>(dst_pitch) * sizeof(T), src,
+                                static_cast<std::size_t>(src_ld) * sizeof(T),
+                                static_cast<std::size_t>(rows) * sizeof(T), static_cast<std::size_t>(cols)));
     };
     // Transposed (and, for 'C', conjugated) pack:
     // dst[j + i*dst_stride] <- op(src)[i + j*src_ld], for i in [0,rows), j in [0,cols).
     auto pack_transpose = [&](T* dst, int dst_stride, const T* src, int rows, int cols, int src_ld) {
         const char op = (trans == 'C') ? 'C' : 'T';
-        ddla::omatcopy<Backend, T>(h, op, rows, cols, (T)1.0, src, src_ld, dst, dst_stride);
+        ddla::geam<Backend, T>(h, op, 'N', cols, rows, T(1), src, src_ld, T(0), nullptr, 1, dst, dst_stride);
     };
     auto alloc_buf = [&](std::size_t count) -> T* {
         if (count == 0) return nullptr;

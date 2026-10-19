@@ -1,4 +1,5 @@
 #include "ddla_stream_impl.h"
+#include "host_threads.h"
 #include <stdexcept>
 #include <cstdlib>
 #include <cstring>
@@ -101,6 +102,7 @@ ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm, const char& majo
 
     // CPU handles must not execute GPU device setup
     handle->init(comm, major);
+    if (handle->backend == DdlaBackend::CPU) handle->host_threads = detail::host_thread_budget(handle->comm);
     handle->initialized = true;
     return ddlaStatus_t::DDLA_STATUS_SUCCESS;
 }
@@ -115,6 +117,7 @@ ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm,
     resolve_and_validate_backend(handle, comm);
 
     handle->init(nprows, npcols, comm, major);
+    if (handle->backend == DdlaBackend::CPU) handle->host_threads = detail::host_thread_budget(handle->comm);
     handle->initialized = true;
     return ddlaStatus_t::DDLA_STATUS_SUCCESS;
 }
