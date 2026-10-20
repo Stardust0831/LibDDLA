@@ -5,7 +5,7 @@
 #include <algorithm>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla {
@@ -29,7 +29,7 @@ namespace ddla {
  *   4. Compute L21:  L21 = C * U1^{-1}           (trsm RIGHT/UPPER/NON-UNIT)
  *   5. Update trail: D <- D - L21 * U12          (gemm)
  */
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void pgetrf_bpiv(
     const DdlaHandle_t& handle, const int& m, const int& n,
     T* d_A, const int* array_descA,
@@ -45,7 +45,7 @@ void pgetrf_bpiv(
 
     assert(m <= array_descA[DDLA_M_]&& n <= array_descA[DDLA_N_]);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetrf_bpiv");
+    detail::require_backend<Backend>(ddla_handle, "pgetrf_bpiv");
 
 
 
@@ -90,7 +90,7 @@ void pgetrf_bpiv(
         
 
         if (myprow == owner_row && mypcol == owner_col) {
-            getrf<DdlaBackend::GPU, T>(ddla_handle, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info);
+            getrf<Backend, T>(ddla_handle, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info);
             DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
@@ -108,9 +108,9 @@ void pgetrf_bpiv(
             // so broadcast them first.
             const int l_cols = num_loc(n_s, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
             if(myprow == owner_row){
-                commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
+                commBcast<Backend>(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
                 if(l_cols > 0){
-                    laswp<DdlaBackend::GPU, T>(
+                    laswp<Backend, T>(
                         ddla_handle, l_cols,
                         d_A + mm_row_start, lld,
                         1, nb_real,   // 1-based local row range
@@ -140,8 +140,8 @@ void pgetrf_bpiv(
         }
         int right_panel_col_start = (j_loc >= 0) ? (j_loc + nb_real) : mm_col_start;
         if (myprow == owner_row) {
-            commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
-            commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
             // Apply the row swaps to the already-factored columns [0, n_s) of
             // this block's rows, so the factorization is a standard
             // A = P*L*U (the L part is permuted too).  These local columns
@@ -149,7 +149,7 @@ void pgetrf_bpiv(
             // purely local laswp.
             const int l_cols = num_loc(n_s, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
             if(l_cols > 0){
-                laswp<DdlaBackend::GPU, T>(
+                laswp<Backend, T>(
                     ddla_handle, l_cols,
                     d_A + mm_row_start, lld,
                     1, nb_real,   // 1-based local row range
@@ -165,7 +165,7 @@ void pgetrf_bpiv(
                 // When j_loc < 0, all local columns are in the right panel, starting at 0.
                 
                 T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
-                laswp<DdlaBackend::GPU, T>(
+                laswp<Backend, T>(
                     ddla_handle, n_loc - right_panel_col_start,
                     d_right_panel, lld,
                     1, nb_real,   // 1-based local row range
@@ -174,7 +174,7 @@ void pgetrf_bpiv(
                 // ================================================================
                 // Step 4: U12 = L1^{-1} * B  (trsm LEFT LOWER UNIT)
                 // ================================================================
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle,
                     'L', 'L',
                     'N', 'U',
@@ -192,10 +192,10 @@ void pgetrf_bpiv(
         // ================================================================
         int left_panel_row_start = (i_loc >= 0) ? (i_loc + nb_real) : mm_row_start;
         if(mypcol == owner_col){
-            commBcast(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
             if(m_loc > left_panel_row_start){
                 T* d_left_panel = d_A + mm_col_start * lld + left_panel_row_start;
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle,
                     'R', 'U',
                     'N', 'N',
@@ -209,10 +209,10 @@ void pgetrf_bpiv(
             }
         }
         if(n_loc > right_panel_col_start) {
-            commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
         }
         if(m_loc > left_panel_row_start){
-            commBcast(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
         }
 
         // ================================================================
@@ -222,7 +222,7 @@ void pgetrf_bpiv(
         int trailing_n = n_loc - right_panel_col_start;
 
         if(trailing_m > 0 && trailing_n > 0){
-            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
+            gemm<Backend, T>(ddla_handle, 'N', 'N',
                 trailing_m, trailing_n, nb_real,
                 T(-1.0),
                 d_temp_L, trailing_m,
@@ -248,25 +248,26 @@ void pgetrf_bpiv(
 }
 
 // Explicit instantiations
-template void pgetrf_bpiv<float>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    float* d_A, const int* array_descA,
-    int* ipiv, int& info
-);
-template void pgetrf_bpiv<double>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    double* d_A, const int* array_descA,
-    int* ipiv, int& info
-);
-template void pgetrf_bpiv<std::complex<float>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<float>* d_A, const int* array_descA,
-    int* ipiv, int& info
-);
-template void pgetrf_bpiv<std::complex<double>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<double>* d_A, const int* array_descA,
-    int* ipiv, int& info
-);
+#define INSTANTIATE_PGETRF_BPIV(BACKEND, TYPE)                                   \
+    template void pgetrf_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
+    TYPE* d_A, const int* array_descA, \
+    int* ipiv, int& info)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::CPU, float);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::CPU, double);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::GPU, float);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::GPU, double);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETRF_BPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PGETRF_BPIV
+
 
 } // namespace ddla

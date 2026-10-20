@@ -5,9 +5,13 @@
 #include <cstddef>
 #include <complex>
 
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 #include <thrust/complex.h>
+#endif
 
 namespace ddla::detail {
+
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 
 namespace {
 
@@ -65,12 +69,13 @@ constexpr int kTileSize = 16;
 
 } // namespace
 
-template <typename T>
+#endif // DDLA_USE_CUDA || DDLA_USE_HIP
+
+template <DdlaBackend Backend, typename T>
 void reverse_upper_to_lower(
     const DdlaHandle_t& handle, int n, const T* d_A, int lda,
     T* d_B, int ldb)
 {
-    const gpuStream_t stream = handle->stream;
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
     assert(ldb >= (n > 0 ? n : 1));
@@ -80,24 +85,36 @@ void reverse_upper_to_lower(
     assert(d_A != nullptr);
     assert(d_B != nullptr);
 
-    using DeviceT = DeviceScalarT<T>;
-    static_assert(sizeof(DeviceT) == sizeof(T));
-    const dim3 threads(kTileSize, kTileSize);
-    const dim3 blocks(
-        (n + kTileSize - 1) / kTileSize,
-        (n + kTileSize - 1) / kTileSize);
-    reverse_upper_to_lower_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
-        n, reinterpret_cast<const DeviceT*>(d_A), lda,
-        reinterpret_cast<DeviceT*>(d_B), ldb);
-    DDLA_CHECK(ddlaGetLastError(handle));
+    if constexpr (Backend == DdlaBackend::CPU){
+        // B(r, c) = A(n-1-r, n-1-c) for r >= c, the host form of reverse_upper_to_lower_kernel
+        for(int column = 0; column < n; ++column){
+            for(int row = column; row < n; ++row){
+                d_B[row + static_cast<std::size_t>(column) * ldb] =
+                    d_A[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * lda];
+            }
+        }
+    }else{
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+        const gpuStream_t stream = handle->stream;
+        using DeviceT = DeviceScalarT<T>;
+        static_assert(sizeof(DeviceT) == sizeof(T));
+        const dim3 threads(kTileSize, kTileSize);
+        const dim3 blocks(
+            (n + kTileSize - 1) / kTileSize,
+            (n + kTileSize - 1) / kTileSize);
+        reverse_upper_to_lower_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
+            n, reinterpret_cast<const DeviceT*>(d_A), lda,
+            reinterpret_cast<DeviceT*>(d_B), ldb);
+        DDLA_CHECK(ddlaGetLastError(handle));
+#endif
+    }
 }
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void reverse_lower_to_upper(
     const DdlaHandle_t& handle, int n, const T* d_B, int ldb,
     T* d_A, int lda)
 {
-    const gpuStream_t stream = handle->stream;
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
     assert(ldb >= (n > 0 ? n : 1));
@@ -107,38 +124,49 @@ void reverse_lower_to_upper(
     assert(d_A != nullptr);
     assert(d_B != nullptr);
 
-    using DeviceT = DeviceScalarT<T>;
-    static_assert(sizeof(DeviceT) == sizeof(T));
-    const dim3 threads(kTileSize, kTileSize);
-    const dim3 blocks(
-        (n + kTileSize - 1) / kTileSize,
-        (n + kTileSize - 1) / kTileSize);
-    reverse_lower_to_upper_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
-        n, reinterpret_cast<const DeviceT*>(d_B), ldb,
-        reinterpret_cast<DeviceT*>(d_A), lda);
-    DDLA_CHECK(ddlaGetLastError(handle));
+    if constexpr (Backend == DdlaBackend::CPU){
+        // A(r, c) = B(n-1-r, n-1-c) for r <= c, the host form of reverse_lower_to_upper_kernel
+        for(int column = 0; column < n; ++column){
+            for(int row = 0; row <= column; ++row){
+                d_A[row + static_cast<std::size_t>(column) * lda] =
+                    d_B[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * ldb];
+            }
+        }
+    }else{
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+        const gpuStream_t stream = handle->stream;
+        using DeviceT = DeviceScalarT<T>;
+        static_assert(sizeof(DeviceT) == sizeof(T));
+        const dim3 threads(kTileSize, kTileSize);
+        const dim3 blocks(
+            (n + kTileSize - 1) / kTileSize,
+            (n + kTileSize - 1) / kTileSize);
+        reverse_lower_to_upper_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
+            n, reinterpret_cast<const DeviceT*>(d_B), ldb,
+            reinterpret_cast<DeviceT*>(d_A), lda);
+        DDLA_CHECK(ddlaGetLastError(handle));
+#endif
+    }
 }
 
-template void reverse_upper_to_lower<float>(
-    const DdlaHandle_t&, int, const float*, int, float*, int);
-template void reverse_upper_to_lower<double>(
-    const DdlaHandle_t&, int, const double*, int, double*, int);
-template void reverse_upper_to_lower<std::complex<float>>(
-    const DdlaHandle_t&, int, const std::complex<float>*, int,
-    std::complex<float>*, int);
-template void reverse_upper_to_lower<std::complex<double>>(
-    const DdlaHandle_t&, int, const std::complex<double>*, int,
-    std::complex<double>*, int);
+#define INSTANTIATE_REVERSE(BACKEND, TYPE)                                                              \
+    template void reverse_upper_to_lower<BACKEND, TYPE>(const DdlaHandle_t&, int, const TYPE*, int, TYPE*, int); \
+    template void reverse_lower_to_upper<BACKEND, TYPE>(const DdlaHandle_t&, int, const TYPE*, int, TYPE*, int)
 
-template void reverse_lower_to_upper<float>(
-    const DdlaHandle_t&, int, const float*, int, float*, int);
-template void reverse_lower_to_upper<double>(
-    const DdlaHandle_t&, int, const double*, int, double*, int);
-template void reverse_lower_to_upper<std::complex<float>>(
-    const DdlaHandle_t&, int, const std::complex<float>*, int,
-    std::complex<float>*, int);
-template void reverse_lower_to_upper<std::complex<double>>(
-    const DdlaHandle_t&, int, const std::complex<double>*, int,
-    std::complex<double>*, int);
+#if DDLA_HAS_CPU
+INSTANTIATE_REVERSE(DdlaBackend::CPU, float);
+INSTANTIATE_REVERSE(DdlaBackend::CPU, double);
+INSTANTIATE_REVERSE(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_REVERSE(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_REVERSE(DdlaBackend::GPU, float);
+INSTANTIATE_REVERSE(DdlaBackend::GPU, double);
+INSTANTIATE_REVERSE(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_REVERSE(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_REVERSE
 
 } // namespace ddla::detail

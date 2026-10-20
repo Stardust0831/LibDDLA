@@ -3,14 +3,14 @@
 #include <cassert>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include <vector>
 #include "transport_block.h"
 #include "comm_traits.h"
 
 namespace ddla{
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void pgeadd(
     const DdlaHandle_t& handle, const char& transa, const char& transb,
     const int& m, const int& n,
@@ -30,7 +30,7 @@ void pgeadd(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgeadd");
+    detail::require_backend<Backend>(ddla_handle, "pgeadd");
 
     if(transa != 'N' || transb != 'N')
     {
@@ -67,7 +67,7 @@ void pgeadd(
 
 
     if(transa == 'N' && transb == 'N'){
-        geam<DdlaBackend::GPU, T>(
+        geam<Backend, T>(
             ddla_handle, transa, transb,
             m_loc_C, n_loc_C,
             alpha, 
@@ -79,7 +79,7 @@ void pgeadd(
         
     }else if (transa != 'N' && transb != 'N'){
         if(myprow == mypcol){
-            geam<DdlaBackend::GPU, T>(
+            geam<Backend, T>(
                 ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
@@ -91,7 +91,7 @@ void pgeadd(
         }else{
             T* d_temp;
             DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
-            geam<DdlaBackend::GPU, T>(
+            geam<Backend, T>(
                 ddla_handle, transa, transb,
                 n_loc_C, m_loc_C,
                 alpha,
@@ -101,20 +101,20 @@ void pgeadd(
                 d_temp, n_loc_C
             );
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
-            commGroupStart(ddla_handle);
+            commGroupStart<Backend>(ddla_handle);
             if(myprow > mypcol){
-                commSend(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commRecv(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }else{
-                commRecv(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commSend(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
-            commGroupEnd(ddla_handle);
+            commGroupEnd<Backend>(ddla_handle);
             DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
         }
     }else{
         if(myprow == mypcol){
-            geam<DdlaBackend::GPU, T>(
+            geam<Backend, T>(
                 ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
@@ -131,16 +131,16 @@ void pgeadd(
             const T& trans_scale = transa != 'N' ? alpha : beta;
             const T& nontrans_scale = transa == 'N' ? alpha : beta;
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
-            commGroupStart(ddla_handle);
+            commGroupStart<Backend>(ddla_handle);
             if(myprow > mypcol){
-                commSend(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commRecv(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }else{
-                commRecv(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commSend(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
-            commGroupEnd(ddla_handle);
-            geam<DdlaBackend::GPU, T>(
+            commGroupEnd<Backend>(ddla_handle);
+            geam<Backend, T>(
                 ddla_handle, (transa != 'N' ? transa : transb), 'N',
                 m_loc_C, n_loc_C,
                 trans_scale,
@@ -157,45 +157,31 @@ void pgeadd(
     
 }
 
-template void pgeadd<float>(
-    const DdlaHandle_t&, const char& transa, const char& transb,
-    const int& m, const int& n,
-    const float& alpha,
-    const float* d_A, const int* array_descA,
-    const float& beta,
-    const float* d_B, const int* array_descB,
-    float* d_C, const int* array_descC
-);
+#define INSTANTIATE_PGEADD(BACKEND, TYPE)                                   \
+    template void pgeadd<BACKEND, TYPE>(const DdlaHandle_t&, const char& transa, const char& transb, \
+    const int& m, const int& n, \
+    const TYPE& alpha, \
+    const TYPE* d_A, const int* array_descA, \
+    const TYPE& beta, \
+    const TYPE* d_B, const int* array_descB, \
+    TYPE* d_C, const int* array_descC)
 
-template void pgeadd<double>(
-    const DdlaHandle_t&, const char& transa, const char& transb,
-    const int& m, const int& n,
-    const double& alpha,
-    const double* d_A, const int* array_descA,
-    const double& beta,
-    const double* d_B, const int* array_descB,
-    double* d_C, const int* array_descC
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PGEADD(DdlaBackend::CPU, float);
+INSTANTIATE_PGEADD(DdlaBackend::CPU, double);
+INSTANTIATE_PGEADD(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGEADD(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pgeadd<std::complex<float>>(
-    const DdlaHandle_t&, const char& transa, const char& transb,
-    const int& m, const int& n,
-    const std::complex<float>& alpha,
-    const std::complex<float>* d_A, const int* array_descA,
-    const std::complex<float>& beta,
-    const std::complex<float>* d_B, const int* array_descB,
-    std::complex<float>* d_C, const int* array_descC
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PGEADD(DdlaBackend::GPU, float);
+INSTANTIATE_PGEADD(DdlaBackend::GPU, double);
+INSTANTIATE_PGEADD(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGEADD(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pgeadd<std::complex<double>>(
-    const DdlaHandle_t&, const char& transa, const char& transb,
-    const int& m, const int& n,
-    const std::complex<double>& alpha,
-    const std::complex<double>* d_A, const int* array_descA,
-    const std::complex<double>& beta,
-    const std::complex<double>* d_B, const int* array_descB,
-    std::complex<double>* d_C, const int* array_descC
-);
+#undef INSTANTIATE_PGEADD
+
 
 
 }

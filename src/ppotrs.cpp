@@ -3,10 +3,10 @@
 #include <cassert>
 #include <vector>
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 namespace ddla{
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void ppotrs(
     const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
@@ -18,7 +18,7 @@ void ppotrs(
     check_desc(array_descB, handle);
     check_desc(array_descA, handle);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "ppotrs");
+    detail::require_backend<Backend>(ddla_handle, "ppotrs");
     // A is Hermitian, so op(A) == A for both trans='N' and trans='C'; the
     // solve path is identical.  trans='T' would require conjugating B and is
     // not supported.
@@ -45,10 +45,10 @@ void ppotrs(
     const bool needs_permute = (location != -1 && location != n);
     if(needs_permute){
         if(side == 'L')
-            pswap(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
+            pswap<Backend>(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
                         d_B, n,        1, array_descB, array_descB[DDLA_M_]);
         else
-            pswap(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
+            pswap<Backend>(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
                         d_B, 1, n,        array_descB, 1);
     }
 
@@ -61,7 +61,7 @@ void ppotrs(
     const int b_rows = left ? n : nrhs;
     const int b_cols = left ? nrhs : n;
 
-    ptrtrs(handle, 
+    ptrtrs<Backend>(handle, 
         side, uplo, first_trans, 'N', b_rows, b_cols,
         d_A, array_descA,
         d_B, array_descB
@@ -79,7 +79,7 @@ void ppotrs(
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }
-    ptrtrs(handle, 
+    ptrtrs<Backend>(handle, 
         side, uplo, second_trans, 'N', b_rows, b_cols,
         d_A, array_descA,
         d_B, array_descB
@@ -87,45 +87,37 @@ void ppotrs(
 
     if(needs_permute){
         if(side == 'L')
-            pswap(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
+            pswap<Backend>(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
                         d_B, n,        1, array_descB, array_descB[DDLA_M_]);
         else
-            pswap(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
+            pswap<Backend>(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
                         d_B, 1, n,        array_descB, 1);
     }
 }
 
-template void ppotrs<float>(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
-    float* d_A, const int* array_descA,
-    float* d_B, const int* array_descB,
-    bool is_nega, int location
-);
+#define INSTANTIATE_PPOTRS(BACKEND, TYPE)                                   \
+    template void ppotrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, \
+    const int& n, const int& nrhs, \
+    TYPE* d_A, const int* array_descA, \
+    TYPE* d_B, const int* array_descB, \
+    bool is_nega, int location)
 
-template void ppotrs<double>(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
-    double* d_A, const int* array_descA,
-    double* d_B, const int* array_descB,
-    bool is_nega, int location
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PPOTRS(DdlaBackend::CPU, float);
+INSTANTIATE_PPOTRS(DdlaBackend::CPU, double);
+INSTANTIATE_PPOTRS(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PPOTRS(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void ppotrs<std::complex<double>>(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
-    std::complex<double>* d_A, const int* array_descA,
-    std::complex<double>* d_B, const int* array_descB,
-    bool is_nega, int location
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PPOTRS(DdlaBackend::GPU, float);
+INSTANTIATE_PPOTRS(DdlaBackend::GPU, double);
+INSTANTIATE_PPOTRS(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PPOTRS(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void ppotrs<std::complex<float>>(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
-    std::complex<float>* d_A, const int* array_descA,
-    std::complex<float>* d_B, const int* array_descB,
-    bool is_nega, int location
-);
+#undef INSTANTIATE_PPOTRS
+
 
 
 }

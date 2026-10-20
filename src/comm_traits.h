@@ -240,6 +240,41 @@ inline void commRecv(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_t
     }
 }
 
+// Simultaneous exchange with ONE peer: both ranks call this with the same count, each sends sbuf and receives rbuf.  The CCL path
+// issues the pair inside a group; every MPI path uses MPI_Sendrecv, because two ranks that both enter a blocking MPI_Send first
+// (what commGroupStart/commSend/commRecv/commGroupEnd degrades to on a CPU handle) hang once the message exceeds the eager limit.
+template <DdlaBackend Backend = detail::local_backend_v, typename T>
+inline void commSendrecv(const DdlaHandle_t& h, CommScope scope, const T* sbuf, T* rbuf, std::size_t count, int peer)
+{
+    if constexpr (Backend == DdlaBackend::CPU) {
+        MPI_CHECK(MPI_Sendrecv(sbuf, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               rbuf, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+    } else {
+#if defined(DDLA_USE_GPU_CPU_TUNNEL)
+        T* hs = detail::tunnel_staging<T>(h, 0, count);
+        T* hr = detail::tunnel_staging<T>(h, 1, count);
+        DDLA_CHECK(ddlaMemcpy(h, hs, sbuf, count * sizeof(T)));
+        DDLA_CHECK(ddlaSynchronize(h));
+        MPI_CHECK(MPI_Sendrecv(hs, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               hr, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+        DDLA_CHECK(ddlaMemcpy(h, rbuf, hr, count * sizeof(T)));
+        DDLA_CHECK(ddlaSynchronize(h));
+#elif defined(DDLA_USE_CCL)
+        CommTraits<Backend>::group_start(h);
+        commSend<Backend>(h, scope, sbuf, count, peer);
+        commRecv<Backend>(h, scope, rbuf, count, peer);
+        CommTraits<Backend>::group_end(h);
+#else
+        DDLA_CHECK(ddlaSynchronize(h));
+        MPI_CHECK(MPI_Sendrecv(sbuf, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               rbuf, (int)count, detail::mpi_datatype<T>(), peer, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+#endif
+    }
+}
+
 template <DdlaBackend Backend = detail::local_backend_v, typename T>
 inline void commAllReduce(const DdlaHandle_t& h, CommScope scope,
                           const T* sbuf, T* rbuf, int count, cclOp op)

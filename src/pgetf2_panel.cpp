@@ -4,13 +4,12 @@
 #include <vector>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla{
 
-template <typename T>
-
+template <DdlaBackend Backend, typename T>
 void pgetf2_panel(
     const DdlaHandle_t& handle, const int& m, const int& n, const int& nb_real,
     T* d_A, const int& n_start, const int* array_descA,
@@ -26,7 +25,7 @@ void pgetf2_panel(
 
     assert(m <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetf2_panel");
+    detail::require_backend<Backend>(ddla_handle, "pgetf2_panel");
 
 
 
@@ -62,7 +61,7 @@ void pgetf2_panel(
 
         owner_row = indxg2p(n_s, nb, array_descA[DDLA_RSRC_], nprows);
         // start pgetf2
-        pgetf2(handle, 
+        pgetf2<Backend>(handle, 
             m, n, panel_real,
             d_A, n_s, array_descA,
             ipiv, info
@@ -80,7 +79,7 @@ void pgetf2_panel(
         // broadcast block column
         if(mm_col_start<j_s + nb_real && j_loc>=0){
             if(i_loc>=0){
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle, 'L', 'L', 'N', 'U',
                     panel_real, j_s + nb_real - mm_col_start, T(1),
                     d_A + i_loc + j_loc * lld, lld,
@@ -89,10 +88,10 @@ void pgetf2_panel(
                                         d_A + i_loc + mm_col_start * lld, lld * sizeof(T), panel_real * sizeof(T),
                                         j_s + nb_real - mm_col_start));
             } 
-            commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
         }
         if(mm_row_start<m_loc && mm_col_start<j_s + nb_real && j_loc>=0){
-            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
+            gemm<Backend, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, j_s + nb_real - mm_col_start, panel_real,
                 -1.0,
                 d_A + mm_row_start + j_loc * lld, lld,
@@ -107,32 +106,27 @@ void pgetf2_panel(
 
 }
 
-template void pgetf2_panel<float>(
-    const DdlaHandle_t&, const int& m, const int& n, const int& nb_real,
-    float* d_A, const int& n_start, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#define INSTANTIATE_PGETF2_PANEL(BACKEND, TYPE)                                   \
+    template void pgetf2_panel<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, const int& nb_real, \
+    TYPE* d_A, const int& n_start, const int* array_descA, \
+    int* ipiv, \
+    int& info)
 
-template void pgetf2_panel<double>(
-    const DdlaHandle_t&, const int& m, const int& n, const int& nb_real,
-    double* d_A, const int& n_start, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::CPU, float);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::CPU, double);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pgetf2_panel<std::complex<float>>(
-    const DdlaHandle_t&, const int& m, const int& n, const int& nb_real,
-    std::complex<float>* d_A, const int& n_start, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::GPU, float);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::GPU, double);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETF2_PANEL(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pgetf2_panel<std::complex<double>>(
-    const DdlaHandle_t&, const int& m, const int& n, const int& nb_real,
-    std::complex<double>* d_A, const int& n_start, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#undef INSTANTIATE_PGETF2_PANEL
+
 
 }

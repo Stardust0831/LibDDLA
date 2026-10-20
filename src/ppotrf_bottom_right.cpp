@@ -11,14 +11,14 @@
 #include "ddla_desc.h"
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla{
 
 namespace {
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void update_diagonal_tile(
     const DdlaHandle_t& handle,
     const char uplo,
@@ -31,7 +31,7 @@ void update_diagonal_tile(
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>){
         const T minus_one = T(-1);
         const T one = T(1);
-        syrk<DdlaBackend::GPU, T>(
+        syrk<Backend, T>(
             handle,
             uplo, upper ? 'N' : 'T',
             nb, panel_width,
@@ -43,7 +43,7 @@ void update_diagonal_tile(
             std::is_same_v<T, std::complex<float>>, float, double>;
         const Real minus_one = Real(-1);
         const Real one = Real(1);
-        herk<DdlaBackend::GPU, T>(
+        herk<Backend, T>(
             handle,
             uplo, upper ? 'N' : 'C',
             nb, panel_width,
@@ -55,7 +55,7 @@ void update_diagonal_tile(
 
 } // namespace
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void ppotrf_bottom_right(
     const DdlaHandle_t& handle, const char& uplo, const int& n,
     T* d_A, const int* descA, int& info
@@ -74,7 +74,7 @@ void ppotrf_bottom_right(
     assert(descA[DDLA_MB_] == descA[DDLA_NB_]);
     assert(nprows == npcols);
 
-    detail::require_gpu_backend(handle, "ppotrf_bottom_right");
+    detail::require_backend<Backend>(handle, "ppotrf_bottom_right");
     assert(handle != nullptr);
 
     info = 0;
@@ -160,7 +160,7 @@ void ppotrf_bottom_right(
         if(myprow == owner_row && mypcol == owner_col){
             T* const d_local_diag = d_A + local_row_prefix
                                   + static_cast<std::size_t>(local_col_prefix) * lld;
-            detail::potrf_bottom_right_block(
+            detail::potrf_bottom_right_block<Backend>(
                 uplo, block_width, d_local_diag, lld,
                 block_start, d_diag, d_info, block_info, handle
             );
@@ -184,11 +184,11 @@ void ppotrf_bottom_right(
         }
 
         if(uplo == 'U' && mypcol == owner_col){
-            commBcast(handle, CommScope::Col, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_row);
+            commBcast<Backend>(handle, CommScope::Col, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_row);
         }
 
         if(uplo == 'L' && myprow == owner_row){
-            commBcast(handle, CommScope::Row, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_col);
+            commBcast<Backend>(handle, CommScope::Row, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_col);
         }
 
         if(uplo == 'U' && local_row_prefix > 0){
@@ -196,7 +196,7 @@ void ppotrf_bottom_right(
                 const T one = T(1);
                 T* const d_local_panel = d_A
                                        + static_cast<std::size_t>(local_col_prefix) * lld;
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     handle,
                     'R',
                     'U',
@@ -212,7 +212,7 @@ void ppotrf_bottom_right(
                                         static_cast<std::size_t>(local_row_prefix) * sizeof(T), block_width));
             }
 
-            commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
+            commBcast<Backend>(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
         }
 
         if(uplo == 'U'){
@@ -231,7 +231,7 @@ void ppotrf_bottom_right(
                                           static_cast<std::size_t>(local_col_prefix) * block_width * sizeof(T)));
                 }
 
-                commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
+                commBcast<Backend>(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
             }
         }else{
             if(local_col_prefix > 0){
@@ -243,7 +243,7 @@ void ppotrf_bottom_right(
                             || std::is_same_v<T, double>
                         ? 'T'
                         : 'C';
-                    trsm<DdlaBackend::GPU, T>(
+                    trsm<Backend, T>(
                         handle,
                         'L',
                         'L',
@@ -259,7 +259,7 @@ void ppotrf_bottom_right(
                                             static_cast<std::size_t>(block_width) * sizeof(T), local_col_prefix));
                 }
 
-                commBcast(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
+                commBcast<Backend>(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
             }
 
             // A column tile owned by relay_col under icsrc is the same global
@@ -277,7 +277,7 @@ void ppotrf_bottom_right(
                                           static_cast<std::size_t>(local_row_prefix) * block_width * sizeof(T)));
                 }
 
-                commBcast(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
+                commBcast<Backend>(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
             }
         }
 
@@ -314,7 +314,7 @@ void ppotrf_bottom_right(
                     ? local_col_prefix
                     : block_width;
                 if(global_row == global_col){
-                    update_diagonal_tile(
+                    update_diagonal_tile<Backend, T>(
                         handle,
                         uplo,
                         nb, block_width,
@@ -342,7 +342,7 @@ void ppotrf_bottom_right(
 
             const T minus_one = T(-1);
             const T one = T(1);
-            gemmBatched<DdlaBackend::GPU, T>(
+            gemmBatched<Backend, T>(
                 handle,
                 uplo == 'U' ? 'N' : 'C',
                 uplo == 'U' ? 'C' : 'N',
@@ -362,13 +362,24 @@ void ppotrf_bottom_right(
     cleanup();
 }
 
-template void ppotrf_bottom_right<float>(
-    const DdlaHandle_t&, const char&, const int&, float*, const int*, int&);
-template void ppotrf_bottom_right<double>(
-    const DdlaHandle_t&, const char&, const int&, double*, const int*, int&);
-template void ppotrf_bottom_right<std::complex<float>>(
-    const DdlaHandle_t&, const char&, const int&, std::complex<float>*, const int*, int&);
-template void ppotrf_bottom_right<std::complex<double>>(
-    const DdlaHandle_t&, const char&, const int&, std::complex<double>*, const int*, int&);
+#define INSTANTIATE_PPOTRF_BOTTOM_RIGHT(BACKEND, TYPE)                                   \
+    template void ppotrf_bottom_right<BACKEND, TYPE>(const DdlaHandle_t&, const char&, const int&, TYPE*, const int*, int&)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::CPU, float);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::CPU, double);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::GPU, float);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::GPU, double);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PPOTRF_BOTTOM_RIGHT
+
 
 } // namespace ddla

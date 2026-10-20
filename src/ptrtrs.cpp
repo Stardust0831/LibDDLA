@@ -3,13 +3,13 @@
 #include <cassert>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "transport_block.h"
 #include "comm_traits.h"
 namespace ddla{
 
 
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void ptrtrs(
     const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
@@ -25,7 +25,7 @@ void ptrtrs(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "ptrtrs");
+    detail::require_backend<Backend>(ddla_handle, "ptrtrs");
     
     assert(array_descA[DDLA_MB_]==array_descA[DDLA_NB_]);
     assert(array_descA[DDLA_MB_]==array_descB[DDLA_MB_]);
@@ -110,14 +110,14 @@ void ptrtrs(
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             // 广播当前块行
             if(myprow == owner_row){
-                commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
-                trsm<DdlaBackend::GPU, T>(ddla_handle, 'L', uplo, trans, diag,
+                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
+                trsm<Backend, T>(ddla_handle, 'L', uplo, trans, diag,
                     nb_real, n_loc_B, (T)1.0,
                     d_block_diag, nb_real,
                     d_B + mm_row_start, lldB
                 );
             }
-            transport_block(handle, 
+            transport_block<Backend, T>(handle, 
                 'R', 'N', 
                 nb_real, n,
                 d_B, n_s, 0, array_descB,
@@ -157,7 +157,7 @@ void ptrtrs(
                     g_ia = 0;
                 }
             }
-            transport_block(handle, 
+            transport_block<Backend, T>(handle, 
                 panel_direction, trans,
                 g_m, g_n,
                 d_A, g_ia, g_ja, array_descA,
@@ -172,7 +172,7 @@ void ptrtrs(
             }
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             if(length_block_A > 0){
-                gemm<DdlaBackend::GPU, T>(ddla_handle, trans, 'N',
+                gemm<Backend, T>(ddla_handle, trans, 'N',
                     length_block_A, n_loc_B, nb_real,
                     (T)-1.0,
                     d_block_A, trans == 'N' ? length_block_A : nb_real,
@@ -226,15 +226,15 @@ void ptrtrs(
             // broadcast the diagonal block within the column, then solve the
             // block column of B on the owner column's processes
             if(mypcol == owner_col){
-                commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
-                trsm<DdlaBackend::GPU, T>(ddla_handle, 'R', uplo, trans, diag,
+                commBcast<Backend>(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
+                trsm<Backend, T>(ddla_handle, 'R', uplo, trans, diag,
                     m_loc_B, nb_real, (T)1.0,
                     d_block_diag, nb_real,
                     d_B + mm_col_start * lldB, lldB
                 );
             }
             // gather the solved block column of B (local part: m_loc x nb_real)
-            transport_block(handle, 
+            transport_block<Backend, T>(handle, 
                 'C', 'N',
                 m, nb_real,
                 d_B, 0, n_s, array_descB,
@@ -280,7 +280,7 @@ void ptrtrs(
                     B_offset = 0;
                 }
             }
-            transport_block(handle, 
+            transport_block<Backend, T>(handle, 
                 panel_dir, trans,
                 g_m, g_n,
                 d_A, g_ia, g_ja, array_descA,
@@ -288,7 +288,7 @@ void ptrtrs(
             );
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             if(length_block_A > 0 && m_loc_B > 0){
-                gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
+                gemm<Backend, T>(ddla_handle, 'N', 'N',
                     m_loc_B, length_block_A, nb_real,
                     (T)-1.0,
                     d_block_B, m_loc_B,
@@ -305,37 +305,28 @@ void ptrtrs(
 }
 
 
-template void ptrtrs<float>
-(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
-    float* d_A, const int* array_descA,
-    float* d_B, const int* array_descB
-);
+#define INSTANTIATE_PTRTRS(BACKEND, TYPE)                                   \
+    template void ptrtrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag, \
+    const int& m, const int& n, \
+    TYPE* d_A, const int* array_descA, \
+    TYPE* d_B, const int* array_descB)
 
-template void ptrtrs<double>
-(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
-    double* d_A, const int* array_descA,
-    double* d_B, const int* array_descB
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PTRTRS(DdlaBackend::CPU, float);
+INSTANTIATE_PTRTRS(DdlaBackend::CPU, double);
+INSTANTIATE_PTRTRS(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PTRTRS(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void ptrtrs<std::complex<float>>
-(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
-    std::complex<float>* d_A, const int* array_descA,
-    std::complex<float>* d_B, const int* array_descB
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PTRTRS(DdlaBackend::GPU, float);
+INSTANTIATE_PTRTRS(DdlaBackend::GPU, double);
+INSTANTIATE_PTRTRS(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PTRTRS(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void ptrtrs<std::complex<double>>
-(
-    const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
-    std::complex<double>* d_A, const int* array_descA,
-    std::complex<double>* d_B, const int* array_descB
-);
+#undef INSTANTIATE_PTRTRS
+
 
 
 }

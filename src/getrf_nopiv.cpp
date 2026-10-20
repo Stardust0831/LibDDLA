@@ -1,11 +1,15 @@
 #include <ddla/ddla.h>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
-#include <thrust/complex.h>
+#include "require_backend.h"
 #include <algorithm>
+#include <cmath>
 #include <complex>
 #include <type_traits>
+
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+#include <thrust/complex.h>
+#endif
 
 // Maximum panel width for the register-based getf2_nopiv kernel.
 // Each thread stores one row of the panel in registers, so this
@@ -14,6 +18,8 @@
 #define GETF2_MAX_N 32
 
 namespace ddla {
+
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 
 // --------------------------------------------------------------------------
 // Zero-pivot check helpers (device)
@@ -143,6 +149,64 @@ getf2_nopiv_kernel(int m, int n, T* dA, int ldda, int* info, int gbstep)
     getf2_nopiv_device<T, GETF2_MAX_N>(m, n, dA, ldda, info, tx, sx, gbstep);
 }
 
+// Factors the jb x jb diagonal block: 1 block, jb threads, jb * sizeof(T) shared memory, one row per thread.
+template <typename T>
+void launch_getf2_nopiv_kernel(const DdlaHandle_t& ddla_handle, int jb, T* d_block, int lda, int* d_info, int gbstep)
+{
+    const gpuStream_t stream = ddla_handle->stream;
+    const int threads = std::min(jb, 512);
+    const int shmem   = jb * sizeof(T);
+
+    if constexpr (std::is_same_v<T, std::complex<float>>)
+    {
+        getf2_nopiv_kernel<thrust::complex<float>>
+            <<<1, threads, shmem, stream>>>(
+                jb, jb, reinterpret_cast<thrust::complex<float>*>(d_block), lda, d_info, gbstep);
+    }
+    else if constexpr (std::is_same_v<T, std::complex<double>>)
+    {
+        getf2_nopiv_kernel<thrust::complex<double>>
+            <<<1, threads, shmem, stream>>>(
+                jb, jb, reinterpret_cast<thrust::complex<double>*>(d_block), lda, d_info, gbstep);
+    }
+    else
+    {
+        getf2_nopiv_kernel<T>
+            <<<1, threads, shmem, stream>>>(jb, jb, d_block, lda, d_info, gbstep);
+    }
+    DDLA_CHECK(ddlaGetLastError(ddla_handle));
+}
+
+#endif // DDLA_USE_CUDA || DDLA_USE_HIP
+
+// --------------------------------------------------------------------------
+// CPU arm of the diagonal-block factorization: the same column loop as the kernel (zero pivot -> divisor 1, first zero
+// recorded as a 1-based global index, an earlier panel's info is kept), with the scale and the rank-1 update as
+// host scal / geru calls.  A block is at most GETF2_MAX_N wide, so this stays a few small BLAS-1/2 calls.
+// --------------------------------------------------------------------------
+template <typename T>
+void getf2_nopiv_host(const DdlaHandle_t& ddla_handle, int n, T* A, int lda, int* info, int gbstep)
+{
+    if (gbstep > 0 && *info != 0) {
+        return;
+    }
+    int linfo = 0;
+    for (int col = 0; col < n; ++col) {
+        T* column = A + col + static_cast<std::size_t>(col) * lda;   // the pivot, then the rows below it
+        const bool zero_pivot = std::abs(column[0]) == 0;
+        if (zero_pivot && linfo == 0) {
+            linfo = gbstep + col + 1;
+        }
+        const int rows = n - col - 1;
+        if (rows > 0) {
+            scal<DdlaBackend::CPU, T>(ddla_handle, rows, T(1) / (zero_pivot ? T(1) : column[0]), column + 1, 1);
+            geru<DdlaBackend::CPU, T>(ddla_handle, rows, rows, T(-1),
+                                      column + 1, 1, column + lda, lda, column + 1 + lda, lda);
+        }
+    }
+    *info = linfo;
+}
+
 // --------------------------------------------------------------------------
 // Blocked getrf_nopiv (pure GPU, right-looking Level-3 BLAS)
 //
@@ -164,11 +228,10 @@ getf2_nopiv_kernel(int m, int n, T* dA, int ldda, int* info, int gbstep)
 // gemm, which dominates the runtime for large matrices.
 // --------------------------------------------------------------------------
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle)
 {
-    detail::require_gpu_backend(ddla_handle, "getrf_nopiv");
-    gpuStream_t stream = ddla_handle->stream;
+    detail::require_backend<Backend>(ddla_handle, "getrf_nopiv");
 
     // Block size for the blocked algorithm.  Must be <= GETF2_MAX_N
     // because the panel kernel stores one row in registers.
@@ -186,37 +249,18 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         int nn = n - j - jb;     // cols in the trailing submatrix
 
         // ---------------------------------------------------------------
-        // 1) Factor the diagonal block A(j:j+jb, j:j+jb)
-        //
-        // Launch: 1 block, jb threads, jb * sizeof(T) shared memory.
-        // Each thread handles one row of the jb x jb block.
+        // 1) Factor the diagonal block A(j:j+jb, j:j+jb): the register kernel on a GPU handle, the host loop on a CPU one.
         // ---------------------------------------------------------------
-        int threads = std::min(jb, 512);
-        int shmem   = jb * sizeof(T);
-
-        if constexpr (std::is_same_v<T, std::complex<float>>)
+        if constexpr (Backend == DdlaBackend::CPU)
         {
-            getf2_nopiv_kernel<thrust::complex<float>>
-                <<<1, threads, shmem, stream>>>(
-                    jb, jb,
-                    reinterpret_cast<thrust::complex<float>*>(d_A + j * lda + j),
-                    lda, d_info, j);
-        }
-        else if constexpr (std::is_same_v<T, std::complex<double>>)
-        {
-            getf2_nopiv_kernel<thrust::complex<double>>
-                <<<1, threads, shmem, stream>>>(
-                    jb, jb,
-                    reinterpret_cast<thrust::complex<double>*>(d_A + j * lda + j),
-                    lda, d_info, j);
+            getf2_nopiv_host<T>(ddla_handle, jb, d_A + j * lda + j, lda, d_info, j);
         }
         else
         {
-            getf2_nopiv_kernel<T>
-                <<<1, threads, shmem, stream>>>(
-                    jb, jb, d_A + j * lda + j, lda, d_info, j);
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+            launch_getf2_nopiv_kernel<T>(ddla_handle, jb, d_A + j * lda + j, lda, d_info, j);
+#endif
         }
-        DDLA_CHECK(ddlaGetLastError(ddla_handle));
 
         // ---------------------------------------------------------------
         // 2) Solve L panel: A(j+jb:m-1, j:j+jb) = A(j+jb:m-1, j:j+jb) * U^{-1}
@@ -230,7 +274,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         if (j + jb < m)
         {
             T one = T(1);
-            trsm<DdlaBackend::GPU, T>(
+            trsm<Backend, T>(
                 ddla_handle,
                 'R', 'U',                   // op(A)*X = B  =>  X = B*inv(A)
                 'N', 'N',                   // no transpose; U has non-unit diagonal
@@ -255,7 +299,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         if (j + jb < n)
         {
             T one = T(1);
-            trsm<DdlaBackend::GPU, T>(
+            trsm<Backend, T>(
                 ddla_handle,
                 'L', 'L',                   // op(A)*X = B  =>  X = inv(A)*B
                 'N', 'U',                   // no transpose; L has unit diagonal
@@ -277,7 +321,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
             if (j + jb < m)
             {
                 T neg_one = T(-1);
-                gemm<DdlaBackend::GPU, T>(
+                gemm<Backend, T>(
                     ddla_handle,
                     'N', 'N',
                     mm - jb, nn, jb,
@@ -301,9 +345,23 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
 // Explicit instantiations
 // --------------------------------------------------------------------------
 
-template void getrf_nopiv<float>(int, int, float*, int, int*, const DdlaHandle_t&);
-template void getrf_nopiv<double>(int, int, double*, int, int*, const DdlaHandle_t&);
-template void getrf_nopiv<std::complex<float>>(int, int, std::complex<float>*, int, int*, const DdlaHandle_t&);
-template void getrf_nopiv<std::complex<double>>(int, int, std::complex<double>*, int, int*, const DdlaHandle_t&);
+#define INSTANTIATE_GETRF_NOPIV(BACKEND, TYPE) \
+    template void getrf_nopiv<BACKEND, TYPE>(int, int, TYPE*, int, int*, const DdlaHandle_t&)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::CPU, float);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::CPU, double);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::GPU, float);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::GPU, double);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_GETRF_NOPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_GETRF_NOPIV
 
 } // namespace ddla

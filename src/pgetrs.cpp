@@ -2,10 +2,10 @@
 #include "ddla_desc.h"
 #include <cassert>
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 namespace ddla{
 
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void pgetrs(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const int* array_descA,
@@ -16,7 +16,7 @@ void pgetrs(
     check_desc(array_descB, handle);
     check_desc(array_descA, handle);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetrs");
+    detail::require_backend<Backend>(ddla_handle, "pgetrs");
     assert(side == 'L' || side == 'R');
     assert(trans == 'N' || trans == 'T' || trans == 'C');
     // side='L': B is n x nrhs, solves op(A)*X = B;
@@ -44,57 +44,52 @@ void pgetrs(
     if(side == 'L'){
         if(trans == 'N'){
             // A = P*L*U => X = U^-1 * L^-1 * (P^T * B)
-            plapiv(handle, 'F', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
-            ptrtrs(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'F', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
         }else{
             // op(A)^T = U^T * L^T * P^T => X = P * L^-T * U^-T * B
-            ptrtrs(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            plapiv(handle, 'B', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'B', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
         }
     }else{
         if(trans == 'N'){
             // X * P * L * U = B => X = B * U^-1 * L^-1 * P^T
-            ptrtrs(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            plapiv(handle, 'B', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'B', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
         }else{
             // X * U^T * L^T * P^T = B => X = B * P * L^-T * U^-T
-            plapiv(handle, 'F', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
-            ptrtrs(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'F', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
         }
     }
 }
 
-template void pgetrs<double>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    double* d_A, const int* array_descA,
-    const int* ipiv, // host
-    double* d_B, const int* array_descB
-);
+#define INSTANTIATE_PGETRS(BACKEND, TYPE)                                   \
+    template void pgetrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    TYPE* d_A, const int* array_descA, \
+    const int* ipiv, \
+    TYPE* d_B, const int* array_descB)
 
-template void pgetrs<float>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    float* d_A, const int* array_descA,
-    const int* ipiv, // host
-    float* d_B, const int* array_descB
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETRS(DdlaBackend::CPU, float);
+INSTANTIATE_PGETRS(DdlaBackend::CPU, double);
+INSTANTIATE_PGETRS(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETRS(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pgetrs<std::complex<double>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<double>* d_A, const int* array_descA,
-    const int* ipiv, // host
-    std::complex<double>* d_B, const int* array_descB
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETRS(DdlaBackend::GPU, float);
+INSTANTIATE_PGETRS(DdlaBackend::GPU, double);
+INSTANTIATE_PGETRS(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETRS(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pgetrs<std::complex<float>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<float>* d_A, const int* array_descA,
-    const int* ipiv, // host
-    std::complex<float>* d_B, const int* array_descB
-);
+#undef INSTANTIATE_PGETRS
+
 
 
 } // namespace ddla

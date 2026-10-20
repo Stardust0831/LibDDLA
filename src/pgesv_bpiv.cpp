@@ -4,7 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 
 namespace ddla {
 
@@ -29,7 +29,7 @@ namespace ddla {
  * @param array_descB  ScaLAPACK int[9] descriptor for B.
  * @throws std::runtime_error if LU factorization fails (info != 0).
  */
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void pgesv_bpiv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const int* array_descA,
@@ -44,40 +44,41 @@ void pgesv_bpiv(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgesv_bpiv");
+    detail::require_backend<Backend>(ddla_handle, "pgesv_bpiv");
     assert(n <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     const int m_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int* d_ipiv = nullptr;
     DDLA_CHECK(ddlaMalloc(ddla_handle, reinterpret_cast<void**>(&d_ipiv), sizeof(int) * std::max(1, m_loc_A)));
     int info = 0;
-    pgetrf_bpiv(handle, n, n, d_A, array_descA, d_ipiv, info);
+    pgetrf_bpiv<Backend>(handle, n, n, d_A, array_descA, d_ipiv, info);
     if(info != 0){
         DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
         throw std::runtime_error("pgesv_bpiv: pgetrf_bpiv returned info = " + std::to_string(info));
     }
-    pgetrs_bpiv(handle, side, trans, n, nrhs, d_A, array_descA, d_ipiv, d_B, array_descB);
+    pgetrs_bpiv<Backend>(handle, side, trans, n, nrhs, d_A, array_descA, d_ipiv, d_B, array_descB);
     DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
 }
 
-template void pgesv_bpiv<float>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    float* d_A, const int* array_descA,
-    float* d_B, const int* array_descB
-);
-template void pgesv_bpiv<double>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    double* d_A, const int* array_descA,
-    double* d_B, const int* array_descB
-);
-template void pgesv_bpiv<std::complex<float>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<float>* d_A, const int* array_descA,
-    std::complex<float>* d_B, const int* array_descB
-);
-template void pgesv_bpiv<std::complex<double>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<double>* d_A, const int* array_descA,
-    std::complex<double>* d_B, const int* array_descB
-);
+#define INSTANTIATE_PGESV_BPIV(BACKEND, TYPE)                                   \
+    template void pgesv_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    TYPE* d_A, const int* array_descA, \
+    TYPE* d_B, const int* array_descB)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PGESV_BPIV(DdlaBackend::CPU, float);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::CPU, double);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PGESV_BPIV(DdlaBackend::GPU, float);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::GPU, double);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGESV_BPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PGESV_BPIV
+
 
 } // namespace ddla

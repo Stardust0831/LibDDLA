@@ -11,7 +11,7 @@
 
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 
 namespace ddla{
 
@@ -21,7 +21,7 @@ namespace {
 
 constexpr int kBlockSize = 128;
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void update_leading(
     const DdlaHandle_t& handle,
     const char uplo,
@@ -37,7 +37,7 @@ void update_leading(
     if constexpr (std::is_same_v<T, float> || std::is_same_v<T, double>) {
         const T minus_one = T(-1);
         const T one = T(1);
-        syrk<DdlaBackend::GPU, T>(handle, uplo, upper ? 'N' : 'T',
+        syrk<Backend, T>(handle, uplo, upper ? 'N' : 'T',
                                   leading_n, block_n,
                                   minus_one, d_panel, lda,
                                   one, d_leading, lda);
@@ -46,7 +46,7 @@ void update_leading(
             std::is_same_v<T, std::complex<float>>, float, double>;
         const Real minus_one = Real(-1);
         const Real one = Real(1);
-        herk<DdlaBackend::GPU, T>(handle, uplo, upper ? 'N' : 'C',
+        herk<Backend, T>(handle, uplo, upper ? 'N' : 'C',
                                   leading_n, block_n,
                                   minus_one, d_panel, lda,
                                   one, d_leading, lda);
@@ -55,7 +55,7 @@ void update_leading(
 
 } // namespace
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void potrf_bottom_right_block(
     const char& uplo, const int& n, T* d_A, const int& lda,
     const int& global_offset,
@@ -79,12 +79,12 @@ void potrf_bottom_right_block(
 
     DDLA_CHECK(ddlaMemset(handle, d_info, 0, sizeof(int)));
     if(uplo == 'U'){
-        reverse_upper_to_lower(handle, n, d_A, lda, d_work, n);
+        reverse_upper_to_lower<Backend>(handle, n, d_A, lda, d_work, n);
     }else{
-        reverse_lower_to_upper(handle, n, d_A, lda, d_work, n);
+        reverse_lower_to_upper<Backend>(handle, n, d_A, lda, d_work, n);
     }
     // The selected triangle was reverse-packed into the opposite one of d_work: factor that triangle.
-    potrf<DdlaBackend::GPU, T>(handle, uplo == 'U' ? 'L' : 'U', n, d_work, n, d_info);
+    potrf<Backend, T>(handle, uplo == 'U' ? 'L' : 'U', n, d_work, n, d_info);
 
     int solver_info = 0;
     DDLA_CHECK(ddlaMemcpy(handle, &solver_info, d_info, sizeof(int)));
@@ -95,33 +95,41 @@ void potrf_bottom_right_block(
     }
 
     if(uplo == 'U'){
-        reverse_lower_to_upper(handle, n, d_work, n, d_A, lda);
+        reverse_lower_to_upper<Backend>(handle, n, d_work, n, d_A, lda);
     }else{
-        reverse_upper_to_lower(handle, n, d_work, n, d_A, lda);
+        reverse_upper_to_lower<Backend>(handle, n, d_work, n, d_A, lda);
     }
 }
 
-template void potrf_bottom_right_block<float>(
-    const char&, const int&, float*, const int&, const int&, float*, int*, int&,
-    const DdlaHandle_t&);
-template void potrf_bottom_right_block<double>(
-    const char&, const int&, double*, const int&, const int&, double*, int*, int&,
-    const DdlaHandle_t&);
-template void potrf_bottom_right_block<std::complex<float>>(
-    const char&, const int&, std::complex<float>*, const int&, const int&,
-    std::complex<float>*, int*, int&, const DdlaHandle_t&);
-template void potrf_bottom_right_block<std::complex<double>>(
-    const char&, const int&, std::complex<double>*, const int&, const int&,
-    std::complex<double>*, int*, int&, const DdlaHandle_t&);
+#define INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(BACKEND, TYPE)                                   \
+    template void potrf_bottom_right_block<BACKEND, TYPE>(const char&, const int&, TYPE*, const int&, const int&, TYPE*, int*, int&, \
+    const DdlaHandle_t&)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::CPU, float);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::CPU, double);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, float);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, double);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK
+
 
 } // namespace detail
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void potrf_bottom_right(
     const char& uplo, const int& n, T* d_A, const int& lda,
     int& info, const DdlaHandle_t& handle)
 {
-    detail::require_gpu_backend(handle, "potrf_bottom_right");
+    detail::require_backend<Backend>(handle, "potrf_bottom_right");
     assert(uplo == 'U' || uplo == 'L');
     assert(n >= 0);
     assert(handle != nullptr);
@@ -148,7 +156,7 @@ void potrf_bottom_right(
         const int block_n = std::min(detail::kBlockSize, n - block_start);
         T* const d_diag = d_A + block_start
                         + static_cast<std::size_t>(block_start) * lda;
-        detail::potrf_bottom_right_block(
+        detail::potrf_bottom_right_block<Backend>(
             uplo, block_n, d_diag, lda, block_start,
             d_work, d_info, info, handle);
         if(info != 0){
@@ -167,15 +175,15 @@ void potrf_bottom_right(
         const char trans = (std::is_same_v<T, float> || std::is_same_v<T, double>)
             ? 'T' : 'C';
         if(uplo == 'U'){
-            trsm<DdlaBackend::GPU, T>(handle, 'R', 'U', 'C', 'N',
+            trsm<Backend, T>(handle, 'R', 'U', 'C', 'N',
                                       block_start, block_n, one,
                                       d_diag, lda, d_panel, lda);
         }else{
-            trsm<DdlaBackend::GPU, T>(handle, 'L', 'L', trans, 'N',
+            trsm<Backend, T>(handle, 'L', 'L', trans, 'N',
                                       block_n, block_start, one,
                                       d_diag, lda, d_panel, lda);
         }
-        detail::update_leading(
+        detail::update_leading<Backend>(
             handle,
             uplo,
             block_start, block_n,
@@ -188,15 +196,24 @@ void potrf_bottom_right(
     DDLA_CHECK(ddlaSynchronize(handle));
 }
 
-template void potrf_bottom_right<float>(
-    const char&, const int&, float*, const int&, int&, const DdlaHandle_t&);
-template void potrf_bottom_right<double>(
-    const char&, const int&, double*, const int&, int&, const DdlaHandle_t&);
-template void potrf_bottom_right<std::complex<float>>(
-    const char&, const int&, std::complex<float>*, const int&, int&,
-    const DdlaHandle_t&);
-template void potrf_bottom_right<std::complex<double>>(
-    const char&, const int&, std::complex<double>*, const int&, int&,
-    const DdlaHandle_t&);
+#define INSTANTIATE_POTRF_BOTTOM_RIGHT(BACKEND, TYPE)                                   \
+    template void potrf_bottom_right<BACKEND, TYPE>(const char&, const int&, TYPE*, const int&, int&, const DdlaHandle_t&)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::CPU, float);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::CPU, double);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::GPU, float);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::GPU, double);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_POTRF_BOTTOM_RIGHT
+
 
 } // namespace ddla

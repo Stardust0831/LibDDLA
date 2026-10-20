@@ -3,12 +3,12 @@
 #include <cassert>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla{
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void plapiv(
     const DdlaHandle_t& handle, const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
@@ -25,7 +25,7 @@ void plapiv(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "plapiv");
+    detail::require_backend<Backend>(ddla_handle, "plapiv");
 
     assert(direc=='F'||direc=='B');
     assert(rowcol=='R'||rowcol=='C');
@@ -94,18 +94,18 @@ void plapiv(
             const int length_v = length_rowcol_C;
             if(owner_col_i == owner_col_t){
                 if(mypcol == owner_col_i)
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1);
+                    swap<Backend, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1);
             }else{
                 if(mypcol == owner_col_t){
                     DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_col * lldA,
                                             1 * sizeof(T), 1 * sizeof(T), length_v));
-                    commSend(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
-                    commRecv(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_v, d_A + target_i_col * lldA, 1, temp_A_target, 1);
+                    commSend<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
+                    commRecv<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
+                    swap<Backend, T>(ddla_handle, length_v, d_A + target_i_col * lldA, 1, temp_A_target, 1);
                 }else if(mypcol == owner_col_i){
-                    commRecv(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, temp_A_target, 1);
-                    commSend(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
+                    commRecv<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
+                    swap<Backend, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, temp_A_target, 1);
+                    commSend<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
                 }
             }
         }else{
@@ -118,18 +118,18 @@ void plapiv(
             target_i_loc = indx_g2l_r(array_descA, handle, target_i_global);
             if(target_row==owner_row){
                 if(myprow==owner_row)
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA);
             }else{
                 if(myprow==target_row){
                     DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_loc,
                                             lldA * sizeof(T), 1 * sizeof(T), length_rowcol_R));
-                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
-                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1);
+                    commSend<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
+                    commRecv<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1);
                 }else if(myprow==owner_row){
-                    commRecv(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
-                    swap<DdlaBackend::GPU, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1);
-                    commSend(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
+                    commRecv<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1);
+                    commSend<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
                 }
             }
         }
@@ -140,37 +140,29 @@ void plapiv(
 
 }
 
-template void plapiv<std::complex<double>>(
-    const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
-    std::complex<double>* d_A,const int* array_descA,
-    const int* ipiv, const int* array_descIP,
-    int* iwork
-);
+#define INSTANTIATE_PLAPIV(BACKEND, TYPE)                                   \
+    template void plapiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc, \
+    const int& m, const int& n, \
+    TYPE* d_A,const int* array_descA, \
+    const int* ipiv, const int* array_descIP, \
+    int* iwork)
 
-template void plapiv<std::complex<float>>(
-    const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
-    std::complex<float>* d_A,const int* array_descA,
-    const int* ipiv, const int* array_descIP,
-    int* iwork
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PLAPIV(DdlaBackend::CPU, float);
+INSTANTIATE_PLAPIV(DdlaBackend::CPU, double);
+INSTANTIATE_PLAPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PLAPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void plapiv<float>(
-    const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
-    float* d_A,const int* array_descA,
-    const int* ipiv, const int* array_descIP,
-    int* iwork
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PLAPIV(DdlaBackend::GPU, float);
+INSTANTIATE_PLAPIV(DdlaBackend::GPU, double);
+INSTANTIATE_PLAPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PLAPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void plapiv<double>(
-    const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
-    double* d_A,const int* array_descA,
-    const int* ipiv, const int* array_descIP,
-    int* iwork
-);
+#undef INSTANTIATE_PLAPIV
+
 
 
 }

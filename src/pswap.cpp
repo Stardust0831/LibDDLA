@@ -3,11 +3,11 @@
 #include <cassert>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 namespace ddla{
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void pswap(
     const DdlaHandle_t& handle, const int& N, 
     T* A, int ia, int ja, const int* array_descA, const int& inca,
@@ -24,7 +24,7 @@ void pswap(
     ja--;
     ib--;
     jb--;
-    detail::require_gpu_backend(handle, "pswap");
+    detail::require_backend<Backend>(handle, "pswap");
 
     assert(inca == 1 || inca == array_descA[DDLA_M_]);
     assert(incb == 1 || incb == array_descB[DDLA_M_]);
@@ -51,18 +51,18 @@ void pswap(
         if(length_v > 0){
             if(owner_col_A == owner_col_B){
                 if(mypcol == owner_col_A)
-                    swap<DdlaBackend::GPU, T>(handle, length_v, A + a_offset, 1, B + b_offset, 1);
+                    swap<Backend, T>(handle, length_v, A + a_offset, 1, B + b_offset, 1);
             }else{
                 if(mypcol == owner_col_A){
                     DDLA_CHECK(ddlaMemcpy2D(handle, temp_swap, sizeof(T), A + a_offset, sizeof(T), sizeof(T),
                                             length_v));
-                    commSend(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
-                    commRecv(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
-                    swap<DdlaBackend::GPU, T>(handle, length_v, temp_swap, 1, A + a_offset, 1);
+                    commSend<Backend>(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
+                    commRecv<Backend>(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_B);
+                    swap<Backend, T>(handle, length_v, temp_swap, 1, A + a_offset, 1);
                 }else if(mypcol == owner_col_B){
-                    commRecv(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
-                    swap<DdlaBackend::GPU, T>(handle, length_v, temp_swap, 1, B + b_offset, 1);
-                    commSend(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
+                    commRecv<Backend>(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
+                    swap<Backend, T>(handle, length_v, temp_swap, 1, B + b_offset, 1);
+                    commSend<Backend>(handle, CommScope::Row, temp_swap, (std::size_t)length_v, owner_col_A);
                 }
             }
         }
@@ -76,18 +76,18 @@ void pswap(
         if(length_v > 0){
             if(owner_row_A == owner_row_B){
                 if(myprow == owner_row_A)
-                    swap<DdlaBackend::GPU, T>(handle, length_v, A + a_offset, array_descA[DDLA_LLD_], B + b_offset, array_descB[DDLA_LLD_]);
+                    swap<Backend, T>(handle, length_v, A + a_offset, array_descA[DDLA_LLD_], B + b_offset, array_descB[DDLA_LLD_]);
             }else{
                 if(myprow == owner_row_A){
                     DDLA_CHECK(ddlaMemcpy2D(handle, temp_swap, sizeof(T), A + a_offset,
                                             array_descA[DDLA_LLD_] * sizeof(T), sizeof(T), length_v));
-                    commSend(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
-                    commRecv(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
-                    swap<DdlaBackend::GPU, T>(handle, length_v, temp_swap, 1, A + a_offset, array_descA[DDLA_LLD_]);
+                    commSend<Backend>(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
+                    commRecv<Backend>(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_B);
+                    swap<Backend, T>(handle, length_v, temp_swap, 1, A + a_offset, array_descA[DDLA_LLD_]);
                 }else if(myprow == owner_row_B){
-                    commRecv(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
-                    swap<DdlaBackend::GPU, T>(handle, length_v, temp_swap, 1, B + b_offset, array_descB[DDLA_LLD_]);
-                    commSend(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
+                    commRecv<Backend>(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
+                    swap<Backend, T>(handle, length_v, temp_swap, 1, B + b_offset, array_descB[DDLA_LLD_]);
+                    commSend<Backend>(handle, CommScope::Col, temp_swap, (std::size_t)length_v, owner_row_A);
                 }
             }
         }
@@ -95,27 +95,25 @@ void pswap(
     DDLA_CHECK(ddlaFree(handle, temp_swap));
 }
 
-template void pswap<std::complex<double>>(
-    const DdlaHandle_t&, const int& N, 
-    std::complex<double>* A, int ia, int ja, const int* array_descA, const int& inca,
-    std::complex<double>* B, int ib, int jb, const int* array_descB, const int& incb
-);
+#define INSTANTIATE_PSWAP(BACKEND, TYPE)                                   \
+    template void pswap<BACKEND, TYPE>(const DdlaHandle_t&, const int& N, \
+    TYPE* A, int ia, int ja, const int* array_descA, const int& inca, \
+    TYPE* B, int ib, int jb, const int* array_descB, const int& incb)
 
-template void pswap<std::complex<float>>(
-    const DdlaHandle_t&, const int& N, 
-    std::complex<float>* A, int ia, int ja, const int* array_descA, const int& inca,
-    std::complex<float>* B, int ib, int jb, const int* array_descB, const int& incb
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PSWAP(DdlaBackend::CPU, float);
+INSTANTIATE_PSWAP(DdlaBackend::CPU, double);
+INSTANTIATE_PSWAP(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PSWAP(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pswap<float>(
-    const DdlaHandle_t&, const int& N, 
-    float* A, int ia, int ja, const int* array_descA, const int& inca,
-    float* B, int ib, int jb, const int* array_descB, const int& incb
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PSWAP(DdlaBackend::GPU, float);
+INSTANTIATE_PSWAP(DdlaBackend::GPU, double);
+INSTANTIATE_PSWAP(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PSWAP(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pswap<double>(
-    const DdlaHandle_t&, const int& N, 
-    double* A, int ia, int ja, const int* array_descA, const int& inca,
-    double* B, int ib, int jb, const int* array_descB, const int& incb
-);
+#undef INSTANTIATE_PSWAP
+
 } // DDLA

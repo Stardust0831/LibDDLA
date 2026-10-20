@@ -16,14 +16,22 @@ namespace ddla{
 template <typename T> struct real_type            { using type = T; };
 template <typename U> struct real_type<std::complex<U>> { using type = U; };
 
-#if DDLA_HAS_GPU
+// ---------------------------------------------------------------------------
+// Distributed triangular solves, LU and Cholesky factorizations/solvers and their helpers (ptrtrs ... ptran, below).
+// Like pgemm, every routine is templated on the backend and runs on both: `pgetrf<DdlaBackend::CPU>(handle, ...)` for a
+// CPU handle, `pgetrf<DdlaBackend::GPU>(handle, ...)` for a GPU one.  The default is the build's default backend, so a
+// plain `pgetrf(handle, ...)` deduces the scalar type as before.  The template backend must equal the handle's backend
+// (anything else throws).  "Device pointer" in the parameter documentation below means a pointer into the handle's own
+// memory: host memory for a CPU handle, device memory for a GPU handle.
+// ---------------------------------------------------------------------------
+
 
 /**
  * @brief Distributed triangular solve: B := op(A)^{-1} * B    (side='L')
  *                                     B := B * op(A)^{-1}    (side='R').
  *
- * Solves a triangular system on a distributed GPU matrix using block-cyclic
- * data distribution and MPI/NCCL/RCCL communication (per the DDLA_USE_CCL /
+ * Solves a triangular system on a distributed matrix using block-cyclic
+ * data distribution and MPI (CPU handles) or MPI/NCCL/RCCL (GPU handles) communication (per the DDLA_USE_CCL /
  * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Corresponds to the
  * ScaLAPACK PZTRTRS / PDTRTRS routine.
  *
@@ -45,7 +53,7 @@ template <typename U> struct real_type<std::complex<U>> { using type = U; };
  * (leading block anchored at global (0,0)); only the leading m x n block of B
  * and the corresponding leading block of A are referenced.
  */
-template<typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void ptrtrs(
     const DdlaHandle_t& handle,
     const char& side, const char& uplo, const char& trans, const char& diag,
@@ -84,7 +92,7 @@ void ptrtrs(
  * 'R') / m columns (rowcol 'C') and the leading n-column / n-row segment are
  * pivoted.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void plapiv(
     const DdlaHandle_t& handle,
     const char& direc, const char& rowcol, const char& pivroc,
@@ -116,7 +124,7 @@ void plapiv(
  * @param descB ScaLAPACK int[9] descriptor for B.
  * @param incb  Increment for B (must match inca when inca == 1).
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pswap(
     const DdlaHandle_t& handle,
     const int& N,
@@ -143,7 +151,7 @@ void pswap(
  * @param ipiv     Host pivot array (output, 1-based).
  * @param info     0 on success, >0 if singular.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetf2(
     const DdlaHandle_t& handle,
     const int& m, const int& n, const int& nb_real,
@@ -169,7 +177,7 @@ void pgetf2(
  * @param ipiv     Host pivot array (output).
  * @param info     0 on success.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetf2_panel(
     const DdlaHandle_t& handle,
     const int& m, const int& n, const int& nb_real,
@@ -202,7 +210,7 @@ void pgetf2_panel(
  * @param ipiv     Host pivot array (output, 1-based, length >= local rows).
  * @param info     0 on success, >0 if singular.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrf(
     const DdlaHandle_t& handle,
     const int& m, const int& n,
@@ -235,7 +243,7 @@ void pgetrf(
  *                 length >= local rows).
  * @param info     host info 0 on success, >0 if singular. 
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrf_bpiv(const DdlaHandle_t& handle, const int& m, const int& n, T* d_A, const int* descA, int* d_ipiv, int& info);
 
 /**
@@ -258,7 +266,7 @@ void pgetrf_bpiv(const DdlaHandle_t& handle, const int& m, const int& n, T* d_A,
  * @param descA    ScaLAPACK int[9] descriptor for A (mb == nb required).
  * @param info     host info: 0 on success, >0 if U(k,k) is exactly zero.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrf_nopiv(const DdlaHandle_t& handle, const int& m, const int& n, T* d_A, const int* descA, int& info);
 
 /**
@@ -281,7 +289,7 @@ void pgetrf_nopiv(const DdlaHandle_t& handle, const int& m, const int& n, T* d_A
  * @param d_info      Device pointer to info (0 on success, k > 0 if U(k,k) is exactly zero).
  * @param ddla_handle DDLA handle (provides stream and BLAS handle).
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle);
 
 /**
@@ -307,7 +315,7 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
  * @param d_B     Device pointer to RHS / solution B (input/output).
  * @param descB   ScaLAPACK int[9] descriptor for B.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -336,7 +344,7 @@ void pgetrs(
  * @param d_B     Device pointer to RHS / solution B (input/output).
  * @param descB   ScaLAPACK int[9] descriptor for B.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs_nopiv(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -364,7 +372,7 @@ void pgetrs_nopiv(
  * @param descB   ScaLAPACK int[9] descriptor for B.
  * @throws std::runtime_error if LU factorization fails (info != 0).
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -391,7 +399,7 @@ void pgesv(
  * @param descB   ScaLAPACK int[9] descriptor for B.
  * @throws std::runtime_error if LU factorization fails (info != 0).
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv_nopiv(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -426,7 +434,7 @@ void pgesv_nopiv(
  * @param d_B     Device pointer to RHS / solution B (input/output).
  * @param descB   ScaLAPACK int[9] descriptor for B.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs_bpiv(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -456,7 +464,7 @@ void pgetrs_bpiv(
  * @param descB   ScaLAPACK int[9] descriptor for B.
  * @throws std::runtime_error if LU factorization fails (info != 0).
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv_bpiv(
     const DdlaHandle_t& handle,
     const char& side, const char& trans, const int& n, const int& nrhs,
@@ -464,7 +472,6 @@ void pgesv_bpiv(
     T* d_B, const int* descB
 );
 
-#endif // DDLA_HAS_GPU
 
 /**
  * @brief Distributed matrix-matrix multiplication:
@@ -516,7 +523,6 @@ void pgemm(
     T* d_C, const int* descC
 );
 
-#if DDLA_HAS_GPU
 
 /**
  * @brief Distributed matrix addition: C := alpha * op(A) + beta * op(B).
@@ -541,7 +547,7 @@ void pgemm(
  * @param d_C      Device pointer to result C (output).
  * @param descC    ScaLAPACK int[9] descriptor for C.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pgeadd(
     const DdlaHandle_t& handle,
     const char& transa, const char& transb,
@@ -578,7 +584,7 @@ void pgeadd(
  * @param n      Logical order of the leading sub-matrix (<= desc[DDLA_M_]);
  *               n < 0 means the whole matrix.  Default -1.
  */
-template <typename T1, typename T2>
+template <DdlaBackend Backend = default_backend_v, typename T1, typename T2>
 void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* descA, const int& n = -1);
 
 /**
@@ -609,7 +615,7 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* descA
  * sub-matrix (leading block anchored at global (0,0)); only the leading
  * n x n block is factored.
  */
-template<typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 bool ppotrf(
     const DdlaHandle_t& handle,
     const char& uplo, const int& n,
@@ -635,7 +641,7 @@ bool ppotrf(
  * @param info    0 on success; i > 0 identifies the failed reverse pivot.
  * @param handle  DDLA handle providing the GPU stream and BLAS handle.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void potrf_bottom_right(
     const char& uplo, const int& n, T* d_A, const int& lda,
     int& info, const DdlaHandle_t& handle
@@ -662,7 +668,7 @@ void potrf_bottom_right(
  * sub-matrix (leading block anchored at global (0,0)); only the leading
  * n x n block is factored.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void ppotrf_bottom_right(
     const DdlaHandle_t& handle,
     const char& uplo, const int& n, T* d_A,
@@ -701,7 +707,7 @@ void ppotrf_bottom_right(
  * @param location Head-correction index forwarded from ppotrf; -1 (or == n)
  *                 means no B permutation.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void ppotrs(
     const DdlaHandle_t& handle,
     const char& side, const char& uplo, const char& trans,
@@ -739,7 +745,7 @@ void ppotrs(
  * @param is_head  Forwarded to ppotrf.
  * @param location Forwarded to ppotrf.
  */
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void pposv(
     const DdlaHandle_t& handle,
     const char& side, const char& uplo, const char& trans,
@@ -750,7 +756,6 @@ void pposv(
     bool is_head = false, int location = -1
 );
 
-#endif // DDLA_HAS_GPU
 
 // ---------------------------------------------------------------------------
 // Single-GPU / backend-neutral template interfaces.
@@ -1316,7 +1321,7 @@ void gemmVbatched2s(
     const int* segment_sizes,
     int segment_count);
 
-template <typename T>
+template <DdlaBackend Backend = default_backend_v, typename T>
 void ptran(const DdlaHandle_t& handle,
            const T* d_A, const int* descA,
            T* d_AT, const int* descAT,

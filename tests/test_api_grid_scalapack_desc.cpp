@@ -343,7 +343,6 @@ void check_padded_lld(const ddla::DdlaHandle_t& handle, const Shape& base)
     require_close(handle, "pgemm honours padded LLD_A", err, 0.0);
 }
 
-#if DDLA_HAS_GPU
 // --------------------------------------------------------------------------
 // ppotrf with a bogus CTXT_ must agree with the tight run bit for bit.
 // --------------------------------------------------------------------------
@@ -367,13 +366,13 @@ void check_ppotrf_bogus_ctxt(const ddla::DdlaHandle_t& handle,
     upload(handle, d_A.ptr, h_A);
     check_ddla_sync(handle);
     int info = 0;
-    (void)ddla::ppotrf<Complex>(handle, 'L', n, d_A.ptr, 1, 1, descA, info);
+    (void)ddla::ppotrf(handle, 'L', n, d_A.ptr, 1, 1, descA, info);
     const auto via_tight = download(handle, d_A.ptr, h_A.size());
 
     upload(handle, d_A.ptr, h_A);
     check_ddla_sync(handle);
     int info_desc = 0;
-    (void)ddla::ppotrf<Complex>(handle, 'L', n, d_A.ptr, 1, 1, sdA, info_desc);
+    (void)ddla::ppotrf(handle, 'L', n, d_A.ptr, 1, 1, sdA, info_desc);
     const auto via_bogus = download(handle, d_A.ptr, h_A.size());
 
     double err = diff_over_owned(handle, descA, via_bogus, descA[ddla::DDLA_LLD_],
@@ -403,7 +402,7 @@ void check_ptran_padded_lld(const ddla::DdlaHandle_t& handle,
     upload(handle, d_A.ptr, h_A);
     upload(handle, d_AT.ptr, h_AT);
     check_ddla_sync(handle);
-    ddla::ptran<Complex>(handle, d_A.ptr, descA, d_AT.ptr, descAT, true);
+    ddla::ptran(handle, d_A.ptr, descA, d_AT.ptr, descAT, true);
     const auto tight = download(handle, d_AT.ptr, h_AT.size());
 
     const int lldA = descA[ddla::DDLA_LLD_] + 3;
@@ -421,14 +420,13 @@ void check_ptran_padded_lld(const ddla::DdlaHandle_t& handle,
     upload(handle, q_A.ptr, p_A);
     upload(handle, q_AT.ptr, p_AT);
     check_ddla_sync(handle);
-    ddla::ptran<Complex>(handle, q_A.ptr, sdA, q_AT.ptr, sdAT, true);
+    ddla::ptran(handle, q_A.ptr, sdA, q_AT.ptr, sdAT, true);
     const auto padded = download(handle, q_AT.ptr, p_AT.size());
 
     const double err = diff_over_owned(handle, descAT, padded, lldAT,
                                        tight, descAT[ddla::DDLA_LLD_]);
     require_close(handle, "ptran honours padded LLD_A", err, 0.0);
 }
-#endif // DDLA_HAS_GPU
 
 } // namespace
 
@@ -441,9 +439,7 @@ int main(int argc, char** argv)
                              check_descinit_lld(handle, base);
                              check_routine_rejects_bad_desc(handle, base);
                              check_padded_lld(handle, base);
-#if DDLA_HAS_GPU
                              check_ppotrf_bogus_ctxt(handle, base);
                              check_ptran_padded_lld(handle, base);
-#endif
                          });
 }

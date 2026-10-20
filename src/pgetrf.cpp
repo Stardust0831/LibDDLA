@@ -4,12 +4,12 @@
 #include <vector>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla{
 
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void pgetrf(
     const DdlaHandle_t& handle, const int& m, const int& n,
     T* d_A, const int* array_descA,
@@ -24,7 +24,7 @@ void pgetrf(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetrf");
+    detail::require_backend<Backend>(ddla_handle, "pgetrf");
     assert(m <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
 
 
@@ -65,7 +65,7 @@ void pgetrf(
 
         // start pgetf2
 
-        pgetf2_panel(handle, 
+        pgetf2_panel<Backend>(handle, 
             m, n, nb_real,
             d_A, n_s, array_descA,
             ipiv, info
@@ -91,13 +91,13 @@ void pgetrf(
             }
         }
         if(mm_row_start<m_loc){
-            commBcast(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - mm_row_start) * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - mm_row_start) * nb_real, owner_col);
         }
         // broadcast block column
         if(i_loc>=0){
-            commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
             if(mm_col_start<n_loc){
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle, 'L', 'L', 'N', 'U',
                     nb_real, n_loc - mm_col_start, T(1),
                     d_temp_block, nb_real,
@@ -107,10 +107,10 @@ void pgetrf(
             }   
         }
         if(mm_col_start<n_loc){
-            commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - mm_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - mm_col_start), owner_row);
         }
         if(mm_row_start<m_loc&&mm_col_start<n_loc){
-            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
+            gemm<Backend, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, n_loc - mm_col_start, nb_real,
                 -1.0,
                 d_temp_L, m_loc - mm_row_start,
@@ -126,32 +126,27 @@ void pgetrf(
 
 }
 
-template void pgetrf<float>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    float* d_A, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#define INSTANTIATE_PGETRF(BACKEND, TYPE)                                   \
+    template void pgetrf<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
+    TYPE* d_A, const int* array_descA, \
+    int* ipiv, \
+    int& info)
 
-template void pgetrf<double>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    double* d_A, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETRF(DdlaBackend::CPU, float);
+INSTANTIATE_PGETRF(DdlaBackend::CPU, double);
+INSTANTIATE_PGETRF(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETRF(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pgetrf<std::complex<float>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<float>* d_A, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETRF(DdlaBackend::GPU, float);
+INSTANTIATE_PGETRF(DdlaBackend::GPU, double);
+INSTANTIATE_PGETRF(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETRF(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pgetrf<std::complex<double>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<double>* d_A, const int* array_descA,
-    int* ipiv, // host
-    int& info  // host
-);
+#undef INSTANTIATE_PGETRF
+
 
 }

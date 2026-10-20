@@ -11,11 +11,13 @@ message(STATUS "Building ddla library version ${CMAKE_PROJECT_VERSION}")
 
 
 if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
-    # CPU-only build: minimal source set supporting pgemm. transport_block.cpp
-    # is included here (unlike before the CommTraits<Backend>/comm_traits.h
-    # unification) because the CPU pgemm calls the unified
-    # transport_block<DdlaBackend::CPU,T> directly instead of a separate,
-    # hand-duplicated CPU-only implementation.
+    # CPU-only build: every backend-templated routine; the sources that only
+    # carry GPU kernels (pgetf2_kernels.cpp, pgeqrf_kernels.cpp, pgebrd_kernels.cpp)
+    # are left out.  transport_block.cpp is here because the CPU pgemm and the
+    # triangular solves call the unified transport_block<DdlaBackend::CPU,T>.
+    # The files that keep a GPU kernel next to their CPU arm (getrf_nopiv, pdam,
+    # ptran, potrf_bottom_right_transform) compile as plain C++ here: all kernel
+    # code is behind DDLA_USE_CUDA / DDLA_USE_HIP.
     list(APPEND lib_sources
         gemm.cpp
         herk.cpp
@@ -44,6 +46,30 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         random_generate.cpp
         pgemm.cpp
         transport_block.cpp
+        ptrtrs.cpp
+        pgetf2.cpp
+        pgetf2_panel.cpp
+        pgetrf.cpp
+        pgetrf_bpiv.cpp
+        pgetrf_nopiv.cpp
+        getrf_nopiv.cpp
+        plapiv.cpp
+        pswap.cpp
+        pgetrs.cpp
+        pgetrs_nopiv.cpp
+        pgetrs_bpiv.cpp
+        pgesv.cpp
+        pgesv_nopiv.cpp
+        pgesv_bpiv.cpp
+        pgeadd.cpp
+        pdam.cpp
+        ppotrf.cpp
+        potrf_bottom_right.cpp
+        potrf_bottom_right_transform.cpp
+        ppotrf_bottom_right.cpp
+        ppotrs.cpp
+        pposv.cpp
+        ptran.cpp
         ddla_handle_t.cpp
         ddla_desc.cpp
     )

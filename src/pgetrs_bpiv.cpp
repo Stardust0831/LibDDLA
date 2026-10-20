@@ -3,7 +3,7 @@
 #include <cassert>
 #include <vector>
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 
 namespace ddla {
 
@@ -36,7 +36,7 @@ namespace ddla {
  * @param d_B     Device pointer to RHS / solution B (input/output).
  * @param array_descB  ScaLAPACK int[9] descriptor for B.
  */
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void pgetrs_bpiv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const int* array_descA,
@@ -52,7 +52,7 @@ void pgetrs_bpiv(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetrs_bpiv");
+    detail::require_backend<Backend>(ddla_handle, "pgetrs_bpiv");
     assert(side == 'L' || side == 'R');
     assert(trans == 'N' || trans == 'T' || trans == 'C');
     assert(array_descA[DDLA_MB_] == array_descA[DDLA_NB_]);
@@ -122,7 +122,7 @@ void pgetrs_bpiv(
                     if(mypcol == owner_col){
                         const int j1 = indx_g2l_c(array_descB, handle, n_s + i - 1);
                         const int j2 = indx_g2l_c(array_descB, handle, n_s + t);
-                        swap<DdlaBackend::GPU, T>(ddla_handle,
+                        swap<Backend, T>(ddla_handle,
                                                   m_loc_B, d_B + j1 * lldB, 1,
                                                   d_B + j2 * lldB, 1);
                     }
@@ -130,7 +130,7 @@ void pgetrs_bpiv(
                     if(myprow == owner_row){
                         const int i1 = indx_g2l_r(array_descB, handle, n_s + i - 1);
                         const int i2 = indx_g2l_r(array_descB, handle, n_s + t);
-                        swap<DdlaBackend::GPU, T>(ddla_handle,
+                        swap<Backend, T>(ddla_handle,
                                                   n_loc_B, d_B + i1, lldB,
                                                   d_B + i2, lldB);
                     }
@@ -143,19 +143,19 @@ void pgetrs_bpiv(
         if(trans == 'N'){
             // A = Q^T * L * U => X = U^-1 * L^-1 * (Q * B)
             apply_pivots(/*columns=*/false, /*forward=*/true);
-            ptrtrs(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
         }else{
             // op(A)^T = U^T * L^T * Q => X = Q^T * L^-T * U^-T * B
-            ptrtrs(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
             apply_pivots(/*columns=*/false, /*forward=*/false);
         }
     }else{
         if(trans == 'N'){
             // X * P * L * U = B => X = B * U^-1 * L^-1 * P^T
-            ptrtrs(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
             // Columns compose opposite to rows: column swaps applied in the
             // laswp order right-multiply to Z*P, not Z*P^T; apply backward.
             apply_pivots(/*columns=*/true, /*forward=*/false);
@@ -163,35 +163,33 @@ void pgetrs_bpiv(
             // X * U^T * L^T * P^T = B => X = B * P * L^-T * U^-T
             // Column swaps in the laswp order give B*P; apply forward.
             apply_pivots(/*columns=*/true, /*forward=*/true);
-            ptrtrs(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
         }
     }
 }
 
-template void pgetrs_bpiv<float>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    float* d_A, const int* array_descA,
-    int* d_ipiv,
-    float* d_B, const int* array_descB
-);
-template void pgetrs_bpiv<double>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    double* d_A, const int* array_descA,
-    int* d_ipiv,
-    double* d_B, const int* array_descB
-);
-template void pgetrs_bpiv<std::complex<float>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<float>* d_A, const int* array_descA,
-    int* d_ipiv,
-    std::complex<float>* d_B, const int* array_descB
-);
-template void pgetrs_bpiv<std::complex<double>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<double>* d_A, const int* array_descA,
-    int* d_ipiv,
-    std::complex<double>* d_B, const int* array_descB
-);
+#define INSTANTIATE_PGETRS_BPIV(BACKEND, TYPE)                                   \
+    template void pgetrs_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    TYPE* d_A, const int* array_descA, \
+    int* d_ipiv, \
+    TYPE* d_B, const int* array_descB)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::CPU, float);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::CPU, double);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::GPU, float);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::GPU, double);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETRS_BPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PGETRS_BPIV
+
 
 } // namespace ddla

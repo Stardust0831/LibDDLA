@@ -4,7 +4,7 @@
 #include <cstddef>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include <vector>
 #include <type_traits>
 #include <cmath>
@@ -13,7 +13,7 @@
 
 namespace ddla{
 
-template<typename T>
+template <DdlaBackend Backend, typename T>
 bool ppotrf(
     const DdlaHandle_t& handle, const char& uplo, const int& n,
     T* A, const int& ia, const int& ja, const int* array_descA,
@@ -36,7 +36,7 @@ bool ppotrf(
     // global (0,0); ia/ja are reserved and must be 1 (1-based).
     assert(ia == 1 && ja == 1);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "ppotrf");
+    detail::require_backend<Backend>(ddla_handle, "ppotrf");
     if(is_head)
     if(location != -1 && location != n){
         // Symmetric permutation swapping global row/column `location` with
@@ -45,12 +45,12 @@ bool ppotrf(
         // triangles) Hermitian array, so both swaps touching every row/
         // column entry keeps the matrix consistently Hermitian afterward --
         // this is not a packed-triangle representation.
-        pswap(handle, 
+        pswap<Backend>(handle, 
             n,
             A, location, 1, array_descA, array_descA[DDLA_M_],
             A, n, 1, array_descA, array_descA[DDLA_M_]
         );
-        pswap(handle, 
+        pswap<Backend>(handle, 
             // Was: A, 1, location, array_descA, 1 as the second operand --
             // swapping column `location` with itself, a no-op that left the
             // column swap half of the permutation never applied.
@@ -83,6 +83,8 @@ bool ppotrf(
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_col, static_cast<std::size_t>(nb) * m_loc_A * sizeof(T)));
     int *d_info = nullptr;
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_info, sizeof(int)));
+    // potrf is skipped for a one-element head block (is_head, nb_real == 1), yet info is read back below
+    DDLA_CHECK(ddlaMemset(ddla_handle, d_info, 0, sizeof(int)));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -127,28 +129,28 @@ bool ppotrf(
         {
             if(n_s + nb_real == n && is_head){
                 if(nb_real > 1){
-                    potrf<DdlaBackend::GPU, T>(ddla_handle, uplo, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
+                    potrf<Backend, T>(ddla_handle, uplo, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
                     if(uplo == 'L'){
-                        trsm<DdlaBackend::GPU, T>(
+                        trsm<Backend, T>(
                             ddla_handle, side_char, uplo, 'C', 'N',
                             1, nb_real - 1, (T)1.0, 
                             A + mm_row_start + mm_col_start * lldA, lldA,
                             A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA
                         );
-                        herk<DdlaBackend::GPU, T>(
+                        herk<Backend, T>(
                             ddla_handle, uplo, 'N',
                             1, nb_real - 1,
                             -1.0, A + mm_row_start + nb_real - 1 + mm_col_start * lldA, lldA,
                             1.0, A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA, lldA
                         );
                     }else{
-                        trsm<DdlaBackend::GPU, T>(
+                        trsm<Backend, T>(
                             ddla_handle, side_char, uplo, 'C', 'N',
                             nb_real - 1, 1, (T)1.0, 
                             A + mm_row_start + mm_col_start * lldA, lldA,
                             A + mm_row_start + (mm_col_start + nb_real - 1) * lldA, lldA
                         );
-                        herk<DdlaBackend::GPU, T>(
+                        herk<Backend, T>(
                             ddla_handle, uplo, 'C',
                             1, nb_real - 1,
                             -1.0, A + mm_row_start + (mm_col_start + nb_real - 1) * lldA, lldA,
@@ -183,7 +185,7 @@ bool ppotrf(
                                       A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA,
                                       &last_value, sizeof(T)));
             }else
-                potrf<DdlaBackend::GPU, T>(ddla_handle, uplo, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
+                potrf<Backend, T>(ddla_handle, uplo, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
@@ -204,9 +206,9 @@ bool ppotrf(
             mm_row_start += nb_real;
         length_row = m_loc_A - mm_row_start;
         if(mypcol == owner_col){
-            commBcast(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
             if(length_row > 0){
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle, side_char, uplo, 'C', 'N',
                     length_row, nb_real, (T)1.0, 
                     d_block_diag, nb_real,
@@ -221,18 +223,18 @@ bool ppotrf(
             mm_col_start += nb_real;
         length_col = n_loc_A - mm_col_start;
         if(length_row > 0){
-            commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)length_row * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_block_col, (std::size_t)length_row * nb_real, owner_col);
         }
         if(myprow == mypcol){
             if(length_col > 0)
                 DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_row, d_block_col, length_col * nb_real * sizeof(T)));
         }
         if(length_col > 0){
-            commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, mypcol);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, mypcol);
         }
         if(myprow == mypcol){
             if(length_row > 0)
-                herk<DdlaBackend::GPU, T>(
+                herk<Backend, T>(
                     ddla_handle, uplo, 'N',
                     length_row, nb_real,
                     -1.0, d_block_col, length_row,
@@ -241,7 +243,7 @@ bool ppotrf(
         }else{
             // the first approach in which the unused block will be polluted
             // if(length_row > 0 && length_col > 0)
-            //     gemm<DdlaBackend::GPU, T>(
+            //     gemm<Backend, T>(
             //         ddla_handle, 'N', 'T',
             //         length_row, length_col, nb_real,
             //         (T)-1.0,
@@ -276,7 +278,7 @@ bool ppotrf(
                 }while(g_row_s < g_col_s);
                 length_col_real += nb;
                 if(length_col_real > 0)
-                    gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'C',
+                    gemm<Backend, T>(ddla_handle, 'N', 'C',
                         row_remain, length_col_real, nb_real, (T)-1.0,
                         d_block_col + length_row - row_remain, length_row,
                         d_block_row, length_col,
@@ -292,7 +294,7 @@ bool ppotrf(
                     g_row_s = indx_l2g_r(array_descA, handle, mm_row_start + length_row - length_row_real);
                 }while(g_row_s < g_col_s);
                 if(length_row_real > 0)
-                    gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'C',
+                    gemm<Backend, T>(ddla_handle, 'N', 'C',
                         length_row_real, col_remain, nb, (T)-1.0,
                         d_block_col + length_row - length_row_real, length_row,
                         d_block_row + length_col - col_remain, length_col,
@@ -318,7 +320,7 @@ bool ppotrf(
             DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
             DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
             DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
-            gemmBatched<DdlaBackend::GPU, T>(
+            gemmBatched<Backend, T>(
                 ddla_handle, 'N', 'C',
                 nb, nb, nb_real, (T)-1.0,
                 d_A_array, length_row,
@@ -335,9 +337,9 @@ bool ppotrf(
                 mm_col_start += nb_real;
             length_col = n_loc_A - mm_col_start;
             if(myprow == owner_row){
-                commBcast(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
+                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 if(length_col > 0){
-                    trsm<DdlaBackend::GPU, T>(
+                    trsm<Backend, T>(
                         ddla_handle, side_char, uplo, 'C', 'N',
                         nb_real, length_col, (T)1.0,
                         d_block_diag, nb_real,
@@ -352,18 +354,18 @@ bool ppotrf(
                 mm_row_start += nb_real;
             length_row = m_loc_A - mm_row_start;
             if(length_col > 0){
-                commBcast(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, owner_row);
+                commBcast<Backend>(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, owner_row);
             }
             if(myprow == mypcol){
                 if(length_row > 0)
                     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_col, d_block_row, nb_real * length_row * sizeof(T)));
             }
             if(length_row > 0){
-                commBcast(ddla_handle, CommScope::Row, d_block_col, (std::size_t)nb_real * length_row, myprow);
+                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_col, (std::size_t)nb_real * length_row, myprow);
             }
             if(myprow == mypcol){
                 if(length_col > 0)
-                    herk<DdlaBackend::GPU, T>(
+                    herk<Backend, T>(
                         ddla_handle, uplo, 'C',
                         length_col, nb_real,
                         -1.0, d_block_row, nb_real,
@@ -388,7 +390,7 @@ bool ppotrf(
                         const int g_col = indx_l2g_c(array_descA, handle, col_loc);
                         if(g_row >= g_col)
                             continue;
-                        gemm<DdlaBackend::GPU, T>(ddla_handle, 'C', 'N',
+                        gemm<Backend, T>(ddla_handle, 'C', 'N',
                             row_remain, col_len, nb_real,
                             (T)-1.0,
                             d_block_col + row_offset * nb_real, nb_real,
@@ -408,7 +410,7 @@ bool ppotrf(
                         const int g_row = indx_l2g_r(array_descA, handle, row_loc);
                         if(g_row >= g_col)
                             continue;
-                        gemm<DdlaBackend::GPU, T>(ddla_handle, 'C', 'N',
+                        gemm<Backend, T>(ddla_handle, 'C', 'N',
                             nb, col_remain, nb_real,
                             (T)-1.0,
                             d_block_col + row_offset * nb_real, nb_real,
@@ -438,7 +440,7 @@ bool ppotrf(
                     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
                     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
                     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
-                    gemmBatched<DdlaBackend::GPU, T>(
+                    gemmBatched<Backend, T>(
                         ddla_handle, 'C', 'N',
                         nb, nb, nb_real, (T)-1.0,
                         d_A_array, nb_real,
@@ -456,33 +458,28 @@ bool ppotrf(
 
 }
 
-template bool ppotrf<float>(
-    const DdlaHandle_t&, const char& uplo, const int& n,
-    float* A, const int& ia, const int& ja, const int* array_descA,
-    int& info, // host pointer
-    bool is_head, int location
-);
+#define INSTANTIATE_PPOTRF(BACKEND, TYPE)                                   \
+    template bool ppotrf<BACKEND, TYPE>(const DdlaHandle_t&, const char& uplo, const int& n, \
+    TYPE* A, const int& ia, const int& ja, const int* array_descA, \
+    int& info, \
+    bool is_head, int location)
 
-template bool ppotrf<double>(
-    const DdlaHandle_t&, const char& uplo, const int& n,
-    double* A, const int& ia, const int& ja, const int* array_descA,
-    int& info, // host pointer
-    bool is_head, int location
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PPOTRF(DdlaBackend::CPU, float);
+INSTANTIATE_PPOTRF(DdlaBackend::CPU, double);
+INSTANTIATE_PPOTRF(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PPOTRF(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template bool ppotrf<std::complex<float>>(
-    const DdlaHandle_t&, const char& uplo, const int& n,
-    std::complex<float>* A, const int& ia, const int& ja, const int* array_descA,
-    int& info, // host pointer
-    bool is_head, int location
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PPOTRF(DdlaBackend::GPU, float);
+INSTANTIATE_PPOTRF(DdlaBackend::GPU, double);
+INSTANTIATE_PPOTRF(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PPOTRF(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template bool ppotrf<std::complex<double>>(
-    const DdlaHandle_t&, const char& uplo, const int& n,
-    std::complex<double>* A, const int& ia, const int& ja, const int* array_descA,
-    int& info, // host pointer
-    bool is_head, int location
-);
+#undef INSTANTIATE_PPOTRF
+
 
 
 }

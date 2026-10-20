@@ -183,7 +183,7 @@ bool run_success_case(char uplo, int n, const DdlaHandle_t& handle)
     DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), matrix_bytes));
 
     int info = -1;
-    detail::potrf_bottom_right_block(
+    detail::potrf_bottom_right_block<ddla::default_backend_v>(
         uplo, n, d_A, lda, global_offset,
         d_work, d_info, info, handle);
     DDLA_CHECK(ddlaGetLastError(handle));
@@ -275,7 +275,7 @@ bool run_failure_case(
     DDLA_CHECK(ddlaMemcpy(handle, d_A, input.data(), input.size() * sizeof(T)));
 
     int info = -1;
-    detail::potrf_bottom_right_block(
+    detail::potrf_bottom_right_block<ddla::default_backend_v>(
         uplo, n, d_A, lda, global_offset,
         d_work, d_info, info, handle);
     DDLA_CHECK(ddlaGetLastError(handle));

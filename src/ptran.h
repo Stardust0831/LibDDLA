@@ -24,7 +24,7 @@ namespace ddla{
  *   descAT[DDLA_RSRC_] == descA[DDLA_CSRC_]
  *   descAT[DDLA_CSRC_] == descA[DDLA_RSRC_]
  */
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void ptran(const DdlaHandle_t& handle,
            const T* d_A, const int* descA,
            T* d_AT, const int* descAT,

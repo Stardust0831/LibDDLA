@@ -6,11 +6,11 @@
 #include <stdexcept>
 #include <string>
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 
 namespace ddla{
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void pgesv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
     T* d_A, const int* array_descA,
@@ -25,12 +25,12 @@ void pgesv(
 
 
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgesv");
+    detail::require_backend<Backend>(ddla_handle, "pgesv");
     assert(n <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     const int n_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     std::vector<int> ipiv(n_loc_A);
     int info = 0;
-    pgetrf(handle, 
+    pgetrf<Backend>(handle, 
         n, n,
         d_A, array_descA,
         ipiv.data(),
@@ -39,7 +39,7 @@ void pgesv(
     if(info !=0){
         throw std::runtime_error("pgesv: pgetrf returned info = " + std::to_string(info));
     }
-    pgetrs(handle, 
+    pgetrs<Backend>(handle, 
         side, trans, n, nrhs,
         d_A, array_descA,
         ipiv.data(),
@@ -47,28 +47,26 @@ void pgesv(
     );
 }
 
-template void pgesv<float>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    float* d_A, const int* array_descA,
-    float* d_B, const int* array_descB
-);
+#define INSTANTIATE_PGESV(BACKEND, TYPE)                                   \
+    template void pgesv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    TYPE* d_A, const int* array_descA, \
+    TYPE* d_B, const int* array_descB)
 
-template void pgesv<double>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    double* d_A, const int* array_descA,
-    double* d_B, const int* array_descB
-);
+#if DDLA_HAS_CPU
+INSTANTIATE_PGESV(DdlaBackend::CPU, float);
+INSTANTIATE_PGESV(DdlaBackend::CPU, double);
+INSTANTIATE_PGESV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGESV(DdlaBackend::CPU, std::complex<double>);
+#endif
 
-template void pgesv<std::complex<float>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<float>* d_A, const int* array_descA,
-    std::complex<float>* d_B, const int* array_descB
-);
+#if DDLA_HAS_GPU
+INSTANTIATE_PGESV(DdlaBackend::GPU, float);
+INSTANTIATE_PGESV(DdlaBackend::GPU, double);
+INSTANTIATE_PGESV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGESV(DdlaBackend::GPU, std::complex<double>);
+#endif
 
-template void pgesv<std::complex<double>>(
-    const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs,
-    std::complex<double>* d_A, const int* array_descA,
-    std::complex<double>* d_B, const int* array_descB
-);
+#undef INSTANTIATE_PGESV
+
 
 }

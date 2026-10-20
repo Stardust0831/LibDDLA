@@ -3,15 +3,20 @@
 #include "ddla_desc.h"
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
-#include <thrust/complex.h>
 #include <vector>
 #include <algorithm>
 #include <cassert>
 #include <type_traits>
 
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+#include <thrust/complex.h>
+#endif
+
 namespace ddla{
+
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 
 namespace detail {
 
@@ -44,7 +49,10 @@ __device__ __forceinline__ T conj_if(const T& val, bool do_conj) {
 
 } // namespace detail
 
+#endif // DDLA_USE_CUDA || DDLA_USE_HIP
+
 // POD struct for device-side block info (must not contain complex types).
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
 struct TransBlockInfo {
     int bm;          // source block rows
     int bn;          // source block cols
@@ -131,6 +139,8 @@ __global__ void scatter_blocks_kernel(
     }
 }
 
+#endif // DDLA_USE_CUDA || DDLA_USE_HIP
+
 /**
  * @brief Distributed out-of-place matrix transpose (optionally conjugate).
  *
@@ -142,6 +152,9 @@ __global__ void scatter_blocks_kernel(
  *      no host staging, no per-block synchronisation.
  *   4. Scatter: fused kernel copies from d_recvbuf into d_AT (D2D, async).
  *
+ * CPU handles run the same plan with the per-block steps done by host geam / ddlaMemcpy2D (the batched kernels below are
+ * the GPU arm of the same three phases).
+ *
  * Performance improvements over the original per-block geam/memcpy2D loop:
  *   - P0: Three fused CUDA kernels replace thousands of per-block kernel launches.
  *   - P0: Redundant device-wide synchronize in pgemm.cpp removed.
@@ -152,7 +165,7 @@ __global__ void scatter_blocks_kernel(
  * eliminating the stream synchronize that synchronous free requires and
  * allowing the free to overlap with subsequent stream work.
  */
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
            T* d_AT, const int* descAT,
            bool conj)
@@ -171,7 +184,7 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
     assert(descAT[DDLA_RSRC_] == descA[DDLA_CSRC_]);
     assert(descAT[DDLA_CSRC_] == descA[DDLA_RSRC_]);
 
-    detail::require_gpu_backend(handle, "ptran");
+    detail::require_backend<Backend>(handle, "ptran");
     int myrank = handle->myid;
     int Pr = nprows;
     int Pc = npcols;
@@ -279,26 +292,41 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
         recv_total += b.bm * b.bn;
     }
 
-    using devT = typename detail::device_scalar<T>::type;
-    const devT* d_A_dev = reinterpret_cast<const devT*>(d_A);
-    devT* d_AT_dev = reinterpret_cast<devT*>(d_AT);
+    const int lldA = descA[DDLA_LLD_];
+    const int lldAT = descAT[DDLA_LLD_];
+    const char trans = conj ? 'C' : 'T';   // ('C' is a plain transpose for the real types)
 
-    gpuStream_t stream = handle->stream;
-
-    // ---- Phase 2: allocate device buffers ----
+    // ---- Phase 2: allocate the pack / receive buffers (host memory on a CPU handle) ----
     T* d_sendbuf = nullptr;
     T* d_recvbuf = nullptr;
     if(send_total > 0) DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_sendbuf), sizeof(T) * send_total));
     if(recv_total > 0) DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_recvbuf), sizeof(T) * recv_total));
+
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
+    using devT = typename detail::device_scalar<T>::type;
+    const devT* d_A_dev = reinterpret_cast<const devT*>(d_A);
+    devT* d_AT_dev = reinterpret_cast<devT*>(d_AT);
     devT* d_sendbuf_dev = reinterpret_cast<devT*>(d_sendbuf);
     devT* d_recvbuf_dev = reinterpret_cast<devT*>(d_recvbuf);
-
+    const gpuStream_t stream = handle->stream;
     constexpr int TILE = 16;
     dim3 block_dim(TILE, TILE, 1);
-
-    // ---- Phase 3: pack send data (fused kernel: transpose d_A -> d_sendbuf) ----
     TransBlockInfo* d_pack_blocks = nullptr;
+    TransBlockInfo* d_local_blocks = nullptr;
+    TransBlockInfo* d_scatter_blocks = nullptr;
+#endif
+
+    // ---- Phase 3: pack send data (transpose d_A -> d_sendbuf) ----
     if(!send_blocks.empty()){
+      if constexpr (Backend == DdlaBackend::CPU){
+        for(const auto& b : send_blocks){
+            geam<Backend, T>(handle, trans, 'N', b.bn, b.bm, T(1),
+                             d_A + b.lrow_A + static_cast<std::size_t>(b.lcol_A) * lldA, lldA,
+                             T(0), nullptr, 1,
+                             d_sendbuf + b.offset, b.bn);
+        }
+      }else{
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
         std::vector<TransBlockInfo> h_pack(send_blocks.size());
         for(size_t i = 0; i < send_blocks.size(); i++){
             const auto& b = send_blocks[i];
@@ -316,11 +344,21 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
             d_A_dev, d_sendbuf_dev, d_pack_blocks,
             static_cast<int>(send_blocks.size()), conj);
         DDLA_CHECK(ddlaGetLastError(handle));
+#endif
+      }
     }
 
-    // ---- Phase 4: local transpose (fused kernel: d_A -> d_AT) ----
-    TransBlockInfo* d_local_blocks = nullptr;
+    // ---- Phase 4: local transpose (d_A -> d_AT) ----
     if(!local_blocks.empty()){
+      if constexpr (Backend == DdlaBackend::CPU){
+        for(const auto& b : local_blocks){
+            geam<Backend, T>(handle, trans, 'N', b.bn, b.bm, T(1),
+                             d_A + b.lrow_A + static_cast<std::size_t>(b.lcol_A) * lldA, lldA,
+                             T(0), nullptr, 1,
+                             d_AT + b.lrow_AT + static_cast<std::size_t>(b.lcol_AT) * lldAT, lldAT);
+        }
+      }else{
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
         std::vector<TransBlockInfo> h_local(local_blocks.size());
         for(size_t i = 0; i < local_blocks.size(); i++){
             const auto& b = local_blocks[i];
@@ -338,6 +376,8 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
             d_A_dev, d_AT_dev, d_local_blocks,
             static_cast<int>(local_blocks.size()), conj);
         DDLA_CHECK(ddlaGetLastError(handle));
+#endif
+      }
     }
 
     // ---- Phase 5: communication ----
@@ -354,14 +394,22 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
             sdispls[p] = sdispls[p-1] + sendcounts[p-1];
             rdispls[p] = rdispls[p-1] + recvcounts[p-1];
         }
-        commAlltoallv(handle, CommScope::Grid, nprocs,
+        commAlltoallv<Backend>(handle, CommScope::Grid, nprocs,
                       d_sendbuf, sendcounts.data(), sdispls.data(),
                       d_recvbuf, recvcounts.data(), rdispls.data());
     }
 
-    // ---- Phase 6: scatter recv data into d_AT (fused kernel) ----
-    TransBlockInfo* d_scatter_blocks = nullptr;
+    // ---- Phase 6: scatter recv data into d_AT ----
     if(!recv_blocks.empty()){
+      if constexpr (Backend == DdlaBackend::CPU){
+        for(const auto& b : recv_blocks){
+            DDLA_CHECK(ddlaMemcpy2D(handle,
+                                    d_AT + b.lrow_AT + static_cast<std::size_t>(b.lcol_AT) * lldAT, lldAT * sizeof(T),
+                                    d_recvbuf + b.offset, b.bn * sizeof(T),
+                                    b.bn * sizeof(T), b.bm));
+        }
+      }else{
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
         std::vector<TransBlockInfo> h_scatter(recv_blocks.size());
         for(size_t i = 0; i < recv_blocks.size(); i++){
             const auto& b = recv_blocks[i];
@@ -379,20 +427,38 @@ void ptran(const DdlaHandle_t& handle, const T* d_A, const int* descA,
             d_recvbuf_dev, d_AT_dev, d_scatter_blocks,
             static_cast<int>(recv_blocks.size()));
         DDLA_CHECK(ddlaGetLastError(handle));
+#endif
+      }
     }
 
     // ---- Finalize ----
-    // Free device buffers (async free is stream-ordered, no sync needed).
+    // Free the buffers (the GPU free is stream-ordered, no sync needed).
     if(d_sendbuf)        DDLA_CHECK(ddlaFree(handle, d_sendbuf));
     if(d_recvbuf)        DDLA_CHECK(ddlaFree(handle, d_recvbuf));
+#if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
     if(d_pack_blocks)    DDLA_CHECK(ddlaFree(handle, d_pack_blocks));
     if(d_scatter_blocks) DDLA_CHECK(ddlaFree(handle, d_scatter_blocks));
     if(d_local_blocks)   DDLA_CHECK(ddlaFree(handle, d_local_blocks));
+#endif
 }
 
-template void ptran<float>(const DdlaHandle_t&, const float* d_A, const int* descA, float* d_AT, const int* descAT, bool conj);
-template void ptran<double>(const DdlaHandle_t&, const double* d_A, const int* descA, double* d_AT, const int* descAT, bool conj);
-template void ptran<std::complex<float>>(const DdlaHandle_t&, const std::complex<float>* d_A, const int* descA, std::complex<float>* d_AT, const int* descAT, bool conj);
-template void ptran<std::complex<double>>(const DdlaHandle_t&, const std::complex<double>* d_A, const int* descA, std::complex<double>* d_AT, const int* descAT, bool conj);
+#define INSTANTIATE_PTRAN(BACKEND, TYPE) \
+    template void ptran<BACKEND, TYPE>(const DdlaHandle_t&, const TYPE* d_A, const int* descA, TYPE* d_AT, const int* descAT, bool conj)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PTRAN(DdlaBackend::CPU, float);
+INSTANTIATE_PTRAN(DdlaBackend::CPU, double);
+INSTANTIATE_PTRAN(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PTRAN(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PTRAN(DdlaBackend::GPU, float);
+INSTANTIATE_PTRAN(DdlaBackend::GPU, double);
+INSTANTIATE_PTRAN(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PTRAN(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PTRAN
 
 } // namespace ddla

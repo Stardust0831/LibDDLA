@@ -16,9 +16,15 @@ runtime. All functions live in the `ddla` namespace.
   selectable per `DdlaHandle_t` at runtime.
 - **The CPU-only backend has a reduced surface.** It currently covers the
   BLAS-1/2/3 wrappers (`gemm`, `scal`, `omatcopy`, `axpy`, `iamax`, `geru`) and
-  `pgemm`. The distributed factorization/solve routines (`pgetrf`, `pgesv`,
-  `ppotrf`, `pposv`, `ptran`, batched GEMM, etc.) are GPU-only and require
-  `DDLA_USE_CUDA` or `DDLA_USE_HIP` (alone or in a dual build).
+  `pgemm`, and the distributed LU (`pgetrf`, `pgetrs`, `pgesv` and their
+  `_nopiv` / `_bpiv` variants), Cholesky (`ppotrf`, `ppotrs`, `pposv`, the
+  bottom-right variants) and triangular-solve (`ptrtrs`) routines with their
+  helpers (`pgeadd`, `pdam`, `ptran`). Each of them is templated on the
+  backend, like `pgemm`: `pgetrf<DdlaBackend::CPU>(handle, ...)` runs on a CPU
+  handle (host BLAS/LAPACK, MPI), `<DdlaBackend::GPU>` on a GPU handle, and the
+  default is the build's default backend. Only the variable-size batched GEMMs
+  (`gemmVbatched`, `gemmVbatched2s`) need `DDLA_USE_CUDA` or `DDLA_USE_HIP`
+  (alone or in a dual build).
   `DDLA_USE_CCL` and `DDLA_USE_GPU_CPU_TUNNEL` are not supported with a
   CPU-only build, since there is no GPU backend to communicate with.
 - **Supported scalar types** are `float`, `double`, `std::complex<float>`, and

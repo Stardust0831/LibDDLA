@@ -4,7 +4,7 @@
 #include <algorithm>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "require_gpu.h"
+#include "require_backend.h"
 #include "comm_traits.h"
 
 namespace ddla {
@@ -25,7 +25,7 @@ namespace ddla {
  *   5) Broadcast U panel down column, L panel across row
  *   6) Update trailing: D <- D - L21 * U12         (gemm)
  */
-template<typename T>
+template <DdlaBackend Backend, typename T>
 void pgetrf_nopiv(
     const DdlaHandle_t& handle, const int& m, const int& n,
     T* d_A, const int* array_descA,
@@ -40,7 +40,7 @@ void pgetrf_nopiv(
 
     assert(m <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     DdlaHandle_t ddla_handle = handle;
-    detail::require_gpu_backend(ddla_handle, "pgetrf_nopiv");
+    detail::require_backend<Backend>(ddla_handle, "pgetrf_nopiv");
 
 
 
@@ -85,7 +85,7 @@ void pgetrf_nopiv(
         // Call the local getrf_nopiv directly on the local device buffer.
         int local_info = 0;
         if (myprow == owner_row && mypcol == owner_col) {
-            getrf_nopiv(nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_info, ddla_handle);
+            getrf_nopiv<Backend>(nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_info, ddla_handle);
             DDLA_CHECK(ddlaMemcpy(ddla_handle, &local_info, d_info, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
@@ -108,10 +108,10 @@ void pgetrf_nopiv(
                                     lld * sizeof(T), nb_real * sizeof(T), nb_real));
         }
         if (myprow == owner_row) {
-            commBcast(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
         }
         if (mypcol == owner_col) {
-            commBcast(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
         }
 
         // ================================================================
@@ -121,7 +121,7 @@ void pgetrf_nopiv(
         if (myprow == owner_row) {
             if (n_loc > right_panel_col_start) {
                 T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle,
                     'L', 'L',
                     'N', 'U',
@@ -141,7 +141,7 @@ void pgetrf_nopiv(
         if (mypcol == owner_col) {
             if (m_loc > left_panel_row_start) {
                 T* d_left_panel = d_A + mm_col_start * lld + left_panel_row_start;
-                trsm<DdlaBackend::GPU, T>(
+                trsm<Backend, T>(
                     ddla_handle,
                     'R', 'U',
                     'N', 'N',
@@ -159,10 +159,10 @@ void pgetrf_nopiv(
         // Step 5: Broadcast U panel down column, L panel across row
         // ================================================================
         if (n_loc > right_panel_col_start) {
-            commBcast(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
         }
         if (m_loc > left_panel_row_start) {
-            commBcast(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
         }
 
         // ================================================================
@@ -172,7 +172,7 @@ void pgetrf_nopiv(
         int trailing_n = n_loc - right_panel_col_start;
 
         if (trailing_m > 0 && trailing_n > 0) {
-            gemm<DdlaBackend::GPU, T>(ddla_handle, 'N', 'N',
+            gemm<Backend, T>(ddla_handle, 'N', 'N',
                 trailing_m, trailing_n, nb_real,
                 T(-1.0),
                 d_temp_L, trailing_m,
@@ -198,25 +198,26 @@ void pgetrf_nopiv(
 }
 
 // Explicit instantiations
-template void pgetrf_nopiv<float>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    float* d_A, const int* array_descA,
-    int& info
-);
-template void pgetrf_nopiv<double>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    double* d_A, const int* array_descA,
-    int& info
-);
-template void pgetrf_nopiv<std::complex<float>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<float>* d_A, const int* array_descA,
-    int& info
-);
-template void pgetrf_nopiv<std::complex<double>>(
-    const DdlaHandle_t&, const int& m, const int& n,
-    std::complex<double>* d_A, const int* array_descA,
-    int& info
-);
+#define INSTANTIATE_PGETRF_NOPIV(BACKEND, TYPE)                                   \
+    template void pgetrf_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
+    TYPE* d_A, const int* array_descA, \
+    int& info)
+
+#if DDLA_HAS_CPU
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::CPU, float);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::CPU, double);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::CPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_GPU
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::GPU, float);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::GPU, double);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_PGETRF_NOPIV(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#undef INSTANTIATE_PGETRF_NOPIV
+
 
 } // namespace ddla
