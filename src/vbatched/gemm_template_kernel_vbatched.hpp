@@ -431,12 +431,12 @@ void gemm_template_vbatched_2s(
         dim3 dimGrid_0( ddlaVbatchedCeilDiv( max_m_0, BLK_M_0 ), ddlaVbatchedCeilDiv( max_n_0, BLK_N_0 ), ibatch );
         dim3 dimGrid_1( ddlaVbatchedCeilDiv( max_m_1, BLK_M_1 ), ddlaVbatchedCeilDiv( max_n_1, BLK_N_1 ), ibatch );
 
-        ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_0, dim3(dimGrid_0), dim3(dimBlock_0), shmem_0, m_0+i, n_0+i, k_0+i, dA_array_0+i, Ai_0, Aj_0, ldda_0+i, dB_array_0+i, Bi_0, Bj_0, lddb_0+i, dC_array_0, Ci_0, Cj_0, lddc_0+i, alpha_0, beta_0, max_m_0, max_n_0, max_k_0);
+        ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_0, dim3(dimGrid_0), dim3(dimBlock_0), shmem_0, m_0+i, n_0+i, k_0+i, dA_array_0+i, Ai_0, Aj_0, ldda_0+i, dB_array_0+i, Bi_0, Bj_0, lddb_0+i, dC_array_0+i, Ci_0, Cj_0, lddc_0+i, alpha_0, beta_0, max_m_0, max_n_0, max_k_0);
 
         if(C0_left)
-            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dC_array_0, Ai_1, Aj_1, ldda_1+i, dAB_array_1+i, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
+            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dC_array_0+i, Ai_1, Aj_1, ldda_1+i, dAB_array_1+i, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
         else
-            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dAB_array_1+i, Ai_1, Aj_1, ldda_1+i, dC_array_0, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
+            ddlaLaunchKernelByPtr<T>(handle, func_gemm_template_vbatched_kernel_1, dim3(dimGrid_1), dim3(dimBlock_1), shmem_1, m_1+i, n_1+i, k_1+i, dAB_array_1+i, Ai_1, Aj_1, ldda_1+i, dC_array_0+i, Bi_1, Bj_1, lddb_1+i, dC_array_1+i, Ci_1, Cj_1, lddc_1+i, alpha_1, beta_1, max_m_1, max_n_1, max_k_1);
 
 		i += segment_sizes[segment];
 	}
