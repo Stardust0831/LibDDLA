@@ -6,7 +6,6 @@
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 #include "comm_traits.h"
-#include "swap.h"
 
 #include "pgetf2_kernels.h"
 
@@ -60,7 +59,6 @@ void pgetf2(
     int lld = array_descA[DDLA_LLD_];
     int nb = array_descA[DDLA_NB_];
 
-    gpublasHandle_t blasH=ddla_handle->blasH;
     
     int max_row;
     int max_prow;
@@ -140,11 +138,11 @@ void pgetf2(
         // exchange rows
         if(owner_row == max_prow){
             if(myprow == owner_row && max_loc_row != i_panel)
-                BLAS_CHECK(gpublasSwap(
-                    blasH, n_loc,
+                swap<DdlaBackend::GPU, T>(
+                    ddla_handle, n_loc,
                     d_A + i_panel, lld,
                     d_A + max_loc_row, lld
-                ));
+                );
         }else{
             if(myprow == owner_row){
                 DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, sizeof(T), d_A + i_panel, lld * sizeof(T), sizeof(T),

@@ -45,6 +45,7 @@ constexpr auto GPUBLAS_OP_C = 'C';
 #define gpurandGenerateUniform(gen, data, n) ((void)0)
 #define gpurandGenerateUniformDouble(gen, data, n) ((void)0)
 #define gpurandDestroyGenerator(gen) ((void)0)
+#define gpurandSetStream(gen, stream) ((void)0)
 
 #define GPU_HAS_SOLVER_LASWP 0
 

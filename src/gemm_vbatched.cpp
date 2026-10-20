@@ -1,4 +1,7 @@
-#include "gemmVbatched.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
+
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 #include "vbatched/gemm_vbatched_compat.h"
@@ -313,14 +316,35 @@ void launch_core_2s(
 namespace ddla
 {
 
-template <typename T>
+namespace
+{
+
+// The batched kernels are device code: the CPU entry points exist only so that a CPU handle is rejected with a
+// message instead of a link error.
+template <DdlaBackend Backend>
+void validate_handle(const DdlaHandle_t& handle, const char* who)
+{
+    if (handle == nullptr)
+        throw std::invalid_argument(std::string(who) + ": invalid DDLA handle");
+    if (ddlaGetBackend(handle) != Backend)
+        throw std::invalid_argument(std::string(who) + ": template backend does not match the handle backend");
+    if constexpr (Backend != DdlaBackend::GPU)
+        throw std::invalid_argument(std::string(who) + ": only the GPU backend is implemented");
+    else if (handle->stream == nullptr)
+        throw std::invalid_argument(std::string(who) + ": invalid DDLA handle");
+}
+
+} // namespace
+
+template <DdlaBackend Backend, typename T>
 void gemmVbatched(
+    const DdlaHandle_t& handle,
     char transA, char transB,
     int* d_m, int* d_n, int* d_k,
     T alpha, const T* const* d_A_array, int* d_lda,
     const T* const* d_B_array, int* d_ldb,
     T beta, T** d_C_array, int* d_ldc,
-    int batch_count, const DdlaHandle_t& handle)
+    int batch_count)
 {
     static_assert(
         std::is_same_v<T, float> || std::is_same_v<T, double>
@@ -328,12 +352,11 @@ void gemmVbatched(
         || std::is_same_v<T, std::complex<double>>,
         "gemmVbatched supports float, double, and their complex types");
 
+    validate_handle<Backend>(handle, "gemmVbatched");
     if (batch_count < 0)
         throw std::invalid_argument("gemmVbatched: negative batch count");
     if (batch_count == 0)
         return;
-    if (handle == nullptr || handle->stream == nullptr)
-        throw std::invalid_argument("gemmVbatched: invalid DDLA handle");
     if (d_A_array == nullptr || d_B_array == nullptr || d_C_array == nullptr)
         throw std::invalid_argument("gemmVbatched: null matrix pointer array");
 
@@ -349,8 +372,9 @@ void gemmVbatched(
     DDLA_CHECK(ddlaGetLastError(handle));
 }
 
-template <typename T>
+template <DdlaBackend Backend, typename T>
 void gemmVbatched2s(
+    const DdlaHandle_t& handle,
     char transA_0, char transB_0,
     int* d_m_0, int* d_n_0, int* d_k_0,
     T alpha_0, const T* const* d_A_array_0, int* d_lda_0,
@@ -362,9 +386,9 @@ void gemmVbatched2s(
     int* d_lda_1, int* d_ldb_1,
     T beta_1, T** d_C_array_1, int* d_ldc_1,
     bool C0_left, int batch_count,
-    const int* segment_sizes, int segment_count,
-    const DdlaHandle_t& handle)
+    const int* segment_sizes, int segment_count)
 {
+    validate_handle<Backend>(handle, "gemmVbatched2s");
     if (batch_count < 0)
         throw std::invalid_argument("gemmVbatched2s: negative batch count");
     if (batch_count == 0)
@@ -385,8 +409,6 @@ void gemmVbatched2s(
     if (segment_total != batch_count)
         throw std::invalid_argument(
             "gemmVbatched2s: segment total does not match batch count");
-    if (handle == nullptr || handle->stream == nullptr)
-        throw std::invalid_argument("gemmVbatched2s: invalid DDLA handle");
     if (d_A_array_0 == nullptr || d_B_array_0 == nullptr
         || d_C_array_0 == nullptr || d_AB_array_1 == nullptr
         || d_C_array_1 == nullptr)
@@ -416,22 +438,31 @@ void gemmVbatched2s(
     DDLA_CHECK(ddlaGetLastError(handle));
 }
 
-#define INSTANTIATE_VBATCHED(type)                                              \
-template void gemmVbatched<type>(                                              \
-    char, char, int*, int*, int*, type,                                        \
+#define INSTANTIATE_VBATCHED(backend, type)                                     \
+template void gemmVbatched<backend, type>(                                     \
+    const DdlaHandle_t&, char, char, int*, int*, int*, type,                   \
     const type* const*, int*, const type* const*, int*, type, type**, int*,     \
-    int, const DdlaHandle_t&);                                                  \
-template void gemmVbatched2s<type>(                                            \
-    char, char, int*, int*, int*, type,                                        \
+    int);                                                                       \
+template void gemmVbatched2s<backend, type>(                                   \
+    const DdlaHandle_t&, char, char, int*, int*, int*, type,                   \
     const type* const*, int*, const type* const*, int*, type, type**, int*,     \
     char, char, int*, int*, int*, type,                                        \
     const type* const*, int*, int*, type, type**, int*, bool, int,             \
-    const int*, int, const DdlaHandle_t&)
+    const int*, int)
 
-INSTANTIATE_VBATCHED(float);
-INSTANTIATE_VBATCHED(double);
-INSTANTIATE_VBATCHED(std::complex<float>);
-INSTANTIATE_VBATCHED(std::complex<double>);
+#if DDLA_HAS_GPU
+INSTANTIATE_VBATCHED(DdlaBackend::GPU, float);
+INSTANTIATE_VBATCHED(DdlaBackend::GPU, double);
+INSTANTIATE_VBATCHED(DdlaBackend::GPU, std::complex<float>);
+INSTANTIATE_VBATCHED(DdlaBackend::GPU, std::complex<double>);
+#endif
+
+#if DDLA_HAS_CPU
+INSTANTIATE_VBATCHED(DdlaBackend::CPU, float);
+INSTANTIATE_VBATCHED(DdlaBackend::CPU, double);
+INSTANTIATE_VBATCHED(DdlaBackend::CPU, std::complex<float>);
+INSTANTIATE_VBATCHED(DdlaBackend::CPU, std::complex<double>);
+#endif
 
 #undef INSTANTIATE_VBATCHED
 

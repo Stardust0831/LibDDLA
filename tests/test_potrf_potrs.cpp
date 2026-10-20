@@ -47,7 +47,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle, bool is_write = false)
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generate(d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
+    random_generate(ddla_handle, d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
     std::complex<double> ten = 1000.0;
     for(int i=0;i<matrix_desc[DDLA_M_];i++){
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);

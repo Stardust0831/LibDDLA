@@ -8,7 +8,6 @@
 #include <ddla/ddla.h>
 #include "test_desc_helpers.h"
 #include "ddla_connector.h"
-#include "scal.h"
 #include "ddla_stream_impl.h"
 
 using namespace ddla;
@@ -37,8 +36,8 @@ void check_pgetrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_ipiv_bpiv,
                           ddla_test::m_loc(ddla_handle, matrix_desc) * sizeof(int)));
 
-    random_generate(d_A, nelem);
-    BLAS_CHECK(gpublasScal(ddla_handle->blasH, nelem, 0.01, d_A, 1));
+    random_generate(ddla_handle, d_A, nelem);
+    ddla::scal(ddla_handle, static_cast<int>(nelem), std::complex<double>(0.01, 0.0), d_A, 1);
     std::complex<double> cons_i = 2.0;
     for (int i = 0; i < matrix_desc[DDLA_M_]; i++) {
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);

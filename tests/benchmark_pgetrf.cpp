@@ -13,7 +13,6 @@
 #include "test_desc_helpers.h"
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "scal.h"
 
 using namespace ddla;
 
@@ -31,7 +30,7 @@ void fill_matrix(int n, const int* desc, Complex* d_A, const DdlaHandle_t& handl
     GPURAND_CHECK(gpurandGenerateUniformDouble(
         generator, reinterpret_cast<double*>(d_A), nelem * 2));
     GPURAND_CHECK(gpurandDestroyGenerator(generator));
-    BLAS_CHECK(gpublasScal(handle->blasH, nelem, Complex(1.0e-4, 0.0), d_A, 1));
+    ddla::scal(handle, static_cast<int>(nelem), Complex(1.0e-4, 0.0), d_A, 1);
 
     const Complex diag(2.0, 0.0);
     for(int i = 0; i < n; ++i){

@@ -261,6 +261,7 @@ constexpr auto gpucclSum = ncclSum;
 #define gpurandGenerateUniform hiprandGenerateUniform
 #define gpurandGenerateUniformDouble hiprandGenerateUniformDouble
 #define gpurandSetPseudoRandomGeneratorSeed hiprandSetPseudoRandomGeneratorSeed
+#define gpurandSetStream hiprandSetStream
 
 // collective communication (NCCL / RCCL)
 #ifdef DDLA_USE_CCL
@@ -276,7 +277,7 @@ constexpr auto gpucclSum = ncclSum;
 #endif
 
 // ---- vendor features and launch helpers --------------------------------------------------
-// cuSOLVER has laswp, hipSOLVER does not (HIP falls back to gpublasLaswp, see laswp.h).
+// cuSOLVER has laswp, hipSOLVER does not (HIP falls back to a row-swap loop, see laswp.cpp).
 #define GPU_HAS_SOLVER_LASWP 0
 #define GPU_DEFAULT_SHARED_MEM_PER_BLOCK (64 * 1024)   // when the device query fails
 

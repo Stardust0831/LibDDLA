@@ -8,8 +8,6 @@
 #include <ddla/ddla.h>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "getrf.h"
-#include "scal.h"
 
 using namespace ddla;
 
@@ -42,8 +40,8 @@ void check_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_ipiv, n * sizeof(int)));
 
     // Fill with random values on device, then copy to the reference buffer.
-    random_generate(d_A, nelem);
-    BLAS_CHECK(gpublasScal(ddla_handle->blasH, n * n, 0.01, d_A, 1));
+    random_generate(ddla_handle, d_A, nelem);
+    ddla::scal(ddla_handle, n * n, std::complex<double>(0.01, 0.0), d_A, 1);
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < n; i++){
         DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i + i * n, &cons_i, sizeof(std::complex<double>)));
@@ -61,7 +59,7 @@ void check_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
 
     // Run cuSOLVER/hipSOLVER LU with partial pivoting as the reference.
     double t_ref = MPI_Wtime();
-    SOLVER_CHECK(gpusolverGetrf(ddla_handle->solverH, n, n, d_A_ref, lda, d_ipiv, d_info_ref));
+    ddla::getrf(ddla_handle, n, n, d_A_ref, lda, d_ipiv, d_info_ref);
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     t_ref = MPI_Wtime() - t_ref;
 

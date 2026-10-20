@@ -10,7 +10,6 @@
 #include "test_desc_helpers.h"
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "scal.h"
 
 using namespace ddla;
 
@@ -50,8 +49,8 @@ void check_sv_gemm_hermitian_positive(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_R, size));
 
     // ---- 1. 生成随机矩阵 B，缩小幅度以控制 A 的条件数 ----
-    random_generate(d_B, nelem);
-    BLAS_CHECK(gpublasScal(ddla_handle->blasH, nelem, 0.01, d_B, 1));
+    random_generate(ddla_handle, d_B, nelem);
+    ddla::scal(ddla_handle, static_cast<int>(nelem), std::complex<double>(0.01, 0.0), d_B, 1);
     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_Bcp, d_B, size));
 
     // ---- 2. 构造 Hermitian 正定矩阵 A = B^H * B（pgemm 'C','N'）----

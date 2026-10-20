@@ -10,7 +10,6 @@
 #include "ddla_stream_impl.h"
 #include <vector>
 #include "transport_block.h"
-#include "scal.h"
 
 // CPU-only includes (no GPU vendor headers pulled in by these; safe in any
 // build -- DDLA_HAS_CPU below still gates whether the CPU pgemm/transport

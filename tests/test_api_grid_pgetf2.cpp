@@ -64,12 +64,50 @@ void run_case(const ddla::DdlaHandle_t& handle, const int* desc,
     }
 }
 
+// The pivot sits in the SAME process row as the diagonal row, so pgetf2 exchanges the two rows locally (a BLAS swap
+// across every local column) -- unlike the cross-row case, which moves the row through a buffer.  The pivot index
+// alone cannot tell a wrong exchange, so the whole matrix is compared after the factorization: with a panel width of
+// 1 only column 0 is eliminated (multipliers = the exchanged column / pivot) and every other column is just exchanged.
+template <typename T>
+void run_same_row_swap(const ddla::DdlaHandle_t& handle, const int* desc, int p)
+{
+    auto entry = [=](int i, int j) -> T {
+        if(j == 0) return scalar<T>(i == p ? 9.0 : 1.0 / (i + 1));
+        return scalar<T>(0.01 * (i + 1) + 0.1 * (j + 1), 0.001 * (i - j));
+    };
+    auto expected = [=](int i, int j) -> T {
+        const int src = i == 0 ? p : (i == p ? 0 : i);      // the row exchanged into position i
+        if(j >= 1) return entry(src, j);
+        if(i == 0) return entry(p, 0);                       // the pivot
+        return entry(src, 0) / scalar<T>(9.0);               // multiplier
+    };
+
+    auto h_A = make_local<T>(handle, desc, entry);
+    DeviceBuffer<T> d_A(handle, h_A.size());
+    upload(handle, d_A.ptr, h_A);
+    check_ddla_sync(handle);
+
+    std::vector<int> ipiv(ddla_test::m_loc(handle, desc), -1);
+    int info = -1;
+    ddla::pgetf2(handle, desc[DDLA_M_], desc[DDLA_N_], 1, d_A.ptr, 0, desc, ipiv.data(), info);
+    check_ddla_sync(handle);
+    const auto out = download(handle, d_A.ptr, h_A.size());
+
+    const std::string label = std::string("pgetf2(handle, ") + scalar_name<T>() + "/same-row-swap)";
+    require_close(handle, label + " info", std::abs(info), 0.0);
+    const double tol = (std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>) ? 1.0e-5 : 1.0e-12;
+    require_close(handle, label + " matrix", local_max_error(handle, desc, out, expected), tol);
+}
+
 template <typename T>
 void check_scalar_type(const ddla::DdlaHandle_t& handle,
                        const int* desc, int n, int nb)
 {
     int nprows = 0, npcols_unused = 0;
     ddlaGetGridDims(handle, nprows, npcols_unused);
+
+    const int same_row = nb > 1 ? 1 : nb * nprows;     // a row of the diagonal row's own process row
+    if(same_row < n) run_same_row_swap<T>(handle, desc, same_row);
 
     run_case<T>(handle, desc, "normal", std::min(nb, n), [=](int i, int j){
         if(i == j){

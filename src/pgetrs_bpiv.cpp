@@ -2,7 +2,6 @@
 #include "ddla_desc.h"
 #include <cassert>
 #include <vector>
-#include "swap.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
 
@@ -123,17 +122,17 @@ void pgetrs_bpiv(
                     if(mypcol == owner_col){
                         const int j1 = indx_g2l_c(array_descB, handle, n_s + i - 1);
                         const int j2 = indx_g2l_c(array_descB, handle, n_s + t);
-                        BLAS_CHECK(gpublasSwap(ddla_handle->blasH,
-                                               m_loc_B, d_B + j1 * lldB, 1,
-                                               d_B + j2 * lldB, 1));
+                        swap<DdlaBackend::GPU, T>(ddla_handle,
+                                                  m_loc_B, d_B + j1 * lldB, 1,
+                                                  d_B + j2 * lldB, 1);
                     }
                 }else{
                     if(myprow == owner_row){
                         const int i1 = indx_g2l_r(array_descB, handle, n_s + i - 1);
                         const int i2 = indx_g2l_r(array_descB, handle, n_s + t);
-                        BLAS_CHECK(gpublasSwap(ddla_handle->blasH,
-                                               n_loc_B, d_B + i1, lldB,
-                                               d_B + i2, lldB));
+                        swap<DdlaBackend::GPU, T>(ddla_handle,
+                                                  n_loc_B, d_B + i1, lldB,
+                                                  d_B + i2, lldB);
                     }
                 }
             }

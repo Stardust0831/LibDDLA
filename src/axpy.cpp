@@ -1,9 +1,11 @@
-#include "axpy.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
 
 #include <complex>
 #include <stdexcept>
 #include <string>
 
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 #if DDLA_HAS_CPU
@@ -53,6 +55,46 @@ inline void cpu_axpy(int n, const std::complex<double>& alpha,
     zaxpy_(&n, &alpha, x, &incx, y, &incy);
 }
 #endif // DDLA_HAS_CPU
+
+#if DDLA_HAS_GPU
+// GPU arm: the vendor calls, one overload per scalar type (cuBLAS / hipBLAS axpy).  Private to this translation unit --
+// the public interface is the templated ddla::axpy declared in <ddla/ddla.h>.
+inline gpublasStatus_t gpublasAxpy(gpublasHandle_t handle, const int64_t& n, const float& alpha, const float *x, int incx, float *y, int incy)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasSaxpy(handle, n, &alpha, x, incx, y, incy);
+#else
+    throw std::runtime_error("axpy: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasAxpy(gpublasHandle_t handle, const int64_t& n, const double& alpha, const double *x, int incx, double *y, int incy)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasDaxpy(handle, n, &alpha, x, incx, y, incy);
+#else
+    throw std::runtime_error("axpy: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasAxpy(gpublasHandle_t handle, const int64_t& n, const std::complex<float>& alpha, const std::complex<float> *x, int incx, std::complex<float> *y, int incy)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasCaxpy(handle, n, (gpublasComplex*)&alpha, (gpublasComplex*)x, incx, (gpublasComplex*)y, incy);
+#else
+    throw std::runtime_error("axpy: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasAxpy(gpublasHandle_t handle, const int64_t& n, const std::complex<double>& alpha, const std::complex<double> *x, int incx, std::complex<double> *y, int incy)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasZaxpy(handle, n, (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)x, incx, (gpublasDoubleComplex*)y, incy);
+#else
+    throw std::runtime_error("axpy: no GPU vendor selected at compile time");
+#endif
+}
+#endif // DDLA_HAS_GPU
 
 } // anonymous namespace
 

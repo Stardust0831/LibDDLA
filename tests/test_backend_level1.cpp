@@ -11,9 +11,6 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
-#include "axpy.h"
-#include "iamax.h"
-#include "geru.h"
 
 using namespace ddla;
 
@@ -184,6 +181,104 @@ int check_geru()
     return 0;
 }
 
+// x := alpha * x with a stride: the strided elements are scaled, everything in between is untouched.
+template <DdlaBackend Backend, typename T>
+int check_scal()
+{
+    DdlaHandle_t handle = nullptr;
+    ddlaInit(handle, Backend);
+    ddlaSet(handle);
+
+    const int n = 17;
+    const int incx = 3;
+    const T alpha = value<T>(3, 1);
+    std::vector<T> x(static_cast<size_t>(n) * incx);
+    for (size_t k = 0; k < x.size(); ++k) x[k] = value<T>(static_cast<int>(k), 2);
+    std::vector<T> x_ref = x;
+    for (int i = 0; i < n; ++i) x_ref[static_cast<size_t>(i) * incx] = alpha * x[static_cast<size_t>(i) * incx];
+
+    T* d_x = nullptr;
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_x), x.size() * sizeof(T));
+    ddlaMemcpy(handle, d_x, x.data(), x.size() * sizeof(T));
+    ddla::scal<Backend>(handle, n, alpha, d_x, incx);
+    ddlaSynchronize(handle);
+    ddlaMemcpy(handle, x.data(), d_x, x.size() * sizeof(T));
+    ddlaSynchronize(handle);
+    ddlaFree(handle, d_x);
+    ddlaDestroy(handle);
+
+    for (size_t k = 0; k < x.size(); ++k) {
+        if (!close(x[k], x_ref[k])) return 1;
+    }
+    return 0;
+}
+
+// Distinct, exactly representable value per element, so a swap that moves the wrong element cannot go unnoticed.
+template <typename T>
+T unique_value(int k, int salt)
+{
+    return T(static_cast<float>(k + 1 + 1000 * salt));
+}
+
+// x <-> y with the given strides.  Logical element i of a vector with a negative stride sits at (n - 1 - i) * |inc|
+// (the BLAS convention), so (incx, incy) = (2, -3) pairs x[0] with y[(n - 1) * 3].
+template <DdlaBackend Backend, typename T>
+int check_swap(int incx, int incy)
+{
+    DdlaHandle_t handle = nullptr;
+    ddlaInit(handle, Backend);
+    ddlaSet(handle);
+
+    const int n = 13;
+    const int ax = std::abs(incx);
+    const int ay = std::abs(incy);
+    std::vector<T> x(static_cast<size_t>(n) * ax);
+    std::vector<T> y(static_cast<size_t>(n) * ay);
+    for (size_t k = 0; k < x.size(); ++k) x[k] = unique_value<T>(static_cast<int>(k), 1);
+    for (size_t k = 0; k < y.size(); ++k) y[k] = unique_value<T>(static_cast<int>(k), 2);
+    std::vector<T> x_ref = x;
+    std::vector<T> y_ref = y;
+    for (int i = 0; i < n; ++i) {
+        const size_t ix = static_cast<size_t>(incx > 0 ? i : n - 1 - i) * ax;
+        const size_t iy = static_cast<size_t>(incy > 0 ? i : n - 1 - i) * ay;
+        std::swap(x_ref[ix], y_ref[iy]);
+    }
+
+    T* d_x = nullptr;
+    T* d_y = nullptr;
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_x), x.size() * sizeof(T));
+    ddlaMalloc(handle, reinterpret_cast<void**>(&d_y), y.size() * sizeof(T));
+    ddlaMemcpy(handle, d_x, x.data(), x.size() * sizeof(T));
+    ddlaMemcpy(handle, d_y, y.data(), y.size() * sizeof(T));
+    ddla::swap<Backend>(handle, n, d_x, incx, d_y, incy);
+    ddlaSynchronize(handle);
+    ddlaMemcpy(handle, x.data(), d_x, x.size() * sizeof(T));
+    ddlaMemcpy(handle, y.data(), d_y, y.size() * sizeof(T));
+    ddlaSynchronize(handle);
+    ddlaFree(handle, d_x);
+    ddlaFree(handle, d_y);
+    ddlaDestroy(handle);
+
+    for (size_t k = 0; k < x.size(); ++k) {
+        if (!(x[k] == x_ref[k])) return 1;
+    }
+    for (size_t k = 0; k < y.size(); ++k) {
+        if (!(y[k] == y_ref[k])) return 1;
+    }
+    return 0;
+}
+
+template <DdlaBackend Backend, typename T>
+int check_swap_strides()
+{
+    int rc = 0;
+    rc |= check_swap<Backend, T>(1, 1);
+    rc |= check_swap<Backend, T>(2, 3);
+    rc |= check_swap<Backend, T>(2, -3);
+    rc |= check_swap<Backend, T>(-1, -2);
+    return rc;
+}
+
 template <DdlaBackend Backend>
 int run_backend()
 {
@@ -200,6 +295,14 @@ int run_backend()
     rc |= check_geru<Backend, double>();
     rc |= check_geru<Backend, std::complex<float>>();
     rc |= check_geru<Backend, std::complex<double>>();
+    rc |= check_scal<Backend, float>();
+    rc |= check_scal<Backend, double>();
+    rc |= check_scal<Backend, std::complex<float>>();
+    rc |= check_scal<Backend, std::complex<double>>();
+    rc |= check_swap_strides<Backend, float>();
+    rc |= check_swap_strides<Backend, double>();
+    rc |= check_swap_strides<Backend, std::complex<float>>();
+    rc |= check_swap_strides<Backend, std::complex<double>>();
     return rc;
 }
 
@@ -212,7 +315,7 @@ int main(int argc, char** argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     if (rank == 0) {
-        std::cout << "=== Backend Level-1 (axpy/iamax/geru) Test ===" << std::endl;
+        std::cout << "=== Backend Level-1 (axpy/iamax/geru/swap) Test ===" << std::endl;
     }
 
     int failures = 0;

@@ -1,20 +1,45 @@
-#include "random_generate.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
 
 #include <chrono>
 #include <random>
+#include <stdexcept>
+#include <string>
 #include <type_traits>
+
+#include "ddla_connector.h"
+#include "ddla_stream_impl.h"
 
 namespace ddla {
 
+namespace {
+
+inline const char* random_generate_backend_name(DdlaBackend backend)
+{
+    return backend == DdlaBackend::CPU ? "CPU" : "GPU";
+}
+
+} // anonymous namespace
+
 template <DdlaBackend Backend, typename T>
-void random_generate(T* data, const int64_t& lengthOfData)
+void random_generate(const DdlaHandle_t& handle, T* data, const int64_t& lengthOfData)
 {
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU random_generate is not available in this LibDDLA build");
     static_assert(Backend != DdlaBackend::GPU || DDLA_HAS_GPU,
                   "GPU random_generate is not available in this LibDDLA build");
 
+    if (handle == nullptr) {
+        throw std::runtime_error("random_generate: null handle");
+    }
+    const DdlaBackend actual = ddlaGetBackend(handle);
+    if (actual != Backend) {
+        throw std::runtime_error(
+            std::string("random_generate: template backend ") + random_generate_backend_name(Backend) +
+            " does not match handle backend " + random_generate_backend_name(actual));
+    }
     if (lengthOfData <= 0) return;
+    if (data == nullptr) throw std::runtime_error("random_generate: null data");
     auto seed = std::chrono::system_clock::now().time_since_epoch().count();
 
     if constexpr (Backend == DdlaBackend::CPU) {
@@ -43,6 +68,9 @@ void random_generate(T* data, const int64_t& lengthOfData)
 #if DDLA_HAS_GPU
         gpurandGenerator_t gen;
         GPURAND_CHECK(gpurandCreateGenerator(&gen, GPURAND_RNG_PSEUDO_DEFAULT));
+        // Generate on the handle's stream (not the legacy default stream), so the values are ordered with the
+        // handle's other work.
+        GPURAND_CHECK(gpurandSetStream(gen, handle->stream));
         GPURAND_CHECK(gpurandSetPseudoRandomGeneratorSeed(gen, static_cast<unsigned long long>(seed)));
         if constexpr (std::is_same_v<T, float>) {
             GPURAND_CHECK(gpurandGenerateUniform(gen, data, lengthOfData));
@@ -56,13 +84,15 @@ void random_generate(T* data, const int64_t& lengthOfData)
             static_assert(sizeof(T) == 0,
                           "random_generate supports only float, double, std::complex<float>, std::complex<double>");
         }
+        // The generator must outlive the kernel it launched; this also makes the call return with the values written.
+        DDLA_CHECK(ddlaSynchronize(handle));
         GPURAND_CHECK(gpurandDestroyGenerator(gen));
 #endif
     }
 }
 
 #define INSTANTIATE_RANDOM_GENERATE(BACKEND, TYPE)                           \
-    template void random_generate<BACKEND, TYPE>(TYPE*, const int64_t&)
+    template void random_generate<BACKEND, TYPE>(const DdlaHandle_t&, TYPE*, const int64_t&)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_RANDOM_GENERATE(DdlaBackend::CPU, float);

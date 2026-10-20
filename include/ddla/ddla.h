@@ -1267,8 +1267,17 @@ void geam(const DdlaHandle_t& handle, char transa, char transb, int m, int n,
           const T& beta, const T* B, int ldb,
           T* C, int ldc);
 
-template <typename T>
+/**
+ * @brief Execute a batch of GEMMs whose dimensions and leading dimensions may differ.
+ *
+ * Handle-first like every other backend-templated routine.  The kernels are device code, so only the GPU backend does
+ * the work: `gemmVbatched<DdlaBackend::CPU, T>` throws std::invalid_argument, as does a null handle or a handle of the
+ * other backend.  Dimension, leading-dimension and matrix-pointer arrays are device resident.  The operation is
+ * enqueued on the handle's stream.  A zero batch count is a no-op.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
 void gemmVbatched(
+    const DdlaHandle_t& handle,
     char transA, char transB,
     int* d_m, int* d_n, int* d_k,
     T alpha,
@@ -1276,11 +1285,18 @@ void gemmVbatched(
     const T* const* d_B_array, int* d_ldb,
     T beta,
     T** d_C_array, int* d_ldc,
-    int batch_count,
-    const DdlaHandle_t& handle);
+    int batch_count);
 
-template <typename T>
+/**
+ * @brief Two dependent variable-size GEMM stages that share a reusable temporary.
+ *
+ * Stage zero writes through d_C_array_0. For each host-resident segment in segment_sizes that temporary pointer array
+ * is reused by stage one. Stage-zero beta must be zero, every segment must be positive, and the segment total must
+ * equal batch_count.  Backend rules as for gemmVbatched.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
 void gemmVbatched2s(
+    const DdlaHandle_t& handle,
     char transA_0, char transB_0,
     int* d_m_0, int* d_n_0, int* d_k_0,
     T alpha_0,
@@ -1298,8 +1314,7 @@ void gemmVbatched2s(
     bool C0_left,
     int batch_count,
     const int* segment_sizes,
-    int segment_count,
-    const DdlaHandle_t& handle);
+    int segment_count);
 
 template <typename T>
 void ptran(const DdlaHandle_t& handle,
@@ -1316,8 +1331,20 @@ void transport_block(
     T* d_block_A
 );
 
+/**
+ * @brief Fill a buffer with independent uniform random values in [0, 1).
+ *
+ * `data` lives where the handle's backend does: host memory for a CPU handle, device memory for a GPU handle.  The CPU
+ * arm uses std::mt19937_64 seeded from the system clock; the GPU arm uses the vendor RNG (curand on CUDA, hiprand on
+ * HIP) on the handle's stream and returns once the values are written.  The two are not bit-for-bit reproducible
+ * against each other.  Complex types are filled with 2N independent real draws (real part first, then imaginary part).
+ *
+ * A non-positive `lengthOfData` is a safe no-op; `data` may be nullptr then.
+ *
+ * Supported T: float, double, std::complex<float>, std::complex<double>.
+ */
 template <DdlaBackend Backend = default_backend_v, typename T>
-void random_generate(T* data, const int64_t& lengthOfData);
+void random_generate(const DdlaHandle_t& handle, T* data, const int64_t& lengthOfData);
 
 template <DdlaBackend Backend = default_backend_v, typename T>
 void write_matrix(const T* A, const int& m, const int& n, const char* filename);
@@ -1332,10 +1359,56 @@ void axpy(const DdlaHandle_t& handle, int n, const T& alpha,
 template <DdlaBackend Backend = default_backend_v, typename T>
 void iamax(const DdlaHandle_t& handle, int n, const T* x, int incx, int& result);
 
+/**
+ * @brief Backend-templated BLAS Level-1 swap: x <-> y.
+ *
+ * `n` elements of x and y with strides incx / incy (a negative stride walks the vector backwards, the BLAS
+ * convention); both strides must be nonzero and x, y must not overlap.  CPU: ?swap on host pointers.  GPU: cuBLAS /
+ * hipBLAS swap on device pointers, enqueued on the handle's stream.  n <= 0 returns.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void swap(const DdlaHandle_t& handle, int n, T* x, int incx, T* y, int incy);
+
 template <DdlaBackend Backend = default_backend_v, typename T>
 void geru(const DdlaHandle_t& handle, int m, int n, const T& alpha,
           const T* x, int incx, const T* y, int incy, T* A, int lda);
 
+/**
+ * @brief Backend-templated LU factorization with partial pivoting, A = P * L * U (LAPACK ?getrf).
+ *
+ * A is m x n column-major with lda >= max(1, m); on exit it holds L (unit lower triangular, diagonal not stored) and
+ * U.  `ipiv` has min(m, n) entries: row i was interchanged with row ipiv[i] (1-based, LAPACK convention).  `info` is
+ * 0 on success and k > 0 when U(k, k) is exactly zero (the factorization is complete, but U is singular); invalid
+ * arguments throw instead of reporting a negative value.
+ *
+ * Every pointer lives where the backend does: host memory for a CPU handle, device memory for a GPU handle -- `ipiv`
+ * and `info` included.  A GPU call is asynchronous on the handle's stream, so `info` is valid once the stream has been
+ * synchronized.  m <= 0 or n <= 0 sets *info = 0 and returns.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void getrf(const DdlaHandle_t& handle, int m, int n, T* A, int lda, int* ipiv, int* info);
+
+/**
+ * @brief Backend-templated Cholesky factorization of a Hermitian (symmetric) positive-definite matrix (LAPACK ?potrf):
+ * A = U^H * U for uplo = 'U', A = L * L^H for uplo = 'L'.
+ *
+ * A is n x n column-major with lda >= max(1, n).  Only the `uplo` triangle is read and overwritten; the other triangle
+ * is left untouched.  `info` is 0 on success and k > 0 when the leading minor of order k is not positive definite.
+ * Pointer placement, asynchrony and the n <= 0 case are as for getrf.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void potrf(const DdlaHandle_t& handle, char uplo, int n, T* A, int lda, int* info);
+
+/**
+ * @brief Backend-templated row interchanges (LAPACK ?laswp): for i = k1..k2 (1-based), swap row i of the n-column
+ * matrix A with row ipiv[k1 - 1 + (i - k1) * |incx|].
+ *
+ * Rows run k1..k2 for incx > 0 and k2..k1 for incx < 0, so incx = -1 undoes incx = 1 for the same pivots.  `ipiv`
+ * (1-based row numbers, as ?getrf produces them) must hold at least k2 * |incx| entries; it lives with A (device memory
+ * on a GPU handle).  lda >= max(1, k2).  n <= 0 or k1 > k2 returns.
+ */
+template <DdlaBackend Backend = default_backend_v, typename T>
+void laswp(const DdlaHandle_t& handle, int n, T* A, int lda, int k1, int k2, const int* ipiv, int incx);
 
 } // namespace ddla
 

@@ -14,7 +14,6 @@
 #include "ddla_stream_impl.h"
 #include <cusolverMp.h>
 #include "helpers.h"
-#include "potrf.h"
 using namespace ddla;
 
 void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
@@ -42,7 +41,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generate(d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
+    random_generate(ddla_handle, d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
     std::complex<double> ten = 1000.0;
     for(int i=0;i<matrix_desc[DDLA_M_];i++){
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);
@@ -176,10 +175,7 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
             h_work, workspaceInBytesOnHost,
             d_info
         );
-        // SOLVER_CHECK(gpusolverPotrf(
-        //     ddla_handle->solverH, GPUBLAS_FILL_MODE_LOWER, matrix_desc[DDLA_M_],
-        //     d_A_copy, matrix_desc[DDLA_LLD_], d_info
-        // ));
+        // ddla::potrf(ddla_handle, 'L', matrix_desc[DDLA_M_], d_A_copy, matrix_desc[DDLA_LLD_], d_info);
         if(cusolverStat != CUSOLVER_STATUS_SUCCESS){
             printf("myid:%d, cusolverStat:%d\n",ddla_handle->myid,cusolverStat);
         }

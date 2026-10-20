@@ -33,6 +33,10 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         gemmBatched.cpp
         scal.cpp
         geam.cpp
+        swap.cpp
+        getrf.cpp
+        potrf.cpp
+        laswp.cpp
         axpy.cpp
         iamax.cpp
         geru.cpp
@@ -62,6 +66,10 @@ else()
         gemmBatched.cpp
         scal.cpp
         geam.cpp
+        swap.cpp
+        getrf.cpp
+        potrf.cpp
+        laswp.cpp
         axpy.cpp
         iamax.cpp
         geru.cpp

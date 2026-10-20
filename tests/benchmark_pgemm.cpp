@@ -56,9 +56,9 @@ void benchmark_pgemm(int n, char transa, char transb,
     DDLA_CHECK(ddlaMalloc(ddla_handle, &d_B, size));
     DDLA_CHECK(ddlaMalloc(ddla_handle, &d_C, size));
 
-    random_generate(d_A, nelem);
-    random_generate(d_B, nelem);
-    random_generate(d_C, nelem);
+    random_generate(ddla_handle, d_A, nelem);
+    random_generate(ddla_handle, d_B, nelem);
+    random_generate(ddla_handle, d_C, nelem);
 
     std::complex<double> alpha(1.0, 0.0);
     std::complex<double> beta(0.0, 0.0);

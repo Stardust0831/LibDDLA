@@ -9,7 +9,6 @@
 #include <type_traits>
 #include <cmath>
 #include <algorithm>
-#include "potrf.h"
 #include "comm_traits.h"
 
 namespace ddla{
@@ -70,9 +69,6 @@ bool ppotrf(
     const int m_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     const int n_loc_A = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
 
-    gpusolverHandle_t solverH=ddla_handle->solverH;
-
-    gpublasFillMode_t uplo_device = (uplo == 'U') ? GPUBLAS_FILL_MODE_UPPER : GPUBLAS_FILL_MODE_LOWER;
     // The unified trsm/herk/gemmBatched entries take LAPACK-style characters, so
     // the flags the old GPUBLAS_* enum locals encoded are passed through directly.
     // The side follows the factorized triangle (uplo='U' -> 'L', 'L' -> 'R'),
@@ -131,7 +127,7 @@ bool ppotrf(
         {
             if(n_s + nb_real == n && is_head){
                 if(nb_real > 1){
-                    SOLVER_CHECK(gpusolverPotrf(solverH, uplo_device, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+                    potrf<DdlaBackend::GPU, T>(ddla_handle, uplo, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
                     if(uplo == 'L'){
                         trsm<DdlaBackend::GPU, T>(
                             ddla_handle, side_char, uplo, 'C', 'N',
@@ -187,7 +183,7 @@ bool ppotrf(
                                       A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA,
                                       &last_value, sizeof(T)));
             }else
-                SOLVER_CHECK(gpusolverPotrf(solverH, uplo_device, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info));
+                potrf<DdlaBackend::GPU, T>(ddla_handle, uplo, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));

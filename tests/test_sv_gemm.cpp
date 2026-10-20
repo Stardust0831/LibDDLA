@@ -55,7 +55,7 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generate(d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
+    random_generate(ddla_handle, d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
     
     DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_copy, d_A,
                           sizeof(std::complex<double>)*ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc)));

@@ -12,7 +12,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "potrf.h"
 
 namespace ddla{
 
@@ -79,17 +78,13 @@ void potrf_bottom_right_block(
     assert(lda >= n);
 
     DDLA_CHECK(ddlaMemset(handle, d_info, 0, sizeof(int)));
-    const gpublasFillMode_t solver_uplo = uplo == 'U'
-        ? GPUBLAS_FILL_MODE_LOWER
-        : GPUBLAS_FILL_MODE_UPPER;
     if(uplo == 'U'){
         reverse_upper_to_lower(handle, n, d_A, lda, d_work, n);
     }else{
         reverse_lower_to_upper(handle, n, d_A, lda, d_work, n);
     }
-    SOLVER_CHECK(gpusolverPotrf(
-        handle->solverH, solver_uplo,
-        n, d_work, n, d_info));
+    // The selected triangle was reverse-packed into the opposite one of d_work: factor that triangle.
+    potrf<DdlaBackend::GPU, T>(handle, uplo == 'U' ? 'L' : 'U', n, d_work, n, d_info);
 
     int solver_info = 0;
     DDLA_CHECK(ddlaMemcpy(handle, &solver_info, d_info, sizeof(int)));

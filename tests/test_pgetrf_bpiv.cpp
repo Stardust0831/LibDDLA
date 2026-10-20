@@ -10,7 +10,6 @@
 #include <ddla/ddla.h>
 #include "test_desc_helpers.h"
 #include "ddla_connector.h"
-#include "scal.h"
 #include <random>
 #include "ddla_stream_impl.h"
 
@@ -45,8 +44,8 @@ void check_pzgetrf(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     ddla_handle->check_memory();
     MPI_Barrier(MPI_COMM_WORLD);
-    random_generate(d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
-    BLAS_CHECK(gpublasScal(ddla_handle->blasH, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), 0.01, d_A, 1));
+    random_generate(ddla_handle, d_A, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc));
+    ddla::scal(ddla_handle, ddla_test::m_loc(ddla_handle, matrix_desc)*ddla_test::n_loc(ddla_handle, matrix_desc), std::complex<double>(0.01, 0.0), d_A, 1);
     std::complex<double> cons_i = 2.0;
     for(int i = 0; i < matrix_desc[DDLA_M_]; i++){
         int i_loc = indx_g2l_r(matrix_desc, ddla_handle, i);

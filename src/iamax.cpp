@@ -1,9 +1,11 @@
-#include "iamax.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
 
 #include <complex>
 #include <stdexcept>
 #include <string>
 
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 #if DDLA_HAS_CPU
@@ -45,6 +47,46 @@ inline int cpu_iamax(int n, const std::complex<double>* x, int incx)
     return izamax_(&n, x, &incx);
 }
 #endif // DDLA_HAS_CPU
+
+#if DDLA_HAS_GPU
+// GPU arm: the vendor calls, one overload per scalar type (cuBLAS / hipBLAS iamax).  Private to this translation unit --
+// the public interface is the templated ddla::iamax declared in <ddla/ddla.h>.
+inline gpublasStatus_t gpublasIamax(gpublasHandle_t handle, int n, const float *x, int incx, int *result)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasIsamax(handle, n, x, incx, result);
+#else
+    throw std::runtime_error("iamax: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasIamax(gpublasHandle_t handle, int n, const double *x, int incx, int *result)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasIdamax(handle, n, x, incx, result);
+#else
+    throw std::runtime_error("iamax: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasIamax(gpublasHandle_t handle, int n, const std::complex<float> *x, int incx, int *result)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasIcamax(handle, n, (gpublasComplex*)x, incx, result);
+#else
+    throw std::runtime_error("iamax: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasIamax(gpublasHandle_t handle, int n, const std::complex<double> *x, int incx, int *result)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasIzamax(handle, n, (gpublasDoubleComplex*)x, incx, result);
+#else
+    throw std::runtime_error("iamax: no GPU vendor selected at compile time");
+#endif
+}
+#endif // DDLA_HAS_GPU
 
 } // anonymous namespace
 

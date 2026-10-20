@@ -83,6 +83,8 @@ add_test_executable(test_backend_level1)
 # backend-mismatch rejection.
 add_test_executable(test_backend_blas3)
 add_test_executable(test_backend_geam)
+# LAPACK-level wrappers (getrf, potrf, laswp) and swap: CPU arm = host LAPACK, GPU arm = cuSOLVER / hipSOLVER.
+add_test_executable(test_backend_lapack)
 add_test_executable(test_random_generate)
 
 if(DDLA_USE_CUDA OR DDLA_USE_HIP)

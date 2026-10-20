@@ -8,8 +8,6 @@
 #include <ddla/ddla.h>
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
-#include "getrf.h"
-#include "scal.h"
 
 #include <iomanip>
 #include <magma_v2.h>
@@ -43,9 +41,9 @@ void benchmark_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
     DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_ipiv, n * sizeof(int)));
 
     // Generate a non-singular random matrix.
-    random_generate(d_A_lib, nelem);
+    random_generate(ddla_handle, d_A_lib, nelem);
     std::complex<double> scale(0.01, 0.0);
-    BLAS_CHECK(gpublasScal(ddla_handle->blasH, n * n, scale, d_A_lib, 1));
+    ddla::scal(ddla_handle, n * n, scale, d_A_lib, 1);
     std::complex<double> diag_shift(2.0, 0.0);
     for (int i = 0; i < n; ++i) {
         DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_lib + i + i * n, &diag_shift, sizeof(std::complex<double>)));
@@ -76,8 +74,7 @@ void benchmark_getrf_nopiv(int n, const DdlaHandle_t& ddla_handle)
 
     // 3) cuSOLVER/hipSOLVER LU with partial pivoting (reference)
     double t_ref = MPI_Wtime();
-    SOLVER_CHECK(gpusolverGetrf(ddla_handle->solverH, n, n, d_A_ref, lda,
-                                d_ipiv, d_info_ref));
+    ddla::getrf(ddla_handle, n, n, d_A_ref, lda, d_ipiv, d_info_ref);
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     t_ref = MPI_Wtime() - t_ref;
 

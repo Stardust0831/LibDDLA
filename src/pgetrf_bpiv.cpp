@@ -6,8 +6,6 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 #include "require_gpu.h"
-#include "getrf.h"
-#include "laswp.h"
 #include "comm_traits.h"
 
 namespace ddla {
@@ -26,7 +24,7 @@ namespace ddla {
  * For each panel step k (global column n_s):
  *   1. Panel LU:     P1 * A11 = L1 * U1          (getrf on local nb×nb block)
  *   2. Apply pivot:  swap rows in right panel and in the factored columns
- *                    [0, n_s) of the current block rows   (gpusolverLaswp)
+ *                    [0, n_s) of the current block rows   (laswp)
  *   3. Compute U12:  U12 = L1^{-1} * B           (trsm LEFT/LOWER/UNIT)
  *   4. Compute L21:  L21 = C * U1^{-1}           (trsm RIGHT/UPPER/NON-UNIT)
  *   5. Update trail: D <- D - L21 * U12          (gemm)
@@ -57,9 +55,6 @@ void pgetrf_bpiv(
 
     int m_loc = num_loc(m, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
     int n_loc = num_loc(n, array_descA[DDLA_NB_], mypcol, array_descA[DDLA_CSRC_], npcols);
-
-    gpublasHandle_t blasH = ddla_handle->blasH;
-    gpusolverHandle_t solverH = ddla_handle->solverH;
 
     int nb_real;
     int mm_row_start = 0;  // local row start of trailing submatrix
@@ -95,7 +90,7 @@ void pgetrf_bpiv(
         
 
         if (myprow == owner_row && mypcol == owner_col) {
-            SOLVER_CHECK(gpusolverGetrf(solverH, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info));
+            getrf<DdlaBackend::GPU, T>(ddla_handle, nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_ipiv + mm_row_start, d_info);
             DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
@@ -115,21 +110,12 @@ void pgetrf_bpiv(
             if(myprow == owner_row){
                 commBcast(ddla_handle, CommScope::Row, d_ipiv + mm_row_start, (std::size_t)nb_real, owner_col);
                 if(l_cols > 0){
-#if GPU_HAS_SOLVER_LASWP
-                    SOLVER_CHECK(gpusolverLaswp(
-                        solverH, l_cols,
+                    laswp<DdlaBackend::GPU, T>(
+                        ddla_handle, l_cols,
                         d_A + mm_row_start, lld,
                         1, nb_real,   // 1-based local row range
                         d_ipiv + mm_row_start, 1
-                    ));
-#elif DDLA_GPU_VENDOR
-                    BLAS_CHECK(gpublasLaswp(
-                        blasH, l_cols,
-                        d_A + mm_row_start, lld,
-                        1, nb_real,   // 1-based local row range
-                        d_ipiv + mm_row_start, 1
-                    ));
-#endif
+                    );
                 }
             }
             break;
@@ -141,7 +127,7 @@ void pgetrf_bpiv(
         // Instead of using pswap (which involves many pairwise point-to-point
         // communications), we:
         //   1. broadcast the pivot to the row of the owner process.
-        //   2. Call gpusolverLaswp on device to apply all swaps at once.
+        //   2. Call laswp on device to apply all swaps at once.
         //
         // Only processes in the same row as owner_row own the pivoted rows,
         // so only they need to apply the swaps.
@@ -163,21 +149,12 @@ void pgetrf_bpiv(
             // purely local laswp.
             const int l_cols = num_loc(n_s, nb, mypcol, array_descA[DDLA_CSRC_], npcols);
             if(l_cols > 0){
-#if GPU_HAS_SOLVER_LASWP
-                SOLVER_CHECK(gpusolverLaswp(
-                    solverH, l_cols,
+                laswp<DdlaBackend::GPU, T>(
+                    ddla_handle, l_cols,
                     d_A + mm_row_start, lld,
                     1, nb_real,   // 1-based local row range
                     d_ipiv + mm_row_start, 1
-                ));
-#elif DDLA_GPU_VENDOR
-                BLAS_CHECK(gpublasLaswp(
-                    blasH, l_cols,
-                    d_A + mm_row_start, lld,
-                    1, nb_real,   // 1-based local row range
-                    d_ipiv + mm_row_start, 1
-                ));
-#endif
+                );
             }
             // Apply row swaps to the local right panel columns [n_s+nb_real, n).
             // The pivoted rows in the local matrix start at i_loc.
@@ -188,22 +165,12 @@ void pgetrf_bpiv(
                 // When j_loc < 0, all local columns are in the right panel, starting at 0.
                 
                 T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
-#if GPU_HAS_SOLVER_LASWP
-                SOLVER_CHECK(gpusolverLaswp(
-                    solverH, n_loc - right_panel_col_start,
+                laswp<DdlaBackend::GPU, T>(
+                    ddla_handle, n_loc - right_panel_col_start,
                     d_right_panel, lld,
                     1, nb_real,   // 1-based local row range
                     d_ipiv + mm_row_start, 1
-                ));
-#elif DDLA_GPU_VENDOR
-                BLAS_CHECK(gpublasLaswp(
-                    blasH, n_loc - right_panel_col_start,
-                    d_right_panel, lld,
-                    1, nb_real,   // 1-based local row range
-                    d_ipiv + mm_row_start, 1
-                ));
-
-#endif
+                );
                 // ================================================================
                 // Step 4: U12 = L1^{-1} * B  (trsm LEFT LOWER UNIT)
                 // ================================================================

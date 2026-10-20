@@ -97,7 +97,7 @@ static inline void MPI_CHECK(int status, const char* file = __builtin_FILE(), in
 // they have no communicator available.
 #if DDLA_GPU_VENDOR
 // Check a vendor runtime call made directly through a gpu* name.  Only code that has no DdlaHandle_t to go through
-// uses this (the vendor-solver workspace wrappers getrf.h / potrf.h, laswp.h, write_matrix.cpp, the handle
+// uses this (the stream-ordered solver workspace in getrf.cpp / potrf.cpp, write_matrix.cpp, the handle
 // implementation itself); everything else calls the ddla* functions and checks them with DDLA_CHECK.
 static inline void GPU_CHECK(gpuError_t status, const char* file = __builtin_FILE(), int line = __builtin_LINE())
 {

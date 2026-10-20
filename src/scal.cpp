@@ -1,9 +1,11 @@
-#include "scal.h"
+#include <ddla/ddla.h>
+#include <ddla/ddla_handle_t.h>
 
 #include <complex>
 #include <stdexcept>
 #include <string>
 
+#include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
 #if DDLA_HAS_CPU
@@ -41,6 +43,50 @@ inline void cpu_scal(int n, const std::complex<double>& alpha, std::complex<doub
     zscal_(&n, &alpha, x, &incx);
 }
 #endif
+
+#if DDLA_HAS_GPU
+namespace {
+
+// GPU arm: the vendor calls, one overload per scalar type (cuBLAS / hipBLAS scal).  Private to this translation unit --
+// the public interface is the templated ddla::scal declared in <ddla/ddla.h>.
+inline gpublasStatus_t gpublasScal(gpublasHandle_t handle, int64_t n, const float& alpha, float *x, int64_t incx)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasSscal(handle, n, &alpha, x, incx);
+#else
+    throw std::runtime_error("scal: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasScal(gpublasHandle_t handle, int64_t n, const double& alpha, double *x, int64_t incx)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasDscal(handle, n, &alpha, x, incx);
+#else
+    throw std::runtime_error("scal: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasScal(gpublasHandle_t handle, int64_t n, const std::complex<float>& alpha, std::complex<float> *x, int64_t incx)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasCscal(handle, n, (gpublasComplex*)&alpha, (gpublasComplex*)x, incx);
+#else
+    throw std::runtime_error("scal: no GPU vendor selected at compile time");
+#endif
+}
+
+inline gpublasStatus_t gpublasScal(gpublasHandle_t handle, int64_t n, const std::complex<double>& alpha, std::complex<double> *x, int64_t incx)
+{
+#if DDLA_GPU_VENDOR
+    return gpublasZscal(handle, n, (gpublasDoubleComplex*)&alpha, (gpublasDoubleComplex*)x, incx);
+#else
+    throw std::runtime_error("scal: no GPU vendor selected at compile time");
+#endif
+}
+
+} // anonymous namespace
+#endif // DDLA_HAS_GPU
 
 inline const char* scal_backend_name(DdlaBackend backend)
 {

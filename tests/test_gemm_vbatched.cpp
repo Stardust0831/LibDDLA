@@ -1,6 +1,7 @@
 #include "ddla_connector.h"
 #include <ddla/ddla_handle_t.h>
-#include "gemmVbatched.h"
+#include <ddla/ddla.h>
+#include <functional>
 
 #include <mpi.h>
 
@@ -295,10 +296,10 @@ double run_standard_case(
 
         DeviceMatrixBatch<T> d_C(handle, C);
         ddla::gemmVbatched(
-            transA, transB, d_m.data(), d_n.data(), d_k.data(),
+            handle, transA, transB, d_m.data(), d_n.data(), d_k.data(),
             alpha, const_cast<const T* const*>(d_A.data()), d_lda.data(),
             const_cast<const T* const*>(d_B.data()), d_ldb.data(),
-            beta, d_C.data(), d_ldc.data(), 3, handle);
+            beta, d_C.data(), d_ldc.data(), 3);
         ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
 
         const auto actual = d_C.download(c_sizes);
@@ -413,7 +414,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
 
     auto invoke = [&](T beta0, const std::vector<int>& test_segments) {
         ddla::gemmVbatched2s(
-            'N', 'N',
+            handle, 'N', 'N',
             d_m0.data(), d_n0.data(), d_k0.data(),
             alpha0, const_cast<const T* const*>(d_A0.data()), d_lda0.data(),
             const_cast<const T* const*>(d_B0.data()), d_ldb0.data(),
@@ -424,7 +425,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
             d_lda1.data(), d_ldb1.data(), beta1,
             d_output.data(), d_ldc1.data(), temporary_on_left,
             batch_count, test_segments.data(),
-            static_cast<int>(test_segments.size()), handle);
+            static_cast<int>(test_segments.size()));
     };
 
     invoke(T{}, segments);
@@ -525,18 +526,60 @@ double run_type(const ddla::DdlaHandle_t& handle, int& case_count)
     maximum_error = std::max(maximum_error, right_error);
     ++case_count;
 
-    ddla::gemmVbatched<T>(
-        'N', 'N',
+    // An empty batch is a no-op whatever the pointers are.
+    ddla::gemmVbatched<ddla::DdlaBackend::GPU, T>(
+        handle, 'N', 'N',
         nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
-        nullptr, nullptr, T{}, nullptr, nullptr, 0, nullptr);
-    ddla::gemmVbatched2s<T>(
-        'N', 'N',
+        nullptr, nullptr, T{}, nullptr, nullptr, 0);
+    ddla::gemmVbatched2s<ddla::DdlaBackend::GPU, T>(
+        handle, 'N', 'N',
         nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
         nullptr, nullptr, T{}, nullptr, nullptr,
         'N', 'N',
         nullptr, nullptr, nullptr, T{}, nullptr, nullptr, nullptr,
-        T{}, nullptr, nullptr, false, 0, nullptr, 0, nullptr);
+        T{}, nullptr, nullptr, false, 0, nullptr, 0);
     ++case_count;
+
+    // A null handle is rejected, even for an empty batch; so is a handle of the other backend and the CPU backend.
+    auto rejects = [](const std::function<void()>& call) {
+        try { call(); }
+        catch (const std::invalid_argument&) { return true; }
+        return false;
+    };
+    if (!rejects([&] {
+            ddla::gemmVbatched<ddla::DdlaBackend::GPU, T>(
+                nullptr, 'N', 'N', nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
+                nullptr, nullptr, T{}, nullptr, nullptr, 0);
+        }))
+        throw std::runtime_error("a null handle was accepted by gemmVbatched");
+#if DDLA_HAS_CPU
+    {
+        ddla::DdlaHandle_t cpu = nullptr;
+        ddla::ddlaInit(cpu, ddla::DdlaBackend::CPU);
+        ddla::ddlaSet(cpu, MPI_COMM_WORLD);
+        const bool mismatch = rejects([&] {
+            ddla::gemmVbatched<ddla::DdlaBackend::GPU, T>(
+                cpu, 'N', 'N', nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
+                nullptr, nullptr, T{}, nullptr, nullptr, 0);
+        });
+        const bool cpu_backend = rejects([&] {
+            ddla::gemmVbatched<ddla::DdlaBackend::CPU, T>(
+                cpu, 'N', 'N', nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
+                nullptr, nullptr, T{}, nullptr, nullptr, 0);
+        });
+        const bool mismatch_2s = rejects([&] {
+            ddla::gemmVbatched2s<ddla::DdlaBackend::GPU, T>(
+                cpu, 'N', 'N', nullptr, nullptr, nullptr, T{}, nullptr, nullptr,
+                nullptr, nullptr, T{}, nullptr, nullptr,
+                'N', 'N', nullptr, nullptr, nullptr, T{}, nullptr, nullptr, nullptr,
+                T{}, nullptr, nullptr, false, 0, nullptr, 0);
+        });
+        ddla::ddlaDestroy(cpu);
+        if (!mismatch || !cpu_backend || !mismatch_2s)
+            throw std::runtime_error("gemmVbatched accepted a CPU handle or the CPU backend");
+    }
+#endif
+    case_count += 1;
     return maximum_error;
 }
 
