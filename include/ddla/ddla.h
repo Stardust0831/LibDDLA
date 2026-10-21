@@ -1198,8 +1198,19 @@ void trmm(
  *
  * Same unified backend-templated form as @ref gemm: the CPU instantiation
  * loops over Fortran xGEMM, the GPU instantiation calls cuBLAS/hipBLAS
- * xgemmBatched.  CPU consumes HOST pointers, GPU DEVICE pointers; the arrays
- * themselves are host arrays of pointers for either backend.
+ * xgemmBatched.  Everything lives where the handle's memory does: on a CPU
+ * handle the matrices AND the arrays of pointers are host memory, on a GPU
+ * handle both are device memory (the vendor routine reads the pointer arrays
+ * on the device).
+ *
+ * CPU threading: a CPU handle runs the loop on its host-thread budget (the
+ * same one geam uses, fixed by ddlaSet), every OpenMP thread computing whole
+ * products, so each core handles one matrix multiplication at a time.  The
+ * BLAS library's own thread count (OpenBLAS / MKL) is held at one for the
+ * duration of the loop and restored after it.  With one thread or a single
+ * product the loop is serial and the BLAS keeps its threads.  The C[i] must
+ * not overlap (the cuBLAS contract as well); the result does not depend on
+ * the thread count.
  *
  * @tparam Backend DdlaBackend::CPU or DdlaBackend::GPU; must match the handle.
  * @tparam T       float, double, complex<float> or complex<double>.

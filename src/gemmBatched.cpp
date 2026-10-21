@@ -20,10 +20,17 @@
 // pointers themselves are read-only to this wrapper (the vendor prototypes and
 // the Fortran declaration differ on constness, which is why the GPU arm casts
 // -- exactly as the pre-unification wrapper did).
+//
+// CPU arm: Fortran BLAS has no batched entry point, so it is a loop of per-matrix gemm calls, and that loop runs on the handle's host-
+// thread budget (DdlaStream::host_threads, the same policy as geam): every OpenMP thread computes WHOLE products, so every core handles one
+// matrix multiplication at a time.  The BLAS library's own thread count is held at one for the duration of the loop and restored after it
+// (detail::ScopedBlasThreads, the way LibRI wraps its MKL gemm loop), otherwise a pthreads OpenBLAS would start a thread pool inside every
+// call.  The matrices of one batch must not overlap in C (the cuBLAS contract; every caller writes one tile per entry).
 // ---------------------------------------------------------------------------
 #include <ddla/ddla.h>
 #include <ddla/ddla_handle_t.h>
 
+#include <algorithm>
 #include <complex>
 #include <stdexcept>
 #include <string>
@@ -32,6 +39,7 @@
 #include "blas_enums.h"
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
+#include "host_threads.h"
 
 #if DDLA_HAS_CPU
 extern "C" {
@@ -55,6 +63,35 @@ void zgemm_(const char*, const char*, const int*, const int*, const int*,
             const std::complex<double>*, const int*,
             const std::complex<double>*, std::complex<double>*, const int*);
 }
+
+namespace ddla {
+namespace {
+
+// Calls call(i) for every product i of the batch.  With fewer than two products or two threads there is nothing to spread and the loop is
+// serial with the BLAS keeping its own threads (one big product still gets a threaded BLAS); otherwise min(nthreads, count) OpenMP threads
+// each run whole products while the BLAS is pinned to one thread.  Without OpenMP the loop stays serial and the BLAS is left alone.
+template <typename Call>
+void for_each_product(int nthreads, int count, Call&& call)
+{
+#ifdef _OPENMP
+    const int nt = std::min(nthreads, count);
+#else
+    const int nt = 1;
+    (void)nthreads;
+#endif
+    if (nt < 2) {
+        for (int i = 0; i < count; ++i) call(i);
+        return;
+    }
+    detail::ScopedBlasThreads one_blas_thread(1);
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static) num_threads(nt)
+#endif
+    for (int i = 0; i < count; ++i) call(i);
+}
+
+} // namespace
+} // namespace ddla
 #endif // DDLA_HAS_CPU
 
 // ---------------------------------------------------------------------------
@@ -212,25 +249,29 @@ void gemmBatched(
 
     if constexpr (Backend == DdlaBackend::CPU) {
 #if DDLA_HAS_CPU
-        // Fortran BLAS has no batched entry point, so the CPU arm is an
-        // explicit loop over the per-matrix gemm calls.  The characters go to
+        // One Fortran gemm per matrix, spread over the handle's host threads (see for_each_product).  The characters go to
         // the Fortran entry points unconverted.
+        const int nthreads = handle->host_threads;
         if constexpr (std::is_same_v<T, float>) {
-            for (int i = 0; i < batchCount; ++i)
+            for_each_product(nthreads, batchCount, [&](int i) {
                 sgemm_(&transa, &transb, &m, &n, &k, &alpha, Aarray[i], &lda,
                        Barray[i], &ldb, &beta, Carray[i], &ldc);
+            });
         } else if constexpr (std::is_same_v<T, double>) {
-            for (int i = 0; i < batchCount; ++i)
+            for_each_product(nthreads, batchCount, [&](int i) {
                 dgemm_(&transa, &transb, &m, &n, &k, &alpha, Aarray[i], &lda,
                        Barray[i], &ldb, &beta, Carray[i], &ldc);
+            });
         } else if constexpr (std::is_same_v<T, std::complex<float>>) {
-            for (int i = 0; i < batchCount; ++i)
+            for_each_product(nthreads, batchCount, [&](int i) {
                 cgemm_(&transa, &transb, &m, &n, &k, &alpha, Aarray[i], &lda,
                        Barray[i], &ldb, &beta, Carray[i], &ldc);
+            });
         } else if constexpr (std::is_same_v<T, std::complex<double>>) {
-            for (int i = 0; i < batchCount; ++i)
+            for_each_product(nthreads, batchCount, [&](int i) {
                 zgemm_(&transa, &transb, &m, &n, &k, &alpha, Aarray[i], &lda,
                        Barray[i], &ldb, &beta, Carray[i], &ldc);
+            });
         } else {
             static_assert(sizeof(T) == 0, "gemmBatched: unsupported scalar type T");
         }

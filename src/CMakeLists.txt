@@ -228,8 +228,8 @@ endif()
 target_link_libraries(ddla_lib PUBLIC ${math_libs})
 
 # ---------------------------------------------------------------------------
-# geam.cpp: the CPU arm of ddla::geam runs on OpenMP threads.  That translation unit is compiled by the plain
-# host compiler in every build (never by nvcc/hipcc) with -ffp-contract=off; with OpenMP found it gets -fopenmp
+# geam.cpp, gemmBatched.cpp: the CPU arms of ddla::geam and ddla::gemmBatched run on OpenMP threads.  Those translation
+# units are compiled by the plain host compiler in every build (never by nvcc/hipcc) with -ffp-contract=off; with OpenMP found they get -fopenmp
 # and libgomp is linked PRIVATE (the shared library records the NEEDED entry); without OpenMP it runs serially
 # with identical results.
 # ---------------------------------------------------------------------------
@@ -245,7 +245,7 @@ if(DDLA_USE_OPENMP)
         message(WARNING "ddla: OpenMP not found; the host kernels run serially")
     endif()
 endif()
-set_source_files_properties(geam.cpp PROPERTIES COMPILE_OPTIONS "${_ddla_cpu_kernel_opts}")
+set_source_files_properties(geam.cpp gemmBatched.cpp PROPERTIES COMPILE_OPTIONS "${_ddla_cpu_kernel_opts}")
 
 install(TARGETS ddla_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

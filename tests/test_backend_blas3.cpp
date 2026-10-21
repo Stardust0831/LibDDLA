@@ -19,6 +19,7 @@
 #include <cmath>
 #include <complex>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -29,6 +30,9 @@
 #include <mpi.h>
 
 #include <ddla/ddla.h>
+
+#include "ddla_stream_impl.h"   // DdlaStream::host_threads (private)
+#include "host_threads.h"       // detail::ScopedBlasThreads (private)
 
 using namespace ddla;
 
@@ -564,6 +568,122 @@ int check_gemmBatched_standalone(const DdlaHandle_t& handle)
     return bad;
 }
 
+#if DDLA_HAS_CPU
+// ---------------------------------------------------------------------------
+// gemmBatched on a CPU handle runs on the handle's host-thread budget (DdlaStream::host_threads): every OpenMP thread computes whole
+// products while the BLAS is held to one thread, and the BLAS thread count is put back afterwards.  On a realistic batch (every op
+// combination, padded leading dimensions, batch sizes 0 / 1 / fewer than the threads / many) this checks that a 1-thread and a 4-thread
+// handle both match an independent reference, that the two results are BITWISE equal (each product is one single-threaded BLAS call
+// either way), that C's padding is untouched, that the BLAS thread count after a call is the one before it, and that
+// detail::ScopedBlasThreads pins it inside its scope.
+// ---------------------------------------------------------------------------
+template <typename T>
+int check_gemmBatched_threads()
+{
+    int bad = 0;
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    auto fail = [&](const char* what, char ta, char tb, int batch) {
+        ++bad;
+        if (rank == 0)
+            std::cerr << "  FAIL gemmBatched threads: " << what << " ('" << ta << "','" << tb << "', batch " << batch << ")" << std::endl;
+    };
+    // the budget is read once, by ddlaSet
+    auto make = [](const char* threads) {
+        setenv("DDLA_EIG_THREADS", threads, 1);
+        DdlaHandle_t h = nullptr;
+        ddlaInit(h, DdlaBackend::CPU);
+        ddlaSet(h, MPI_COMM_WORLD);
+        return h;
+    };
+    DdlaHandle_t h1 = make("1");
+    DdlaHandle_t h4 = make("4");
+    unsetenv("DDLA_EIG_THREADS");
+    if (h1->host_threads != 1 || h4->host_threads != 4) fail("host_threads of the two handles", '-', '-', 0);
+
+    const int m = 9, n = 7, k = 11;
+    T alpha = T(2), beta = T(3);
+    if constexpr (std::is_same_v<T, std::complex<float>> || std::is_same_v<T, std::complex<double>>)
+        { alpha = T(2, -0.5); beta = T(3, 0.25); }
+
+    struct Op { char ta, tb; };
+    const Op ops[] = {{'N', 'N'}, {'N', 'C'}, {'C', 'N'}, {'T', 'T'}};
+    for (const Op& op : ops) {
+        for (int batch : {0, 1, 3, 37}) {
+            const int a_rows = (op.ta == 'N') ? m : k, a_cols = (op.ta == 'N') ? k : m;
+            const int b_rows = (op.tb == 'N') ? k : n, b_cols = (op.tb == 'N') ? n : k;
+            const int lda = a_rows + 1, ldb = b_rows + 2, ldc = m + 3;   // padded: the padding must stay untouched
+            const std::size_t asz = static_cast<std::size_t>(lda) * a_cols;
+            const std::size_t bsz = static_cast<std::size_t>(ldb) * b_cols;
+            const std::size_t csz = static_cast<std::size_t>(ldc) * n;
+            std::vector<T> A(batch * asz), B(batch * bsz), C0(batch * csz);
+            for (std::size_t e = 0; e < A.size(); ++e) A[e] = value<T>(static_cast<int>(e % 23), static_cast<int>(e / 23), 1);
+            for (std::size_t e = 0; e < B.size(); ++e) B[e] = value<T>(static_cast<int>(e % 19), static_cast<int>(e / 19), 2);
+            for (std::size_t e = 0; e < C0.size(); ++e) C0[e] = value<T>(static_cast<int>(e % 29), static_cast<int>(e / 29), 3);
+
+            auto op_a = [&](const T* a, int i, int l) {
+                return op.ta == 'N' ? a[i + l * lda] : (op.ta == 'T' ? a[l + i * lda] : conj_v(a[l + i * lda]));
+            };
+            auto op_b = [&](const T* b, int l, int j) {
+                return op.tb == 'N' ? b[l + j * ldb] : (op.tb == 'T' ? b[j + l * ldb] : conj_v(b[j + l * ldb]));
+            };
+            std::vector<T> ref = C0;
+            for (int p = 0; p < batch; ++p)
+                for (int j = 0; j < n; ++j)
+                    for (int i = 0; i < m; ++i) {
+                        T sum = T(0);
+                        for (int l = 0; l < k; ++l) sum += op_a(&A[p * asz], i, l) * op_b(&B[p * bsz], l, j);
+                        ref[p * csz + i + j * ldc] = alpha * sum + beta * C0[p * csz + i + j * ldc];
+                    }
+
+            std::vector<T> out[2] = {C0, C0};
+            DdlaHandle_t hs[2] = {h1, h4};
+            for (int w = 0; w < 2; ++w) {
+                std::vector<const T*> pa(batch), pb(batch);
+                std::vector<T*> pc(batch);
+                for (int p = 0; p < batch; ++p) {
+                    pa[p] = &A[p * asz];
+                    pb[p] = &B[p * bsz];
+                    pc[p] = &out[w][p * csz];
+                }
+                gemmBatched<DdlaBackend::CPU, T>(hs[w], op.ta, op.tb, m, n, k, alpha, pa.data(), lda,
+                                                 pb.data(), ldb, beta, pc.data(), ldc, batch);
+                if (!close_enough<T>(out[w], ref)) fail(w == 0 ? "1-thread result vs reference" : "4-thread result vs reference", op.ta, op.tb, batch);
+            }
+            if (out[0].size() != out[1].size() ||
+                (!out[0].empty() && std::memcmp(out[0].data(), out[1].data(), out[0].size() * sizeof(T)) != 0))
+                fail("1-thread and 4-thread results are not bitwise equal", op.ta, op.tb, batch);
+        }
+    }
+
+    // The BLAS thread count survives a threaded call, and the guard pins it only inside its scope.  Done last: it changes the BLAS
+    // setting (restored below), which the bitwise comparison above must not depend on.
+    const int original = detail::ScopedBlasThreads::current();
+    if (original > 0) {
+        if (openblas_set_num_threads != nullptr) openblas_set_num_threads(3);
+        else if (mkl_set_num_threads != nullptr) mkl_set_num_threads(3);
+        const int before = detail::ScopedBlasThreads::current();
+        const int batch = 16;
+        std::vector<T> a(m * k, T(1)), b(k * n, T(1)), c(batch * m * n, T(0));
+        std::vector<const T*> pa(batch, a.data()), pb(batch, b.data());
+        std::vector<T*> pc(batch);
+        for (int p = 0; p < batch; ++p) pc[p] = &c[p * m * n];
+        gemmBatched<DdlaBackend::CPU, T>(h4, 'N', 'N', m, n, k, alpha, pa.data(), m, pb.data(), k, beta, pc.data(), m, batch);
+        if (detail::ScopedBlasThreads::current() != before) fail("BLAS thread count not restored after gemmBatched", '-', '-', batch);
+        {
+            detail::ScopedBlasThreads pinned(1);
+            if (detail::ScopedBlasThreads::current() != 1) fail("ScopedBlasThreads did not pin the BLAS to one thread", '-', '-', 0);
+        }
+        if (detail::ScopedBlasThreads::current() != before) fail("BLAS thread count not restored by ScopedBlasThreads", '-', '-', 0);
+        if (openblas_set_num_threads != nullptr) openblas_set_num_threads(original);
+        else if (mkl_set_num_threads != nullptr) mkl_set_num_threads(original);
+    }
+    ddlaDestroy(h1);
+    ddlaDestroy(h4);
+    return bad;
+}
+#endif // DDLA_HAS_CPU
+
 template <DdlaBackend Backend, typename T>
 int run_type(const DdlaHandle_t& handle, char* arena, std::size_t arena_bytes)
 {
@@ -704,7 +824,15 @@ int main(int argc, char** argv)
     const bool do_gpu = (!only || std::string(only) == "gpu");
     int failures = 0;
 #if DDLA_HAS_CPU
-    if (do_cpu) failures += run_backend<DdlaBackend::CPU>();
+    if (do_cpu) {
+        failures += run_backend<DdlaBackend::CPU>();
+        if (family_selected("gemmBatched")) {
+            failures += check_gemmBatched_threads<float>();
+            failures += check_gemmBatched_threads<double>();
+            failures += check_gemmBatched_threads<std::complex<float>>();
+            failures += check_gemmBatched_threads<std::complex<double>>();
+        }
+    }
 #else
     (void)do_cpu;
 #endif
