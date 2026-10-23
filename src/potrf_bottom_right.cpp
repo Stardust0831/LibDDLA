@@ -57,8 +57,8 @@ void update_leading(
 
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right_block(
-    const char& uplo, const int& n, T* A, const int& lda,
-    const int& global_offset,
+    char uplo, int n, T* A, int lda,
+    int global_offset,
     T* work, int* info_buffer, int& info,
     const DdlaHandle_t& handle)
 {
@@ -102,7 +102,7 @@ void potrf_bottom_right_block(
 }
 
 #define INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(BACKEND, TYPE)                                   \
-    template void potrf_bottom_right_block<BACKEND, TYPE>(const char&, const int&, TYPE*, const int&, const int&, TYPE*, int*, int&, \
+    template void potrf_bottom_right_block<BACKEND, TYPE>(char, int, TYPE*, int, int, TYPE*, int*, int&, \
     const DdlaHandle_t&)
 
 #if DDLA_HAS_CPU
@@ -126,7 +126,7 @@ INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, std::complex<double>);
 
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right(
-    const char& uplo, const int& n, T* A, const int& lda,
+    char uplo, int n, T* A, int lda,
     int& info, const DdlaHandle_t& handle)
 {
     detail::require_backend<Backend>(handle, "potrf_bottom_right");
@@ -197,7 +197,7 @@ void potrf_bottom_right(
 }
 
 #define INSTANTIATE_POTRF_BOTTOM_RIGHT(BACKEND, TYPE)                                   \
-    template void potrf_bottom_right<BACKEND, TYPE>(const char&, const int&, TYPE*, const int&, int&, const DdlaHandle_t&)
+    template void potrf_bottom_right<BACKEND, TYPE>(char, int, TYPE*, int, int&, const DdlaHandle_t&)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_POTRF_BOTTOM_RIGHT(DdlaBackend::CPU, float);

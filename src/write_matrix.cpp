@@ -42,7 +42,7 @@ void write_host_matrix(const T* A, int m, int n, const char* filename)
 } // anonymous namespace
 
 template <DdlaBackend Backend, typename T>
-void write_matrix(const T* A, const int& m, const int& n, const char* filename)
+void write_matrix(const T* A, int m, int n, const char* filename)
 {
     static_assert(Backend != DdlaBackend::CPU || DDLA_HAS_CPU,
                   "CPU write_matrix is not available in this LibDDLA build");
@@ -70,7 +70,7 @@ void write_matrix(const T* A, const int& m, const int& n, const char* filename)
 
 #define INSTANTIATE_WRITE_MATRIX(BACKEND, TYPE)                              \
     template void write_matrix<BACKEND, TYPE>(                               \
-        const TYPE*, const int&, const int&, const char*)
+        const TYPE*, int, int, const char*)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_WRITE_MATRIX(DdlaBackend::CPU, float);

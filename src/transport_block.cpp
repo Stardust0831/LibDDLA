@@ -39,9 +39,9 @@ inline const char* transport_block_backend_name(DdlaBackend backend)
 // ---------------------------------------------------------------------------
 template <DdlaBackend Backend, typename T>
 void transport_block(
-    const DdlaHandle_t& handle, const char& sData, const char& trans,
-    const int& m, const int& n,
-    const T* A, const int& ia, const int& ja, const int* array_descA,
+    const DdlaHandle_t& handle, char sData, char trans,
+    int m, int n,
+    const T* A, int ia, int ja, const int* array_descA,
     T* block_A)
 {
     if (m == 0 || n == 0) return;
@@ -301,8 +301,8 @@ void transport_block(
 // ---------------------------------------------------------------------------
 #define INSTANTIATE_TRANSPORT_BLOCK(BACKEND, TYPE)                          \
     template void transport_block<BACKEND, TYPE>(                           const DdlaHandle_t&, \
-        const char&, const char&, const int&, const int&,                  \
-        const TYPE*, const int&, const int&, const int*, TYPE*)
+        char, char, int, int,                  \
+        const TYPE*, int, int, const int*, TYPE*)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_TRANSPORT_BLOCK(DdlaBackend::CPU, float);

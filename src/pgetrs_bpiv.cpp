@@ -38,7 +38,7 @@ namespace ddla {
  */
 template <DdlaBackend Backend, typename T>
 void pgetrs_bpiv(
-    const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
+    const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
     T* A, const int* array_descA,
     int* pivots, // host for CPU, device for GPU
     T* B, const int* array_descB
@@ -170,7 +170,7 @@ void pgetrs_bpiv(
 }
 
 #define INSTANTIATE_PGETRS_BPIV(BACKEND, TYPE)                                   \
-    template void pgetrs_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    template void pgetrs_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, char side, char trans, int n, int nrhs, \
     TYPE* A, const int* array_descA, \
     int* pivots, \
     TYPE* B, const int* array_descB)

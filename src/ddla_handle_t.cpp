@@ -92,7 +92,7 @@ static void resolve_and_validate_backend(DdlaHandle_t handle, const MPI_Comm& co
 // ---------------------------------------------------------------------------
 // ddlaSet — initialize process grid, verify backend consistency collectively
 // ---------------------------------------------------------------------------
-ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm, const char& major)
+ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm, char major)
 {
     if (handle == nullptr) {
         throw std::runtime_error("ddlaSet: handle is null");
@@ -108,7 +108,7 @@ ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm, const char& majo
 }
 
 ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm,
-              const int& nprows, const int& npcols, const char& major)
+              int nprows, int npcols, char major)
 {
     if (handle == nullptr) {
         throw std::runtime_error("ddlaSet: handle is null");

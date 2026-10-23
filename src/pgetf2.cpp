@@ -86,8 +86,8 @@ struct PivotBroadcast {
 // the leading block.
 template <DdlaBackend Backend, typename T>
 void pgetf2(
-    const DdlaHandle_t& handle, const int& m, const int& n, const int& nb_real,
-    T* A, const int& n_s, const int* array_descA,
+    const DdlaHandle_t& handle, int m, int n, int nb_real,
+    T* A, int n_s, const int* array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -248,8 +248,8 @@ void pgetf2(
 }
 
 #define INSTANTIATE_PGETF2(BACKEND, TYPE)                                   \
-    template void pgetf2<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, const int& nb_real, \
-    TYPE* A, const int& n_s, const int* array_descA, \
+    template void pgetf2<BACKEND, TYPE>(const DdlaHandle_t&, int m, int n, int nb_real, \
+    TYPE* A, int n_s, const int* array_descA, \
     int* ipiv, \
     int& info)
 

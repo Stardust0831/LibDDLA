@@ -27,7 +27,7 @@ namespace ddla {
  */
 template <DdlaBackend Backend, typename T>
 void pgetrf_nopiv(
-    const DdlaHandle_t& handle, const int& m, const int& n,
+    const DdlaHandle_t& handle, int m, int n,
     T* A, const int* array_descA,
     int& info  // host
 )
@@ -199,7 +199,7 @@ void pgetrf_nopiv(
 
 // Explicit instantiations
 #define INSTANTIATE_PGETRF_NOPIV(BACKEND, TYPE)                                   \
-    template void pgetrf_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
+    template void pgetrf_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, int m, int n, \
     TYPE* A, const int* array_descA, \
     int& info)
 

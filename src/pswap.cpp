@@ -9,9 +9,9 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void pswap(
-    const DdlaHandle_t& handle, const int& N, 
-    T* A, int ia, int ja, const int* array_descA, const int& inca,
-    T* B, int ib, int jb, const int* array_descB, const int& incb
+    const DdlaHandle_t& handle, int N, 
+    T* A, int ia, int ja, const int* array_descA, int inca,
+    T* B, int ib, int jb, const int* array_descB, int incb
 )
 {
     check_desc(array_descA, handle);
@@ -96,9 +96,9 @@ void pswap(
 }
 
 #define INSTANTIATE_PSWAP(BACKEND, TYPE)                                   \
-    template void pswap<BACKEND, TYPE>(const DdlaHandle_t&, const int& N, \
-    TYPE* A, int ia, int ja, const int* array_descA, const int& inca, \
-    TYPE* B, int ib, int jb, const int* array_descB, const int& incb)
+    template void pswap<BACKEND, TYPE>(const DdlaHandle_t&, int N, \
+    TYPE* A, int ia, int ja, const int* array_descA, int inca, \
+    TYPE* B, int ib, int jb, const int* array_descB, int incb)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PSWAP(DdlaBackend::CPU, float);

@@ -7,10 +7,10 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void pposv(
-    const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans,
-    const int & n, const int& nrhs,
-    T* A, const int& ia, const int& ja, const int* array_descA,
-    T* B, const int& ib, const int& jb, const int* array_descB,
+    const DdlaHandle_t& handle, char side, char uplo, char trans,
+    int n, int nrhs,
+    T* A, int ia, int ja, const int* array_descA,
+    T* B, int ib, int jb, const int* array_descB,
     int& info, // host pointer
     bool is_head, int location
 )
@@ -35,10 +35,10 @@ void pposv(
 }
 
 #define INSTANTIATE_PPOSV(BACKEND, TYPE)                                   \
-    template void pposv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, \
-    const int & n, const int& nrhs, \
-    TYPE* A, const int& ia, const int& ja, const int* array_descA, \
-    TYPE* B, const int& ib, const int& jb, const int* array_descB, \
+    template void pposv<BACKEND, TYPE>(const DdlaHandle_t&, char side, char uplo, char trans, \
+    int n, int nrhs, \
+    TYPE* A, int ia, int ja, const int* array_descA, \
+    TYPE* B, int ib, int jb, const int* array_descB, \
     int& info, \
     bool is_head, int location)
 

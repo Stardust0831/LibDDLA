@@ -57,7 +57,7 @@ void update_diagonal_tile(
 
 template <DdlaBackend Backend, typename T>
 void ppotrf_bottom_right(
-    const DdlaHandle_t& handle, const char& uplo, const int& n,
+    const DdlaHandle_t& handle, char uplo, int n,
     T* A, const int* descA, int& info
 )
 {
@@ -363,7 +363,7 @@ void ppotrf_bottom_right(
 }
 
 #define INSTANTIATE_PPOTRF_BOTTOM_RIGHT(BACKEND, TYPE)                                   \
-    template void ppotrf_bottom_right<BACKEND, TYPE>(const DdlaHandle_t&, const char&, const int&, TYPE*, const int*, int&)
+    template void ppotrf_bottom_right<BACKEND, TYPE>(const DdlaHandle_t&, char, int, TYPE*, const int*, int&)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PPOTRF_BOTTOM_RIGHT(DdlaBackend::CPU, float);

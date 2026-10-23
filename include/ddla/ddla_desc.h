@@ -7,23 +7,23 @@
 
 namespace ddla{
 
-inline int indxg2p(const int &indxglob, const int &nb,
-                              const int &isrcproc, const int &nprocs)
+inline int indxg2p(int indxglob, int nb,
+                              int isrcproc, int nprocs)
 {
     return (isrcproc + indxglob / nb) % nprocs;
 }
 
-inline int indxg2l(const int &indxglob, const int &nb, const int &nprocs)
+inline int indxg2l(int indxglob, int nb, int nprocs)
 {
     return nb * (indxglob / (nb * nprocs)) + indxglob % nb;
 }
-inline int indxl2g(const int &indxloc, const int &nb, const int &iproc, const int &isrcproc, const int &nprocs)
+inline int indxl2g(int indxloc, int nb, int iproc, int isrcproc, int nprocs)
 {
     return nprocs * nb * (indxloc / nb) + indxloc % nb +
             ((nprocs + iproc - isrcproc) % nprocs) * nb;
 }
 
-inline int num_loc(const int& n, const int& nb, const int& iproc, const int& srcproc, const int& nprocs)
+inline int num_loc(int n, int nb, int iproc, int srcproc, int nprocs)
 {
     int count = n / (nb * nprocs) * nb;
     int rest = n % (nb * nprocs);

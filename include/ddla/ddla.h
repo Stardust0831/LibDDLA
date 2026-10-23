@@ -56,8 +56,8 @@ template <typename U> struct real_type<std::complex<U>> { using type = U; };
 template <DdlaBackend Backend = default_backend_v, typename T>
 void ptrtrs(
     const DdlaHandle_t& handle,
-    const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
+    char side, char uplo, char trans, char diag,
+    int m, int n,
     T* A, const int* descA,
     T* B, const int* descB
 );
@@ -95,8 +95,8 @@ void ptrtrs(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void plapiv(
     const DdlaHandle_t& handle,
-    const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
+    char direc, char rowcol, char pivroc,
+    int m, int n,
     T* A, const int* descA,
     const int* ipiv, const int* descIP,
     int* iwork
@@ -127,9 +127,9 @@ void plapiv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pswap(
     const DdlaHandle_t& handle,
-    const int& N,
-    T* A, int ia, int ja, const int* descA, const int& inca,
-    T* B, int ib, int jb, const int* descB, const int& incb
+    int N,
+    T* A, int ia, int ja, const int* descA, int inca,
+    T* B, int ib, int jb, const int* descB, int incb
 );
 
 /**
@@ -154,8 +154,8 @@ void pswap(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetf2(
     const DdlaHandle_t& handle,
-    const int& m, const int& n, const int& nb_real,
-    T* A, const int& n_s, const int* descA,
+    int m, int n, int nb_real,
+    T* A, int n_s, const int* descA,
     int* ipiv, // host
     int& info  // host
 );
@@ -180,8 +180,8 @@ void pgetf2(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetf2_panel(
     const DdlaHandle_t& handle,
-    const int& m, const int& n, const int& nb_real,
-    T* A, const int& n_start, const int* descA,
+    int m, int n, int nb_real,
+    T* A, int n_start, const int* descA,
     int* ipiv, // host
     int& info  // host
 );
@@ -213,7 +213,7 @@ void pgetf2_panel(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrf(
     const DdlaHandle_t& handle,
-    const int& m, const int& n,
+    int m, int n,
     T* A, const int* descA,
     int* ipiv, // host
     int& info  // host
@@ -244,7 +244,7 @@ void pgetrf(
  * @param info     host info 0 on success, >0 if singular. 
  */
 template <DdlaBackend Backend = default_backend_v, typename T>
-void pgetrf_bpiv(const DdlaHandle_t& handle, const int& m, const int& n, T* A, const int* descA, int* pivots, int& info);
+void pgetrf_bpiv(const DdlaHandle_t& handle, int m, int n, T* A, const int* descA, int* pivots, int& info);
 
 /**
  * @brief Distributed LU factorization without pivoting.
@@ -267,7 +267,7 @@ void pgetrf_bpiv(const DdlaHandle_t& handle, const int& m, const int& n, T* A, c
  * @param info     host info: 0 on success, >0 if U(k,k) is exactly zero.
  */
 template <DdlaBackend Backend = default_backend_v, typename T>
-void pgetrf_nopiv(const DdlaHandle_t& handle, const int& m, const int& n, T* A, const int* descA, int& info);
+void pgetrf_nopiv(const DdlaHandle_t& handle, int m, int n, T* A, const int* descA, int& info);
 
 /**
  * @brief Local LU factorization without pivoting.
@@ -318,7 +318,7 @@ void getrf_nopiv(int m, int n, T* A, int lda, int* info_buffer, const DdlaHandle
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     const int* ipiv, // host
     T* B, const int* descB
@@ -347,7 +347,7 @@ void pgetrs(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs_nopiv(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     T* B, const int* descB
 );
@@ -375,7 +375,7 @@ void pgetrs_nopiv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     T* B, const int* descB
 );
@@ -402,7 +402,7 @@ void pgesv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv_nopiv(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     T* B, const int* descB
 );
@@ -437,7 +437,7 @@ void pgesv_nopiv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgetrs_bpiv(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     int* pivots, // host for CPU, device for GPU
     T* B, const int* descB
@@ -467,7 +467,7 @@ void pgetrs_bpiv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgesv_bpiv(
     const DdlaHandle_t& handle,
-    const char& side, const char& trans, const int& n, const int& nrhs,
+    char side, char trans, int n, int nrhs,
     T* A, const int* descA,
     T* B, const int* descB
 );
@@ -514,8 +514,8 @@ void pgesv_bpiv(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgemm(
     const DdlaHandle_t& handle,
-    const char& transa, const char& transb,
-    const int& m, const int& n, const int& k,
+    char transa, char transb,
+    int m, int n, int k,
     const T& alpha,
     const T* A, const int* descA,
     const T* B, const int* descB,
@@ -550,8 +550,8 @@ void pgemm(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgeadd(
     const DdlaHandle_t& handle,
-    const char& transa, const char& transb,
-    const int& m, const int& n,
+    char transa, char transb,
+    int m, int n,
     const T& alpha,
     const T* A, const int* descA,
     const T& beta,
@@ -585,7 +585,7 @@ void pgeadd(
  *               n < 0 means the whole matrix.  Default -1.
  */
 template <DdlaBackend Backend = default_backend_v, typename T1, typename T2>
-void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* descA, const int& n = -1);
+void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* descA, int n = -1);
 
 /**
  * @brief Distributed Cholesky factorization.
@@ -618,8 +618,8 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* descA, 
 template <DdlaBackend Backend = default_backend_v, typename T>
 bool ppotrf(
     const DdlaHandle_t& handle,
-    const char& uplo, const int& n,
-    T* A, const int& ia, const int& ja, const int* descA,
+    char uplo, int n,
+    T* A, int ia, int ja, const int* descA,
     int& info, // host pointer
     bool is_head = false, int location = -1
 );
@@ -643,7 +643,7 @@ bool ppotrf(
  */
 template <DdlaBackend Backend = default_backend_v, typename T>
 void potrf_bottom_right(
-    const char& uplo, const int& n, T* A, const int& lda,
+    char uplo, int n, T* A, int lda,
     int& info, const DdlaHandle_t& handle
 );
 
@@ -671,7 +671,7 @@ void potrf_bottom_right(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void ppotrf_bottom_right(
     const DdlaHandle_t& handle,
-    const char& uplo, const int& n, T* A,
+    char uplo, int n, T* A,
     const int* descA, int& info
 );
 
@@ -710,8 +710,8 @@ void ppotrf_bottom_right(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void ppotrs(
     const DdlaHandle_t& handle,
-    const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
+    char side, char uplo, char trans,
+    int n, int nrhs,
     T* A, const int* descA,
     T* B, const int* descB,
     bool is_nega = false, int location = -1
@@ -748,10 +748,10 @@ void ppotrs(
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pposv(
     const DdlaHandle_t& handle,
-    const char& side, const char& uplo, const char& trans,
-    const int & n, const int& nrhs,
-    T* A, const int& ia, const int& ja, const int* descA,
-    T* B, const int& ib, const int& jb, const int* descB,
+    char side, char uplo, char trans,
+    int n, int nrhs,
+    T* A, int ia, int ja, const int* descA,
+    T* B, int ib, int jb, const int* descB,
     int& info, // host pointer
     bool is_head = false, int location = -1
 );
@@ -1341,9 +1341,9 @@ void ptran(const DdlaHandle_t& handle,
 template <DdlaBackend Backend = default_backend_v, typename T>
 void transport_block(
     const DdlaHandle_t& handle,
-    const char& sData, const char& trans,
-    const int& m, const int& n,
-    const T* A, const int& ia, const int& ja, const int* descA,
+    char sData, char trans,
+    int m, int n,
+    const T* A, int ia, int ja, const int* descA,
     T* block_A
 );
 
@@ -1363,7 +1363,7 @@ template <DdlaBackend Backend = default_backend_v, typename T>
 void random_generate(const DdlaHandle_t& handle, T* data, const int64_t& lengthOfData);
 
 template <DdlaBackend Backend = default_backend_v, typename T>
-void write_matrix(const T* A, const int& m, const int& n, const char* filename);
+void write_matrix(const T* A, int m, int n, const char* filename);
 
 template <DdlaBackend Backend = default_backend_v, typename T>
 void scal(const DdlaHandle_t& handle, int n, const T& alpha, T* x, int incx);

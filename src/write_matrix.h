@@ -29,7 +29,7 @@ namespace ddla {
  * Supported T: float, double, std::complex<float>, std::complex<double>.
  */
 template <DdlaBackend Backend, typename T>
-void write_matrix(const T* A, const int& m, const int& n, const char* filename);
+void write_matrix(const T* A, int m, int n, const char* filename);
 
 } // namespace ddla
 

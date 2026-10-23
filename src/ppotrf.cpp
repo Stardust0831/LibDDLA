@@ -15,8 +15,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 bool ppotrf(
-    const DdlaHandle_t& handle, const char& uplo, const int& n,
-    T* A, const int& ia, const int& ja, const int* array_descA,
+    const DdlaHandle_t& handle, char uplo, int n,
+    T* A, int ia, int ja, const int* array_descA,
     int& info, // host pointer
     bool is_head, int location
 )
@@ -459,8 +459,8 @@ bool ppotrf(
 }
 
 #define INSTANTIATE_PPOTRF(BACKEND, TYPE)                                   \
-    template bool ppotrf<BACKEND, TYPE>(const DdlaHandle_t&, const char& uplo, const int& n, \
-    TYPE* A, const int& ia, const int& ja, const int* array_descA, \
+    template bool ppotrf<BACKEND, TYPE>(const DdlaHandle_t&, char uplo, int n, \
+    TYPE* A, int ia, int ja, const int* array_descA, \
     int& info, \
     bool is_head, int location)
 

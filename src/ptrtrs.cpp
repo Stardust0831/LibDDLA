@@ -11,8 +11,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void ptrtrs(
-    const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans, const char& diag,
-    const int& m, const int& n,
+    const DdlaHandle_t& handle, char side, char uplo, char trans, char diag,
+    int m, int n,
     T* A, const int* array_descA,
     T* B, const int* array_descB
 )
@@ -306,8 +306,8 @@ void ptrtrs(
 
 
 #define INSTANTIATE_PTRTRS(BACKEND, TYPE)                                   \
-    template void ptrtrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag, \
-    const int& m, const int& n, \
+    template void ptrtrs<BACKEND, TYPE>(const DdlaHandle_t&, char side, char uplo, char trans, char diag, \
+    int m, int n, \
     TYPE* A, const int* array_descA, \
     TYPE* B, const int* array_descB)
 

@@ -31,7 +31,7 @@ namespace ddla {
  */
 template <DdlaBackend Backend, typename T>
 void pgetrf_bpiv(
-    const DdlaHandle_t& handle, const int& m, const int& n,
+    const DdlaHandle_t& handle, int m, int n,
     T* A, const int* array_descA,
     int* pivots, // host for CPU, device for GPU; 1-based global row indices
     int& info  // host
@@ -249,7 +249,7 @@ void pgetrf_bpiv(
 
 // Explicit instantiations
 #define INSTANTIATE_PGETRF_BPIV(BACKEND, TYPE)                                   \
-    template void pgetrf_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
+    template void pgetrf_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, int m, int n, \
     TYPE* A, const int* array_descA, \
     int* ipiv, int& info)
 

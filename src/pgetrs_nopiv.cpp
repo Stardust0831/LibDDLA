@@ -27,7 +27,7 @@ namespace ddla {
  */
 template <DdlaBackend Backend, typename T>
 void pgetrs_nopiv(
-    const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
+    const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
     T* A, const int* array_descA,
     T* B, const int* array_descB
 )
@@ -82,7 +82,7 @@ void pgetrs_nopiv(
 }
 
 #define INSTANTIATE_PGETRS_NOPIV(BACKEND, TYPE)                                   \
-    template void pgetrs_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    template void pgetrs_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, char side, char trans, int n, int nrhs, \
     TYPE* A, const int* array_descA, \
     TYPE* B, const int* array_descB)
 

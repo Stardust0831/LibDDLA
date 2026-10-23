@@ -11,8 +11,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void pgetf2_panel(
-    const DdlaHandle_t& handle, const int& m, const int& n, const int& nb_real,
-    T* A, const int& n_start, const int* array_descA,
+    const DdlaHandle_t& handle, int m, int n, int nb_real,
+    T* A, int n_start, const int* array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -107,8 +107,8 @@ void pgetf2_panel(
 }
 
 #define INSTANTIATE_PGETF2_PANEL(BACKEND, TYPE)                                   \
-    template void pgetf2_panel<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, const int& nb_real, \
-    TYPE* A, const int& n_start, const int* array_descA, \
+    template void pgetf2_panel<BACKEND, TYPE>(const DdlaHandle_t&, int m, int n, int nb_real, \
+    TYPE* A, int n_start, const int* array_descA, \
     int* ipiv, \
     int& info)
 

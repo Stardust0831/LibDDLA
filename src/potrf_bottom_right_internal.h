@@ -12,8 +12,8 @@ namespace ddla::detail {
 // info_buffer and work are caller-owned and may be reused across diagonal blocks.
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right_block(
-    const char& uplo, const int& n, T* A, const int& lda,
-    const int& global_offset,
+    char uplo, int n, T* A, int lda,
+    int global_offset,
     T* work, int* info_buffer, int& info,
     const DdlaHandle_t& handle
 );

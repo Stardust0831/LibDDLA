@@ -20,9 +20,9 @@ namespace ddla{
 template <DdlaBackend Backend, typename T>
 void transport_block(
     const DdlaHandle_t& handle,
-    const char& sData, const char& trans,
-    const int& m, const int& n,
-    const T* A, const int& ia, const int& ja, const int* array_descA,
+    char sData, char trans,
+    int m, int n,
+    const T* A, int ia, int ja, const int* array_descA,
     T* block_A
 );
 

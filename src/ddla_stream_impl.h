@@ -129,7 +129,7 @@ public:
     // -----------------------------------------------------------------------
     // init(comm, major) — grid auto-detect
     // -----------------------------------------------------------------------
-    void init(MPI_Comm comm_group, const char& major)
+    void init(MPI_Comm comm_group, char major)
     {
         MPI_CHECK(MPI_Comm_rank(comm_group, &myid));
         MPI_CHECK(MPI_Comm_size(comm_group, &nprocs));
@@ -142,7 +142,7 @@ public:
     // -----------------------------------------------------------------------
     // init(nprows, npcols, comm, major)
     // -----------------------------------------------------------------------
-    void init(int nprows, int npcols, MPI_Comm comm_group, const char& major)
+    void init(int nprows, int npcols, MPI_Comm comm_group, char major)
     {
         // Preserve immutable backend across clean/reinit
         DdlaBackend saved_backend = backend;

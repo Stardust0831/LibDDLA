@@ -8,8 +8,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void ppotrs(
-    const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans,
-    const int& n, const int& nrhs,
+    const DdlaHandle_t& handle, char side, char uplo, char trans,
+    int n, int nrhs,
     T* A, const int* array_descA,
     T* B, const int* array_descB,
     bool is_nega, int location
@@ -96,8 +96,8 @@ void ppotrs(
 }
 
 #define INSTANTIATE_PPOTRS(BACKEND, TYPE)                                   \
-    template void ppotrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, \
-    const int& n, const int& nrhs, \
+    template void ppotrs<BACKEND, TYPE>(const DdlaHandle_t&, char side, char uplo, char trans, \
+    int n, int nrhs, \
     TYPE* A, const int* array_descA, \
     TYPE* B, const int* array_descB, \
     bool is_nega, int location)

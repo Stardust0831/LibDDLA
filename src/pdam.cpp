@@ -70,7 +70,7 @@ __global__ void pdam_kernel(const T1* alpha, T2* A,
 #endif // DDLA_USE_CUDA || DDLA_USE_HIP
 
 template <DdlaBackend Backend, typename T1, typename T2>
-void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* array_descA, const int& n)
+void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* array_descA, int n)
 {
     check_desc(array_descA, handle);
     int nprows = 0, npcols = 0, myprow = -1, mypcol = -1;
@@ -130,7 +130,7 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* array_d
 
 // Supported type combinations match LibRPA's DeviceConnector::pdam.
 #define INSTANTIATE_PDAM(BACKEND, T1, T2) \
-    template void pdam<BACKEND, T1, T2>(const DdlaHandle_t&, const T1&, T2*, const int*, const int&)
+    template void pdam<BACKEND, T1, T2>(const DdlaHandle_t&, const T1&, T2*, const int*, int)
 
 #define INSTANTIATE_PDAM_ALL(BACKEND)                                        \
     INSTANTIATE_PDAM(BACKEND, float, float);                                 \

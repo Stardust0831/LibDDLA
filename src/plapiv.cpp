@@ -10,8 +10,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void plapiv(
-    const DdlaHandle_t& handle, const char& direc, const char& rowcol, const char& pivroc,
-    const int& m, const int& n,
+    const DdlaHandle_t& handle, char direc, char rowcol, char pivroc,
+    int m, int n,
     T* A,const int* array_descA,
     const int* ipiv, const int* array_descIP,
     int* iwork
@@ -141,8 +141,8 @@ void plapiv(
 }
 
 #define INSTANTIATE_PLAPIV(BACKEND, TYPE)                                   \
-    template void plapiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc, \
-    const int& m, const int& n, \
+    template void plapiv<BACKEND, TYPE>(const DdlaHandle_t&, char direc, char rowcol, char pivroc, \
+    int m, int n, \
     TYPE* A,const int* array_descA, \
     const int* ipiv, const int* array_descIP, \
     int* iwork)

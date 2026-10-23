@@ -28,8 +28,8 @@ inline const char* pgemm_backend_name(DdlaBackend backend)
 
 template <DdlaBackend Backend, typename T>
 void pgemm(
-    const DdlaHandle_t& handle, const char& transa, const char& transb,
-    const int& m, const int& n, const int& k,
+    const DdlaHandle_t& handle, char transa, char transb,
+    int m, int n, int k,
     const T& alpha,
     const T* A, const int* descA,
     const T* B, const int* descB,
@@ -312,7 +312,7 @@ void pgemm(
 // ---------------------------------------------------------------------------
 #define INSTANTIATE_PGEMM(BACKEND, TYPE)                                     \
     template void pgemm<BACKEND, TYPE>(                              const DdlaHandle_t&, \
-        const char&, const char&, const int&, const int&, const int&,          \
+        char, char, int, int, int,          \
         const TYPE&, const TYPE*, const int*,                            \
         const TYPE*, const int*,                                         \
         const TYPE&, TYPE*, const int*)

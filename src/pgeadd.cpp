@@ -12,8 +12,8 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void pgeadd(
-    const DdlaHandle_t& handle, const char& transa, const char& transb,
-    const int& m, const int& n,
+    const DdlaHandle_t& handle, char transa, char transb,
+    int m, int n,
     const T& alpha,
     const T* A, const int* array_descA,
     const T& beta,
@@ -158,8 +158,8 @@ void pgeadd(
 }
 
 #define INSTANTIATE_PGEADD(BACKEND, TYPE)                                   \
-    template void pgeadd<BACKEND, TYPE>(const DdlaHandle_t&, const char& transa, const char& transb, \
-    const int& m, const int& n, \
+    template void pgeadd<BACKEND, TYPE>(const DdlaHandle_t&, char transa, char transb, \
+    int m, int n, \
     const TYPE& alpha, \
     const TYPE* A, const int* array_descA, \
     const TYPE& beta, \

@@ -61,12 +61,12 @@ ddlaStatus_t ddlaInit(DdlaHandle_t& handle, DdlaBackend requested_backend);
 /// Initialize process grid and allocate backend resources.
 /// Backend is resolved and validated collectively.
 ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm = MPI_COMM_WORLD,
-                      const char& major = 'R');
+                      char major = 'R');
 
 /// Initialize with explicit grid dimensions.
 ddlaStatus_t ddlaSet(DdlaHandle_t handle, const MPI_Comm& comm,
-                      const int& nprows, const int& npcols,
-                      const char& major = 'R');
+                      int nprows, int npcols,
+                      char major = 'R');
 
 /// Release all resources; idempotent (safe to call multiple times).
 ddlaStatus_t ddlaDestroy(DdlaHandle_t& handle);

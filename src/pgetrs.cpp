@@ -7,7 +7,7 @@ namespace ddla{
 
 template <DdlaBackend Backend, typename T>
 void pgetrs(
-    const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
+    const DdlaHandle_t& handle, char side, char trans, int n, int nrhs,
     T* A, const int* array_descA,
     const int* ipiv, // host
     T* B, const int* array_descB
@@ -69,7 +69,7 @@ void pgetrs(
 }
 
 #define INSTANTIATE_PGETRS(BACKEND, TYPE)                                   \
-    template void pgetrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
+    template void pgetrs<BACKEND, TYPE>(const DdlaHandle_t&, char side, char trans, int n, int nrhs, \
     TYPE* A, const int* array_descA, \
     const int* ipiv, \
     TYPE* B, const int* array_descB)
