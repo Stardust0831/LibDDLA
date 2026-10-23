@@ -12,7 +12,7 @@ namespace ddla{
 template <DdlaBackend Backend, typename T>
 void pgetf2_panel(
     const DdlaHandle_t& handle, const int& m, const int& n, const int& nb_real,
-    T* d_A, const int& n_start, const int* array_descA,
+    T* A, const int& n_start, const int* array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -45,8 +45,8 @@ void pgetf2_panel(
     int i_loc,j_loc;
     int owner_row;
 
-    T *d_temp_U;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T)*nb_real*panel));
+    T *temp_U;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_U, sizeof(T)*nb_real*panel));
 
     info = 0;
 
@@ -63,11 +63,11 @@ void pgetf2_panel(
         // start pgetf2
         pgetf2<Backend>(handle, 
             m, n, panel_real,
-            d_A, n_s, array_descA,
+            A, n_s, array_descA,
             ipiv, info
         );
         if(info != 0){
-            DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
+            DDLA_CHECK(ddlaFree(ddla_handle, temp_U));
             return;
         }
         // finish pgetf2
@@ -82,33 +82,33 @@ void pgetf2_panel(
                 trsm<Backend, T>(
                     ddla_handle, 'L', 'L', 'N', 'U',
                     panel_real, j_s + nb_real - mm_col_start, T(1),
-                    d_A + i_loc + j_loc * lld, lld,
-                    d_A + i_loc + mm_col_start * lld, lld);
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, panel_real * sizeof(T),
-                                        d_A + i_loc + mm_col_start * lld, lld * sizeof(T), panel_real * sizeof(T),
+                    A + i_loc + j_loc * lld, lld,
+                    A + i_loc + mm_col_start * lld, lld);
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_U, panel_real * sizeof(T),
+                                        A + i_loc + mm_col_start * lld, lld * sizeof(T), panel_real * sizeof(T),
                                         j_s + nb_real - mm_col_start));
             } 
-            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, temp_U, (std::size_t)panel_real * (j_s + nb_real - mm_col_start), owner_row);
         }
         if(mm_row_start<m_loc && mm_col_start<j_s + nb_real && j_loc>=0){
             gemm<Backend, T>(ddla_handle, 'N', 'N',
                 m_loc - mm_row_start, j_s + nb_real - mm_col_start, panel_real,
                 -1.0,
-                d_A + mm_row_start + j_loc * lld, lld,
-                d_temp_U, panel_real,
+                A + mm_row_start + j_loc * lld, lld,
+                temp_U, panel_real,
                 1.0,
-                d_A + mm_row_start + mm_col_start * lld, lld
+                A + mm_row_start + mm_col_start * lld, lld
             );
         }
     }
     info = 0;
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_U));
 
 }
 
 #define INSTANTIATE_PGETF2_PANEL(BACKEND, TYPE)                                   \
     template void pgetf2_panel<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, const int& nb_real, \
-    TYPE* d_A, const int& n_start, const int* array_descA, \
+    TYPE* A, const int& n_start, const int* array_descA, \
     int* ipiv, \
     int& info)
 

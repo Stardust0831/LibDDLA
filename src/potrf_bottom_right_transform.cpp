@@ -73,8 +73,8 @@ constexpr int kTileSize = 16;
 
 template <DdlaBackend Backend, typename T>
 void reverse_upper_to_lower(
-    const DdlaHandle_t& handle, int n, const T* d_A, int lda,
-    T* d_B, int ldb)
+    const DdlaHandle_t& handle, int n, const T* A, int lda,
+    T* B, int ldb)
 {
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
@@ -82,15 +82,15 @@ void reverse_upper_to_lower(
     if(n == 0){
         return;
     }
-    assert(d_A != nullptr);
-    assert(d_B != nullptr);
+    assert(A != nullptr);
+    assert(B != nullptr);
 
     if constexpr (Backend == DdlaBackend::CPU){
         // B(r, c) = A(n-1-r, n-1-c) for r >= c, the host form of reverse_upper_to_lower_kernel
         for(int column = 0; column < n; ++column){
             for(int row = column; row < n; ++row){
-                d_B[row + static_cast<std::size_t>(column) * ldb] =
-                    d_A[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * lda];
+                B[row + static_cast<std::size_t>(column) * ldb] =
+                    A[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * lda];
             }
         }
     }else{
@@ -103,8 +103,8 @@ void reverse_upper_to_lower(
             (n + kTileSize - 1) / kTileSize,
             (n + kTileSize - 1) / kTileSize);
         reverse_upper_to_lower_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
-            n, reinterpret_cast<const DeviceT*>(d_A), lda,
-            reinterpret_cast<DeviceT*>(d_B), ldb);
+            n, reinterpret_cast<const DeviceT*>(A), lda,
+            reinterpret_cast<DeviceT*>(B), ldb);
         DDLA_CHECK(ddlaGetLastError(handle));
 #endif
     }
@@ -112,8 +112,8 @@ void reverse_upper_to_lower(
 
 template <DdlaBackend Backend, typename T>
 void reverse_lower_to_upper(
-    const DdlaHandle_t& handle, int n, const T* d_B, int ldb,
-    T* d_A, int lda)
+    const DdlaHandle_t& handle, int n, const T* B, int ldb,
+    T* A, int lda)
 {
     assert(n >= 0);
     assert(lda >= (n > 0 ? n : 1));
@@ -121,15 +121,15 @@ void reverse_lower_to_upper(
     if(n == 0){
         return;
     }
-    assert(d_A != nullptr);
-    assert(d_B != nullptr);
+    assert(A != nullptr);
+    assert(B != nullptr);
 
     if constexpr (Backend == DdlaBackend::CPU){
         // A(r, c) = B(n-1-r, n-1-c) for r <= c, the host form of reverse_lower_to_upper_kernel
         for(int column = 0; column < n; ++column){
             for(int row = 0; row <= column; ++row){
-                d_A[row + static_cast<std::size_t>(column) * lda] =
-                    d_B[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * ldb];
+                A[row + static_cast<std::size_t>(column) * lda] =
+                    B[(n - 1 - row) + static_cast<std::size_t>(n - 1 - column) * ldb];
             }
         }
     }else{
@@ -142,8 +142,8 @@ void reverse_lower_to_upper(
             (n + kTileSize - 1) / kTileSize,
             (n + kTileSize - 1) / kTileSize);
         reverse_lower_to_upper_kernel<DeviceT><<<blocks, threads, 0, stream>>>(
-            n, reinterpret_cast<const DeviceT*>(d_B), ldb,
-            reinterpret_cast<DeviceT*>(d_A), lda);
+            n, reinterpret_cast<const DeviceT*>(B), ldb,
+            reinterpret_cast<DeviceT*>(A), lda);
         DDLA_CHECK(ddlaGetLastError(handle));
 #endif
     }

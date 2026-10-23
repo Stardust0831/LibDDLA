@@ -26,11 +26,11 @@ void update_leading(
     const DdlaHandle_t& handle,
     const char uplo,
     int leading_n, int block_n,
-    const T* d_panel, int lda,
-    T* d_leading)
+    const T* panel, int lda,
+    T* leading)
 {
     const bool upper = uplo == 'U';
-    // d_leading -= d_panel * d_panel^H (or its transpose, for the lower case).
+    // leading -= panel * panel^H (or its transpose, for the lower case).
     // The unified syrk/herk take a LAPACK-style character flag, so the
     // transpose choice is the same 'N'/'T'/'C' string the CPU arm hands to
     // Fortran -- one convention across both backends.
@@ -39,8 +39,8 @@ void update_leading(
         const T one = T(1);
         syrk<Backend, T>(handle, uplo, upper ? 'N' : 'T',
                                   leading_n, block_n,
-                                  minus_one, d_panel, lda,
-                                  one, d_leading, lda);
+                                  minus_one, panel, lda,
+                                  one, leading, lda);
     } else {
         using Real = std::conditional_t<
             std::is_same_v<T, std::complex<float>>, float, double>;
@@ -48,8 +48,8 @@ void update_leading(
         const Real one = Real(1);
         herk<Backend, T>(handle, uplo, upper ? 'N' : 'C',
                                   leading_n, block_n,
-                                  minus_one, d_panel, lda,
-                                  one, d_leading, lda);
+                                  minus_one, panel, lda,
+                                  one, leading, lda);
     }
 }
 
@@ -57,9 +57,9 @@ void update_leading(
 
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right_block(
-    const char& uplo, const int& n, T* d_A, const int& lda,
+    const char& uplo, const int& n, T* A, const int& lda,
     const int& global_offset,
-    T* d_work, int* d_info, int& info,
+    T* work, int* info_buffer, int& info,
     const DdlaHandle_t& handle)
 {
     assert(uplo == 'U' || uplo == 'L');
@@ -72,22 +72,22 @@ void potrf_bottom_right_block(
         return;
     }
 
-    assert(d_A != nullptr);
-    assert(d_work != nullptr);
-    assert(d_info != nullptr);
+    assert(A != nullptr);
+    assert(work != nullptr);
+    assert(info_buffer != nullptr);
     assert(lda >= n);
 
-    DDLA_CHECK(ddlaMemset(handle, d_info, 0, sizeof(int)));
+    DDLA_CHECK(ddlaMemset(handle, info_buffer, 0, sizeof(int)));
     if(uplo == 'U'){
-        reverse_upper_to_lower<Backend>(handle, n, d_A, lda, d_work, n);
+        reverse_upper_to_lower<Backend>(handle, n, A, lda, work, n);
     }else{
-        reverse_lower_to_upper<Backend>(handle, n, d_A, lda, d_work, n);
+        reverse_lower_to_upper<Backend>(handle, n, A, lda, work, n);
     }
-    // The selected triangle was reverse-packed into the opposite one of d_work: factor that triangle.
-    potrf<Backend, T>(handle, uplo == 'U' ? 'L' : 'U', n, d_work, n, d_info);
+    // The selected triangle was reverse-packed into the opposite one of work: factor that triangle.
+    potrf<Backend, T>(handle, uplo == 'U' ? 'L' : 'U', n, work, n, info_buffer);
 
     int solver_info = 0;
-    DDLA_CHECK(ddlaMemcpy(handle, &solver_info, d_info, sizeof(int)));
+    DDLA_CHECK(ddlaMemcpy(handle, &solver_info, info_buffer, sizeof(int)));
     DDLA_CHECK(ddlaSynchronize(handle));
     if(solver_info != 0){
         info = global_offset + n - solver_info + 1;
@@ -95,9 +95,9 @@ void potrf_bottom_right_block(
     }
 
     if(uplo == 'U'){
-        reverse_lower_to_upper<Backend>(handle, n, d_work, n, d_A, lda);
+        reverse_lower_to_upper<Backend>(handle, n, work, n, A, lda);
     }else{
-        reverse_upper_to_lower<Backend>(handle, n, d_work, n, d_A, lda);
+        reverse_upper_to_lower<Backend>(handle, n, work, n, A, lda);
     }
 }
 
@@ -126,7 +126,7 @@ INSTANTIATE_POTRF_BOTTOM_RIGHT_BLOCK(DdlaBackend::GPU, std::complex<double>);
 
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right(
-    const char& uplo, const int& n, T* d_A, const int& lda,
+    const char& uplo, const int& n, T* A, const int& lda,
     int& info, const DdlaHandle_t& handle)
 {
     detail::require_backend<Backend>(handle, "potrf_bottom_right");
@@ -139,14 +139,14 @@ void potrf_bottom_right(
         return;
     }
 
-    assert(d_A != nullptr);
+    assert(A != nullptr);
     assert(lda >= n);
 
-    T* d_work = nullptr;
-    int* d_info = nullptr;
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_work),
+    T* work = nullptr;
+    int* info_buffer = nullptr;
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&work),
                           static_cast<std::size_t>(detail::kBlockSize) * detail::kBlockSize * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&info_buffer), sizeof(int)));
 
     const int last_block_start =
         ((n - 1) / detail::kBlockSize) * detail::kBlockSize;
@@ -154,11 +154,11 @@ void potrf_bottom_right(
         block_start >= 0;
         block_start -= detail::kBlockSize){
         const int block_n = std::min(detail::kBlockSize, n - block_start);
-        T* const d_diag = d_A + block_start
+        T* const diag = A + block_start
                         + static_cast<std::size_t>(block_start) * lda;
         detail::potrf_bottom_right_block<Backend>(
-            uplo, block_n, d_diag, lda, block_start,
-            d_work, d_info, info, handle);
+            uplo, block_n, diag, lda, block_start,
+            work, info_buffer, info, handle);
         if(info != 0){
             break;
         }
@@ -166,9 +166,9 @@ void potrf_bottom_right(
             continue;
         }
 
-        T* const d_panel = uplo == 'U'
-            ? d_A + static_cast<std::size_t>(block_start) * lda
-            : d_A + block_start;
+        T* const panel = uplo == 'U'
+            ? A + static_cast<std::size_t>(block_start) * lda
+            : A + block_start;
         const T one = T(1);
         // For real T a conjugate transpose is a plain transpose; for the
         // complex types 'C' is required.  One flag, both backends.
@@ -177,22 +177,22 @@ void potrf_bottom_right(
         if(uplo == 'U'){
             trsm<Backend, T>(handle, 'R', 'U', 'C', 'N',
                                       block_start, block_n, one,
-                                      d_diag, lda, d_panel, lda);
+                                      diag, lda, panel, lda);
         }else{
             trsm<Backend, T>(handle, 'L', 'L', trans, 'N',
                                       block_n, block_start, one,
-                                      d_diag, lda, d_panel, lda);
+                                      diag, lda, panel, lda);
         }
         detail::update_leading<Backend>(
             handle,
             uplo,
             block_start, block_n,
-            d_panel, lda,
-            d_A);
+            panel, lda,
+            A);
     }
 
-    DDLA_CHECK(ddlaFree(handle, d_work));
-    DDLA_CHECK(ddlaFree(handle, d_info));
+    DDLA_CHECK(ddlaFree(handle, work));
+    DDLA_CHECK(ddlaFree(handle, info_buffer));
     DDLA_CHECK(ddlaSynchronize(handle));
 }
 

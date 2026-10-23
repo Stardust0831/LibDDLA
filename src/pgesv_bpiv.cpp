@@ -23,17 +23,17 @@ namespace ddla {
  * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of square matrix A.
  * @param nrhs    Number of right-hand sides.
- * @param d_A     Device pointer to A (input: coefficient; output: LU factors).
+ * @param A     Pointer in the selected backend to A (input: coefficient; output: LU factors).
  * @param array_descA  ScaLAPACK int[9] descriptor for A.
- * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param B     Pointer in the selected backend to RHS / solution B (input/output).
  * @param array_descB  ScaLAPACK int[9] descriptor for B.
  * @throws std::runtime_error if LU factorization fails (info != 0).
  */
 template <DdlaBackend Backend, typename T>
 void pgesv_bpiv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
-    T* d_B, const int* array_descB
+    T* A, const int* array_descA,
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -47,22 +47,22 @@ void pgesv_bpiv(
     detail::require_backend<Backend>(ddla_handle, "pgesv_bpiv");
     assert(n <= array_descA[DDLA_M_] && n <= array_descA[DDLA_N_]);
     const int m_loc_A = num_loc(n, array_descA[DDLA_MB_], myprow, array_descA[DDLA_RSRC_], nprows);
-    int* d_ipiv = nullptr;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, reinterpret_cast<void**>(&d_ipiv), sizeof(int) * std::max(1, m_loc_A)));
+    int* pivots = nullptr;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, reinterpret_cast<void**>(&pivots), sizeof(int) * std::max(1, m_loc_A)));
     int info = 0;
-    pgetrf_bpiv<Backend>(handle, n, n, d_A, array_descA, d_ipiv, info);
+    pgetrf_bpiv<Backend>(handle, n, n, A, array_descA, pivots, info);
     if(info != 0){
-        DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
+        DDLA_CHECK(ddlaFree(ddla_handle, pivots));
         throw std::runtime_error("pgesv_bpiv: pgetrf_bpiv returned info = " + std::to_string(info));
     }
-    pgetrs_bpiv<Backend>(handle, side, trans, n, nrhs, d_A, array_descA, d_ipiv, d_B, array_descB);
-    DDLA_CHECK(ddlaFree(ddla_handle, d_ipiv));
+    pgetrs_bpiv<Backend>(handle, side, trans, n, nrhs, A, array_descA, pivots, B, array_descB);
+    DDLA_CHECK(ddlaFree(ddla_handle, pivots));
 }
 
 #define INSTANTIATE_PGESV_BPIV(BACKEND, TYPE)                                   \
     template void pgesv_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* A, const int* array_descA, \
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGESV_BPIV(DdlaBackend::CPU, float);

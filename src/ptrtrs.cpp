@@ -13,8 +13,8 @@ template <DdlaBackend Backend, typename T>
 void ptrtrs(
     const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans, const char& diag,
     const int& m, const int& n,
-    T* d_A, const int* array_descA,
-    T* d_B, const int* array_descB
+    T* A, const int* array_descA,
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -58,11 +58,11 @@ void ptrtrs(
         assert(m <= array_descB[DDLA_M_] && n <= array_descB[DDLA_N_]);
     }
     
-    T* d_block_diag,*d_block_A,*d_block_B;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_diag, nb * nb * sizeof(T)));
+    T* block_diag,*block_A,*block_B;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &block_diag, nb * nb * sizeof(T)));
     // side='L' stages an nb x n_loc block row of B; side='R' an m_loc x nb block column.
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_B, nb * std::max(m_loc_B, n_loc_B) * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_block_A, std::max(m_loc_A, n_loc_A) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &block_B, nb * std::max(m_loc_B, n_loc_B) * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &block_A, std::max(m_loc_A, n_loc_A) * nb * sizeof(T)));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start, mm_row_step, mm_col_step;
@@ -103,25 +103,25 @@ void ptrtrs(
                 mm_col_step = 0;
 
             if(myprow == owner_row && mypcol == owner_col){
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
-                                        d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, block_diag, nb_real * sizeof(T),
+                                        A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
                                         nb_real * sizeof(T), nb_real));
             }
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             // 广播当前块行
             if(myprow == owner_row){
-                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
+                commBcast<Backend>(ddla_handle, CommScope::Row, block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 trsm<Backend, T>(ddla_handle, 'L', uplo, trans, diag,
                     nb_real, n_loc_B, (T)1.0,
-                    d_block_diag, nb_real,
-                    d_B + mm_row_start, lldB
+                    block_diag, nb_real,
+                    B + mm_row_start, lldB
                 );
             }
             transport_block<Backend, T>(handle, 
                 'R', 'N', 
                 nb_real, n,
-                d_B, n_s, 0, array_descB,
-                d_block_B
+                B, n_s, 0, array_descB,
+                block_B
             );
             int length_block_A;
             int g_m, g_n;
@@ -160,8 +160,8 @@ void ptrtrs(
             transport_block<Backend, T>(handle, 
                 panel_direction, trans,
                 g_m, g_n,
-                d_A, g_ia, g_ja, array_descA,
-                d_block_A
+                A, g_ia, g_ja, array_descA,
+                block_A
             );
             if(solve_backward){
                 length_block_A = mm_row_start;
@@ -175,10 +175,10 @@ void ptrtrs(
                 gemm<Backend, T>(ddla_handle, trans, 'N',
                     length_block_A, n_loc_B, nb_real,
                     (T)-1.0,
-                    d_block_A, trans == 'N' ? length_block_A : nb_real,
-                    d_block_B, nb_real,
+                    block_A, trans == 'N' ? length_block_A : nb_real,
+                    block_B, nb_real,
                     (T)1.0,
-                    d_B + B_offset, lldB);
+                    B + B_offset, lldB);
             }
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
@@ -218,27 +218,27 @@ void ptrtrs(
                 mm_col_step = 0;
 
             if(myprow == owner_row && mypcol == owner_col){
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
-                                        d_A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, block_diag, nb_real * sizeof(T),
+                                        A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
                                         nb_real * sizeof(T), nb_real));
             }
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             // broadcast the diagonal block within the column, then solve the
             // block column of B on the owner column's processes
             if(mypcol == owner_col){
-                commBcast<Backend>(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
+                commBcast<Backend>(ddla_handle, CommScope::Col, block_diag, (std::size_t)nb_real * nb_real, owner_row);
                 trsm<Backend, T>(ddla_handle, 'R', uplo, trans, diag,
                     m_loc_B, nb_real, (T)1.0,
-                    d_block_diag, nb_real,
-                    d_B + mm_col_start * lldB, lldB
+                    block_diag, nb_real,
+                    B + mm_col_start * lldB, lldB
                 );
             }
             // gather the solved block column of B (local part: m_loc x nb_real)
             transport_block<Backend, T>(handle, 
                 'C', 'N',
                 m, nb_real,
-                d_B, 0, n_s, array_descB,
-                d_block_B
+                B, 0, n_s, array_descB,
+                block_B
             );
             // gather the far-side panel of A: for trans='N' the row panel of A
             // on the far side of the diagonal block; for trans!='N' the column
@@ -283,33 +283,33 @@ void ptrtrs(
             transport_block<Backend, T>(handle, 
                 panel_dir, trans,
                 g_m, g_n,
-                d_A, g_ia, g_ja, array_descA,
-                d_block_A
+                A, g_ia, g_ja, array_descA,
+                block_A
             );
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             if(length_block_A > 0 && m_loc_B > 0){
                 gemm<Backend, T>(ddla_handle, 'N', 'N',
                     m_loc_B, length_block_A, nb_real,
                     (T)-1.0,
-                    d_block_B, m_loc_B,
-                    d_block_A, nb_real,
+                    block_B, m_loc_B,
+                    block_A, nb_real,
                     (T)1.0,
-                    d_B + B_offset, lldB);
+                    B + B_offset, lldB);
             }
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }
-    DDLA_CHECK(ddlaFree(ddla_handle, d_block_A));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_block_B));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_block_diag));
+    DDLA_CHECK(ddlaFree(ddla_handle, block_A));
+    DDLA_CHECK(ddlaFree(ddla_handle, block_B));
+    DDLA_CHECK(ddlaFree(ddla_handle, block_diag));
 }
 
 
 #define INSTANTIATE_PTRTRS(BACKEND, TYPE)                                   \
     template void ptrtrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, const char& diag, \
     const int& m, const int& n, \
-    TYPE* d_A, const int* array_descA, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* A, const int* array_descA, \
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PTRTRS(DdlaBackend::CPU, float);

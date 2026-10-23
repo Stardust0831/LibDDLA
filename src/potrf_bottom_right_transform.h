@@ -9,16 +9,16 @@ namespace ddla::detail {
 // B = J A J, where J reverses both row and column order.
 template <DdlaBackend Backend, typename T>
 void reverse_upper_to_lower(
-    const DdlaHandle_t& handle, int n, const T* d_A, int lda,
-    T* d_B, int ldb);
+    const DdlaHandle_t& handle, int n, const T* A, int lda,
+    T* B, int ldb);
 
 // Reverse-map the lower triangle of B into the upper triangle of A. Only the
 // upper triangle of A is written. The same transform is also used in the
 // opposite data-flow direction when packing a lower input into upper scratch.
 template <DdlaBackend Backend, typename T>
 void reverse_lower_to_upper(
-    const DdlaHandle_t& handle, int n, const T* d_B, int ldb,
-    T* d_A, int lda);
+    const DdlaHandle_t& handle, int n, const T* B, int ldb,
+    T* A, int lda);
 
 } // namespace ddla::detail
 

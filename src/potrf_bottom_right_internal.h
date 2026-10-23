@@ -5,16 +5,16 @@
 
 namespace ddla::detail {
 
-// Factor one device-resident diagonal block from the bottom-right. With
+// Factor one diagonal block in backend memory from the bottom-right. With
 // uplo='U', compute A = U * U^H; with uplo='L', compute A = L^H * L. The
-// selected triangle is reverse-packed into d_work, factored with the opposite
-// standard POTRF triangle, and mapped back. d_work holds at least n*n elements.
-// d_info and d_work are caller-owned and may be reused across diagonal blocks.
+// selected triangle is reverse-packed into work, factored with the opposite
+// standard POTRF triangle, and mapped back. work holds at least n*n elements.
+// info_buffer and work are caller-owned and may be reused across diagonal blocks.
 template <DdlaBackend Backend, typename T>
 void potrf_bottom_right_block(
-    const char& uplo, const int& n, T* d_A, const int& lda,
+    const char& uplo, const int& n, T* A, const int& lda,
     const int& global_offset,
-    T* d_work, int* d_info, int& info,
+    T* work, int* info_buffer, int& info,
     const DdlaHandle_t& handle
 );
 

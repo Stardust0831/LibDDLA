@@ -41,8 +41,8 @@ template <DdlaBackend Backend, typename T>
 void transport_block(
     const DdlaHandle_t& handle, const char& sData, const char& trans,
     const int& m, const int& n,
-    const T* d_A, const int& ia, const int& ja, const int* array_descA,
-    T* d_block_A)
+    const T* A, const int& ia, const int& ja, const int* array_descA,
+    T* block_A)
 {
     if (m == 0 || n == 0) return;
 
@@ -104,13 +104,13 @@ void transport_block(
         if (sData == 'R' && n_loc > j_loc) {
             int cols = n_loc - j_loc;
             if (myprow == owner_row)
-                copy_block(d_block_A, m, d_A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], m, cols, array_descA[DDLA_LLD_]);
-            commBcast<Backend>(h, CommScope::Col, d_block_A, (std::size_t)m * cols, owner_row);
+                copy_block(block_A, m, A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], m, cols, array_descA[DDLA_LLD_]);
+            commBcast<Backend>(h, CommScope::Col, block_A, (std::size_t)m * cols, owner_row);
         } else if (sData == 'C' && m_loc > i_loc) {
             int rows = m_loc - i_loc;
             if (mypcol == owner_col)
-                copy_block(d_block_A, rows, d_A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], rows, n, array_descA[DDLA_LLD_]);
-            commBcast<Backend>(h, CommScope::Row, d_block_A, (std::size_t)rows * n, owner_col);
+                copy_block(block_A, rows, A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], rows, n, array_descA[DDLA_LLD_]);
+            commBcast<Backend>(h, CommScope::Row, block_A, (std::size_t)rows * n, owner_col);
         }
     } else if (nprows == npcols) {
         // ---- square-grid transposed path -----------------------------------
@@ -123,31 +123,31 @@ void transport_block(
             if (n_loc > j_loc) {
                 int cols = n_loc - j_loc;
                 if (myprow == owner_row) {
-                    copy_block(d_block_A, m, d_A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], m, cols, array_descA[DDLA_LLD_]);
+                    copy_block(block_A, m, A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], m, cols, array_descA[DDLA_LLD_]);
                     if (myprow != mypcol)
-                        commSend<Backend>(h, CommScope::Col, d_block_A, (std::size_t)m * cols, mypcol);
+                        commSend<Backend>(h, CommScope::Col, block_A, (std::size_t)m * cols, mypcol);
                 } else if (myprow == mypcol) {
-                    commRecv<Backend>(h, CommScope::Col, d_block_A, (std::size_t)m * cols, owner_row);
+                    commRecv<Backend>(h, CommScope::Col, block_A, (std::size_t)m * cols, owner_row);
                 }
             }
             if (trans_n_loc > trans_j_loc) {
                 int tcols = trans_n_loc - trans_j_loc;
-                commBcast<Backend>(h, CommScope::Row, d_block_A, (std::size_t)tcols * m, myprow);
+                commBcast<Backend>(h, CommScope::Row, block_A, (std::size_t)tcols * m, myprow);
             }
         } else { // sData == 'C'
             if (m_loc > i_loc) {
                 int rows = m_loc - i_loc;
                 if (mypcol == owner_col) {
-                    pack_transpose(d_block_A, n, d_A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], rows, n, array_descA[DDLA_LLD_]);
+                    pack_transpose(block_A, n, A + i_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_], rows, n, array_descA[DDLA_LLD_]);
                     if (myprow != mypcol)
-                        commSend<Backend>(h, CommScope::Row, d_block_A, (std::size_t)rows * n, myprow);
+                        commSend<Backend>(h, CommScope::Row, block_A, (std::size_t)rows * n, myprow);
                 } else if (myprow == mypcol) {
-                    commRecv<Backend>(h, CommScope::Row, d_block_A, (std::size_t)rows * n, owner_col);
+                    commRecv<Backend>(h, CommScope::Row, block_A, (std::size_t)rows * n, owner_col);
                 }
             }
             if (trans_m_loc > trans_i_loc) {
                 int trows = trans_m_loc - trans_i_loc;
-                commBcast<Backend>(h, CommScope::Col, d_block_A, (std::size_t)trows * n, mypcol);
+                commBcast<Backend>(h, CommScope::Col, block_A, (std::size_t)trows * n, mypcol);
             }
         }
     } else {
@@ -186,8 +186,8 @@ void transport_block(
 
                 if (src_rank == dst_rank) {
                     if (myrank == src_rank)
-                        copy_block(d_block_A + block.dst_offset, m,
-                                   d_A + i_loc + (std::size_t)block.src_loc * array_descA[DDLA_LLD_], m, block.len, array_descA[DDLA_LLD_]);
+                        copy_block(block_A + block.dst_offset, m,
+                                   A + i_loc + (std::size_t)block.src_loc * array_descA[DDLA_LLD_], m, block.len, array_descA[DDLA_LLD_]);
                 } else {
                     blocks.push_back(block);
                     if (myrank == src_rank) {
@@ -202,10 +202,10 @@ void transport_block(
                 g += len;
             }
 
-            T* d_sendbuf = (send_total > 0) ? alloc_buf((std::size_t)send_total) : nullptr;
+            T* sendbuf = (send_total > 0) ? alloc_buf((std::size_t)send_total) : nullptr;
             for (const auto& block : send_blocks)
-                copy_block(d_sendbuf + block.send_offset, m,
-                           d_A + i_loc + (std::size_t)block.src_loc * array_descA[DDLA_LLD_], m, block.len, array_descA[DDLA_LLD_]);
+                copy_block(sendbuf + block.send_offset, m,
+                           A + i_loc + (std::size_t)block.src_loc * array_descA[DDLA_LLD_], m, block.len, array_descA[DDLA_LLD_]);
 
             if (!send_blocks.empty() || !recv_blocks.empty()) {
                 commGroupStart<Backend>(h);
@@ -215,10 +215,10 @@ void transport_block(
                             return item.dst_rank == block.dst_rank && item.dst_offset == block.dst_offset;
                         });
                         assert(it != send_blocks.end());
-                        commSend<Backend>(h, CommScope::Grid, d_sendbuf + it->send_offset,
+                        commSend<Backend>(h, CommScope::Grid, sendbuf + it->send_offset,
                                           (std::size_t)block.count, block.dst_rank);
                     } else if (myrank == block.dst_rank) {
-                        commRecv<Backend>(h, CommScope::Grid, d_block_A + block.dst_offset,
+                        commRecv<Backend>(h, CommScope::Grid, block_A + block.dst_offset,
                                           (std::size_t)block.count, block.src_rank);
                     }
                 }
@@ -226,8 +226,8 @@ void transport_block(
             }
 
             if (target_cols > 0)
-                commBcast<Backend>(h, CommScope::Row, d_block_A, (std::size_t)m * target_cols, 0);
-            free_buf(d_sendbuf);
+                commBcast<Backend>(h, CommScope::Row, block_A, (std::size_t)m * target_cols, 0);
+            free_buf(sendbuf);
         } else { // sData == 'C'
             const int target_i_loc = num_loc(ia, array_descA[DDLA_MB_], mypcol, array_descA[DDLA_RSRC_], npcols);
             const int target_m_loc = num_loc(ia + m, array_descA[DDLA_MB_], mypcol, array_descA[DDLA_RSRC_], npcols);
@@ -248,8 +248,8 @@ void transport_block(
 
                 if (src_rank == dst_rank) {
                     if (myrank == src_rank)
-                        pack_transpose(d_block_A + block.dst_offset, n,
-                                       d_A + (std::size_t)block.src_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_],
+                        pack_transpose(block_A + block.dst_offset, n,
+                                       A + (std::size_t)block.src_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_],
                                        block.len, n, array_descA[DDLA_LLD_]);
                 } else {
                     blocks.push_back(block);
@@ -265,10 +265,10 @@ void transport_block(
                 g += len;
             }
 
-            T* d_sendbuf = (send_total > 0) ? alloc_buf((std::size_t)send_total) : nullptr;
+            T* sendbuf = (send_total > 0) ? alloc_buf((std::size_t)send_total) : nullptr;
             for (const auto& block : send_blocks)
-                pack_transpose(d_sendbuf + block.send_offset, n,
-                               d_A + (std::size_t)block.src_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_],
+                pack_transpose(sendbuf + block.send_offset, n,
+                               A + (std::size_t)block.src_loc + (std::size_t)j_loc * array_descA[DDLA_LLD_],
                                block.len, n, array_descA[DDLA_LLD_]);
 
             if (!send_blocks.empty() || !recv_blocks.empty()) {
@@ -279,10 +279,10 @@ void transport_block(
                             return item.dst_rank == block.dst_rank && item.dst_offset == block.dst_offset;
                         });
                         assert(it != send_blocks.end());
-                        commSend<Backend>(h, CommScope::Grid, d_sendbuf + it->send_offset,
+                        commSend<Backend>(h, CommScope::Grid, sendbuf + it->send_offset,
                                           (std::size_t)block.count, block.dst_rank);
                     } else if (myrank == block.dst_rank) {
-                        commRecv<Backend>(h, CommScope::Grid, d_block_A + block.dst_offset,
+                        commRecv<Backend>(h, CommScope::Grid, block_A + block.dst_offset,
                                           (std::size_t)block.count, block.src_rank);
                     }
                 }
@@ -290,8 +290,8 @@ void transport_block(
             }
 
             if (target_cols > 0)
-                commBcast<Backend>(h, CommScope::Col, d_block_A, (std::size_t)n * target_cols, 0);
-            free_buf(d_sendbuf);
+                commBcast<Backend>(h, CommScope::Col, block_A, (std::size_t)n * target_cols, 0);
+            free_buf(sendbuf);
         }
     }
 }

@@ -13,8 +13,8 @@ namespace ddla{
 template <DdlaBackend Backend, typename T>
 void pgesv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
-    T* d_B, const int* array_descB
+    T* A, const int* array_descA,
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -32,7 +32,7 @@ void pgesv(
     int info = 0;
     pgetrf<Backend>(handle, 
         n, n,
-        d_A, array_descA,
+        A, array_descA,
         ipiv.data(),
         info
     );
@@ -41,16 +41,16 @@ void pgesv(
     }
     pgetrs<Backend>(handle, 
         side, trans, n, nrhs,
-        d_A, array_descA,
+        A, array_descA,
         ipiv.data(),
-        d_B, array_descB
+        B, array_descB
     );
 }
 
 #define INSTANTIATE_PGESV(BACKEND, TYPE)                                   \
     template void pgesv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* A, const int* array_descA, \
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGESV(DdlaBackend::CPU, float);

@@ -70,7 +70,7 @@ __global__ void pdam_kernel(const T1* alpha, T2* A,
 #endif // DDLA_USE_CUDA || DDLA_USE_HIP
 
 template <DdlaBackend Backend, typename T1, typename T2>
-void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* array_descA, const int& n)
+void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* A, const int* array_descA, const int& n)
 {
     check_desc(array_descA, handle);
     int nprows = 0, npcols = 0, myprow = -1, mypcol = -1;
@@ -96,7 +96,7 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* array
             if ((icsrc + i / nb) % npcols != mypcol) continue;
             const int ilo = mb * (i / (mb * nprows)) + i % mb;
             const int jlo = nb * (i / (nb * npcols)) + i % nb;
-            d_A[ilo + static_cast<std::size_t>(jlo) * lld] += alpha;
+            A[ilo + static_cast<std::size_t>(jlo) * lld] += alpha;
         }
     } else {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
@@ -112,7 +112,7 @@ void pdam(const DdlaHandle_t& handle, const T1& alpha, T2* d_A, const int* array
         const int blockSize = 256;
         const int gridSize = (n_eff + blockSize - 1) / blockSize;
 
-        deviceT2* d_A_dev = reinterpret_cast<deviceT2*>(d_A);
+        deviceT2* d_A_dev = reinterpret_cast<deviceT2*>(A);
         pdam_kernel<deviceT1, deviceT2><<<gridSize, blockSize, 0, stream>>>(
             d_alpha, d_A_dev,
             n_eff,

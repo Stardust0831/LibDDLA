@@ -23,8 +23,8 @@ void update_diagonal_tile(
     const DdlaHandle_t& handle,
     const char uplo,
     const int nb, const int panel_width,
-    const T* d_panel, const int ld_panel,
-    T* d_tile, const int ldd
+    const T* panel, const int ld_panel,
+    T* tile, const int ldd
 )
 {
     const bool upper = uplo == 'U';
@@ -35,8 +35,8 @@ void update_diagonal_tile(
             handle,
             uplo, upper ? 'N' : 'T',
             nb, panel_width,
-            minus_one, d_panel, ld_panel,
-            one, d_tile, ldd
+            minus_one, panel, ld_panel,
+            one, tile, ldd
         );
     }else{
         using Real = std::conditional_t<
@@ -47,8 +47,8 @@ void update_diagonal_tile(
             handle,
             uplo, upper ? 'N' : 'C',
             nb, panel_width,
-            minus_one, d_panel, ld_panel,
-            one, d_tile, ldd
+            minus_one, panel, ld_panel,
+            one, tile, ldd
         );
     }
 }
@@ -58,7 +58,7 @@ void update_diagonal_tile(
 template <DdlaBackend Backend, typename T>
 void ppotrf_bottom_right(
     const DdlaHandle_t& handle, const char& uplo, const int& n,
-    T* d_A, const int* descA, int& info
+    T* A, const int* descA, int& info
 )
 {
     check_desc(descA, handle);
@@ -93,33 +93,33 @@ void ppotrf_bottom_right(
         n, nb, myprow, descA[DDLA_RSRC_], nprocs_dim);
     const int max_local_cols = num_loc(
         n, nb, mypcol, descA[DDLA_CSRC_], nprocs_dim);
-    assert(d_A != nullptr || max_local_rows == 0 || max_local_cols == 0);
+    assert(A != nullptr || max_local_rows == 0 || max_local_cols == 0);
 
-    T* d_diag = nullptr;
-    T* d_row_panel = nullptr;
-    T* d_col_panel = nullptr;
-    int* d_info = nullptr;
-    T** d_left_array = nullptr;
-    T** d_right_array = nullptr;
-    T** d_target_array = nullptr;
+    T* diag = nullptr;
+    T* row_panel = nullptr;
+    T* col_panel = nullptr;
+    int* info_buffer = nullptr;
+    T** left_array = nullptr;
+    T** right_array = nullptr;
+    T** target_array = nullptr;
 
     const int max_row_blocks = max_local_rows / nb;
     const int max_col_blocks = max_local_cols / nb;
     const std::size_t max_batch_count =
         static_cast<std::size_t>(max_row_blocks) * max_col_blocks;
 
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_diag), static_cast<std::size_t>(nb) * nb * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_row_panel),
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&diag), static_cast<std::size_t>(nb) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&row_panel),
                           static_cast<std::size_t>(max_local_rows) * nb * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_col_panel),
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&col_panel),
                           static_cast<std::size_t>(max_local_cols) * nb * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_info), sizeof(int)));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&info_buffer), sizeof(int)));
 
     const std::size_t pointer_buffer_bytes =
         max_batch_count * sizeof(T*);
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_left_array), pointer_buffer_bytes));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_right_array), pointer_buffer_bytes));
-    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&d_target_array), pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&left_array), pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&right_array), pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(handle, reinterpret_cast<void**>(&target_array), pointer_buffer_bytes));
 
     std::vector<T*> h_left_array(max_batch_count);
     std::vector<T*> h_right_array(max_batch_count);
@@ -127,13 +127,13 @@ void ppotrf_bottom_right(
 
     auto cleanup = [&]()
     {
-        DDLA_CHECK(ddlaFree(handle, d_left_array));
-        DDLA_CHECK(ddlaFree(handle, d_right_array));
-        DDLA_CHECK(ddlaFree(handle, d_target_array));
-        DDLA_CHECK(ddlaFree(handle, d_diag));
-        DDLA_CHECK(ddlaFree(handle, d_row_panel));
-        DDLA_CHECK(ddlaFree(handle, d_col_panel));
-        DDLA_CHECK(ddlaFree(handle, d_info));
+        DDLA_CHECK(ddlaFree(handle, left_array));
+        DDLA_CHECK(ddlaFree(handle, right_array));
+        DDLA_CHECK(ddlaFree(handle, target_array));
+        DDLA_CHECK(ddlaFree(handle, diag));
+        DDLA_CHECK(ddlaFree(handle, row_panel));
+        DDLA_CHECK(ddlaFree(handle, col_panel));
+        DDLA_CHECK(ddlaFree(handle, info_buffer));
         DDLA_CHECK(ddlaSynchronize(handle));
     };
 
@@ -158,11 +158,11 @@ void ppotrf_bottom_right(
 
         int block_info = 0;
         if(myprow == owner_row && mypcol == owner_col){
-            T* const d_local_diag = d_A + local_row_prefix
+            T* const local_diag = A + local_row_prefix
                                   + static_cast<std::size_t>(local_col_prefix) * lld;
             detail::potrf_bottom_right_block<Backend>(
-                uplo, block_width, d_local_diag, lld,
-                block_start, d_diag, d_info, block_info, handle
+                uplo, block_width, local_diag, lld,
+                block_start, diag, info_buffer, block_info, handle
             );
         }
 
@@ -176,25 +176,25 @@ void ppotrf_bottom_right(
         }
 
         if(myprow == owner_row && mypcol == owner_col){
-            const T* const d_local_diag = d_A + local_row_prefix
+            const T* const local_diag = A + local_row_prefix
                                         + static_cast<std::size_t>(local_col_prefix) * lld;
-            DDLA_CHECK(ddlaMemcpy2D(handle, d_diag, static_cast<std::size_t>(block_width) * sizeof(T), d_local_diag,
+            DDLA_CHECK(ddlaMemcpy2D(handle, diag, static_cast<std::size_t>(block_width) * sizeof(T), local_diag,
                                     static_cast<std::size_t>(lld) * sizeof(T),
                                     static_cast<std::size_t>(block_width) * sizeof(T), block_width));
         }
 
         if(uplo == 'U' && mypcol == owner_col){
-            commBcast<Backend>(handle, CommScope::Col, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_row);
+            commBcast<Backend>(handle, CommScope::Col, diag, static_cast<std::size_t>(block_width) * block_width, owner_row);
         }
 
         if(uplo == 'L' && myprow == owner_row){
-            commBcast<Backend>(handle, CommScope::Row, d_diag, static_cast<std::size_t>(block_width) * block_width, owner_col);
+            commBcast<Backend>(handle, CommScope::Row, diag, static_cast<std::size_t>(block_width) * block_width, owner_col);
         }
 
         if(uplo == 'U' && local_row_prefix > 0){
             if(mypcol == owner_col){
                 const T one = T(1);
-                T* const d_local_panel = d_A
+                T* const local_panel = A
                                        + static_cast<std::size_t>(local_col_prefix) * lld;
                 trsm<Backend, T>(
                     handle,
@@ -204,15 +204,15 @@ void ppotrf_bottom_right(
                     'N',
                     local_row_prefix, block_width,
                     one,
-                    d_diag, block_width,
-                    d_local_panel, lld
+                    diag, block_width,
+                    local_panel, lld
                 );
-                DDLA_CHECK(ddlaMemcpy2D(handle, d_row_panel, static_cast<std::size_t>(local_row_prefix) * sizeof(T),
-                                        d_local_panel, static_cast<std::size_t>(lld) * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(handle, row_panel, static_cast<std::size_t>(local_row_prefix) * sizeof(T),
+                                        local_panel, static_cast<std::size_t>(lld) * sizeof(T),
                                         static_cast<std::size_t>(local_row_prefix) * sizeof(T), block_width));
             }
 
-            commBcast<Backend>(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
+            commBcast<Backend>(handle, CommScope::Row, row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, owner_col);
         }
 
         if(uplo == 'U'){
@@ -227,17 +227,17 @@ void ppotrf_bottom_right(
                         block_start, nb, relay_row,
                         descA[DDLA_RSRC_], nprocs_dim);
                     assert(relay_row_count == local_col_prefix);
-                    DDLA_CHECK(ddlaMemcpy(handle, d_col_panel, d_row_panel,
+                    DDLA_CHECK(ddlaMemcpy(handle, col_panel, row_panel,
                                           static_cast<std::size_t>(local_col_prefix) * block_width * sizeof(T)));
                 }
 
-                commBcast<Backend>(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
+                commBcast<Backend>(handle, CommScope::Col, col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, relay_row);
             }
         }else{
             if(local_col_prefix > 0){
                 if(myprow == owner_row){
                     const T one = T(1);
-                    T* const d_local_panel = d_A + local_row_prefix;
+                    T* const local_panel = A + local_row_prefix;
                     const char trans =
                         std::is_same_v<T, float>
                             || std::is_same_v<T, double>
@@ -251,15 +251,15 @@ void ppotrf_bottom_right(
                         'N',
                         block_width, local_col_prefix,
                         one,
-                        d_diag, block_width,
-                        d_local_panel, lld
+                        diag, block_width,
+                        local_panel, lld
                     );
-                    DDLA_CHECK(ddlaMemcpy2D(handle, d_col_panel, static_cast<std::size_t>(block_width) * sizeof(T),
-                                            d_local_panel, static_cast<std::size_t>(lld) * sizeof(T),
+                    DDLA_CHECK(ddlaMemcpy2D(handle, col_panel, static_cast<std::size_t>(block_width) * sizeof(T),
+                                            local_panel, static_cast<std::size_t>(lld) * sizeof(T),
                                             static_cast<std::size_t>(block_width) * sizeof(T), local_col_prefix));
                 }
 
-                commBcast<Backend>(handle, CommScope::Col, d_col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
+                commBcast<Backend>(handle, CommScope::Col, col_panel, static_cast<std::size_t>(local_col_prefix) * block_width, owner_row);
             }
 
             // A column tile owned by relay_col under icsrc is the same global
@@ -273,11 +273,11 @@ void ppotrf_bottom_right(
                         block_start, nb, relay_col,
                         descA[DDLA_CSRC_], nprocs_dim);
                     assert(relay_col_count == local_row_prefix);
-                    DDLA_CHECK(ddlaMemcpy(handle, d_row_panel, d_col_panel,
+                    DDLA_CHECK(ddlaMemcpy(handle, row_panel, col_panel,
                                           static_cast<std::size_t>(local_row_prefix) * block_width * sizeof(T)));
                 }
 
-                commBcast<Backend>(handle, CommScope::Row, d_row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
+                commBcast<Backend>(handle, CommScope::Row, row_panel, static_cast<std::size_t>(local_row_prefix) * block_width, relay_col);
             }
         }
 
@@ -297,15 +297,15 @@ void ppotrf_bottom_right(
                     continue;
                 }
 
-                T* const d_target = d_A + local_row
+                T* const target = A + local_row
                                   + static_cast<std::size_t>(local_col) * lld;
-                T* const d_left = uplo == 'U'
-                    ? d_row_panel + local_row
-                    : d_row_panel
+                T* const left = uplo == 'U'
+                    ? row_panel + local_row
+                    : row_panel
                         + static_cast<std::size_t>(local_row) * block_width;
-                T* const d_right = uplo == 'U'
-                    ? d_col_panel + local_col
-                    : d_col_panel
+                T* const right = uplo == 'U'
+                    ? col_panel + local_col
+                    : col_panel
                         + static_cast<std::size_t>(local_col) * block_width;
                 const int ld_left = uplo == 'U'
                     ? local_row_prefix
@@ -318,17 +318,17 @@ void ppotrf_bottom_right(
                         handle,
                         uplo,
                         nb, block_width,
-                        d_left, ld_left,
-                        d_target, lld
+                        left, ld_left,
+                        target, lld
                     );
                     continue;
                 }
 
                 assert(static_cast<std::size_t>(batch_count)
                        < max_batch_count);
-                h_left_array[batch_count] = d_left;
-                h_right_array[batch_count] = d_right;
-                h_target_array[batch_count] = d_target;
+                h_left_array[batch_count] = left;
+                h_right_array[batch_count] = right;
+                h_target_array[batch_count] = target;
                 ++batch_count;
             }
         }
@@ -336,9 +336,9 @@ void ppotrf_bottom_right(
         if(batch_count > 0){
             const std::size_t active_pointer_bytes =
                 static_cast<std::size_t>(batch_count) * sizeof(T*);
-            DDLA_CHECK(ddlaMemcpy(handle, d_left_array, h_left_array.data(), active_pointer_bytes));
-            DDLA_CHECK(ddlaMemcpy(handle, d_right_array, h_right_array.data(), active_pointer_bytes));
-            DDLA_CHECK(ddlaMemcpy(handle, d_target_array, h_target_array.data(), active_pointer_bytes));
+            DDLA_CHECK(ddlaMemcpy(handle, left_array, h_left_array.data(), active_pointer_bytes));
+            DDLA_CHECK(ddlaMemcpy(handle, right_array, h_right_array.data(), active_pointer_bytes));
+            DDLA_CHECK(ddlaMemcpy(handle, target_array, h_target_array.data(), active_pointer_bytes));
 
             const T minus_one = T(-1);
             const T one = T(1);
@@ -348,12 +348,12 @@ void ppotrf_bottom_right(
                 uplo == 'U' ? 'C' : 'N',
                 nb, nb, block_width,
                 minus_one,
-                d_left_array,
+                left_array,
                 uplo == 'U' ? local_row_prefix : block_width,
-                d_right_array,
+                right_array,
                 uplo == 'U' ? local_col_prefix : block_width,
                 one,
-                d_target_array, lld,
+                target_array, lld,
                 batch_count
             );
         }

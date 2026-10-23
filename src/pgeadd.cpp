@@ -15,10 +15,10 @@ void pgeadd(
     const DdlaHandle_t& handle, const char& transa, const char& transb,
     const int& m, const int& n,
     const T& alpha,
-    const T* d_A, const int* array_descA,
+    const T* A, const int* array_descA,
     const T& beta,
-    const T* d_B, const int* array_descB,
-    T* d_C, const int* array_descC
+    const T* B, const int* array_descB,
+    T* C, const int* array_descC
 )
 {
     check_desc(array_descA, handle);
@@ -71,10 +71,10 @@ void pgeadd(
             ddla_handle, transa, transb,
             m_loc_C, n_loc_C,
             alpha, 
-            d_A, array_descA[DDLA_LLD_],
+            A, array_descA[DDLA_LLD_],
             beta,
-            d_B, array_descB[DDLA_LLD_],
-            d_C, array_descC[DDLA_LLD_]
+            B, array_descB[DDLA_LLD_],
+            C, array_descC[DDLA_LLD_]
         );
         
     }else if (transa != 'N' && transb != 'N'){
@@ -83,34 +83,34 @@ void pgeadd(
                 ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
-                d_A, array_descA[DDLA_LLD_],
+                A, array_descA[DDLA_LLD_],
                 beta,
-                d_B, array_descB[DDLA_LLD_],
-                d_C, array_descC[DDLA_LLD_]
+                B, array_descB[DDLA_LLD_],
+                C, array_descC[DDLA_LLD_]
             );
         }else{
-            T* d_temp;
-            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
+            T* temp;
+            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&temp, m_loc_C * n_loc_C * sizeof(T)));
             geam<Backend, T>(
                 ddla_handle, transa, transb,
                 n_loc_C, m_loc_C,
                 alpha,
-                d_A, array_descA[DDLA_LLD_],
+                A, array_descA[DDLA_LLD_],
                 beta,
-                d_B, array_descB[DDLA_LLD_],
-                d_temp, n_loc_C
+                B, array_descB[DDLA_LLD_],
+                temp, n_loc_C
             );
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             commGroupStart<Backend>(ddla_handle);
             if(myprow > mypcol){
-                commSend<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commRecv<Backend>(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }else{
-                commRecv<Backend>(ddla_handle, CommScope::Grid, d_C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commSend<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, C, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
             commGroupEnd<Backend>(ddla_handle);
-            DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
+            DDLA_CHECK(ddlaFree(ddla_handle, temp));
         }
     }else{
         if(myprow == mypcol){
@@ -118,38 +118,38 @@ void pgeadd(
                 ddla_handle, transa, transb,
                 m_loc_C, n_loc_C,
                 alpha, 
-                d_A, array_descA[DDLA_LLD_],
+                A, array_descA[DDLA_LLD_],
                 beta,
-                d_B, array_descB[DDLA_LLD_],
-                d_C, array_descC[DDLA_LLD_]
+                B, array_descB[DDLA_LLD_],
+                C, array_descC[DDLA_LLD_]
             );
         }else{
-            T* d_temp;
-            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_temp, m_loc_C * n_loc_C * sizeof(T)));
-            const T* d_comm = transa != 'N' ? d_A : d_B;
-            const T* d_nt = transa == 'N' ? d_A : d_B;
+            T* temp;
+            DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&temp, m_loc_C * n_loc_C * sizeof(T)));
+            const T* comm = transa != 'N' ? A : B;
+            const T* nt = transa == 'N' ? A : B;
             const T& trans_scale = transa != 'N' ? alpha : beta;
             const T& nontrans_scale = transa == 'N' ? alpha : beta;
             int trans_rank = ddla_handle->rc_to_rank(mypcol, myprow);
             commGroupStart<Backend>(ddla_handle);
             if(myprow > mypcol){
-                commSend<Backend>(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commRecv<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }else{
-                commRecv<Backend>(ddla_handle, CommScope::Grid, d_temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
-                commSend<Backend>(ddla_handle, CommScope::Grid, d_comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commRecv<Backend>(ddla_handle, CommScope::Grid, temp, (std::size_t)m_loc_C * n_loc_C, trans_rank);
+                commSend<Backend>(ddla_handle, CommScope::Grid, comm, (std::size_t)m_loc_C * n_loc_C, trans_rank);
             }
             commGroupEnd<Backend>(ddla_handle);
             geam<Backend, T>(
                 ddla_handle, (transa != 'N' ? transa : transb), 'N',
                 m_loc_C, n_loc_C,
                 trans_scale,
-                d_temp, n_loc_C,
+                temp, n_loc_C,
                 nontrans_scale,
-                d_nt, m_loc_C,
-                d_C, m_loc_C
+                nt, m_loc_C,
+                C, m_loc_C
             );
-            DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
+            DDLA_CHECK(ddlaFree(ddla_handle, temp));
         }
     }
 
@@ -161,10 +161,10 @@ void pgeadd(
     template void pgeadd<BACKEND, TYPE>(const DdlaHandle_t&, const char& transa, const char& transb, \
     const int& m, const int& n, \
     const TYPE& alpha, \
-    const TYPE* d_A, const int* array_descA, \
+    const TYPE* A, const int* array_descA, \
     const TYPE& beta, \
-    const TYPE* d_B, const int* array_descB, \
-    TYPE* d_C, const int* array_descC)
+    const TYPE* B, const int* array_descB, \
+    TYPE* C, const int* array_descC)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGEADD(DdlaBackend::CPU, float);

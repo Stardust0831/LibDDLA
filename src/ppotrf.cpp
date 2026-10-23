@@ -75,16 +75,16 @@ bool ppotrf(
     // exactly as the removed side_device local did.
     const char side_char = (uplo == 'U') ? 'L' : 'R';
 
-    T* d_block_diag = nullptr;
-    T* d_block_row = nullptr;
-    T* d_block_col = nullptr;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_diag, static_cast<std::size_t>(nb) * nb * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_row, static_cast<std::size_t>(nb) * n_loc_A * sizeof(T)));
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_block_col, static_cast<std::size_t>(nb) * m_loc_A * sizeof(T)));
-    int *d_info = nullptr;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_info, sizeof(int)));
+    T* block_diag = nullptr;
+    T* block_row = nullptr;
+    T* block_col = nullptr;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&block_diag, static_cast<std::size_t>(nb) * nb * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&block_row, static_cast<std::size_t>(nb) * n_loc_A * sizeof(T)));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&block_col, static_cast<std::size_t>(nb) * m_loc_A * sizeof(T)));
+    int *info_buffer = nullptr;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&info_buffer, sizeof(int)));
     // potrf is skipped for a one-element head block (is_head, nb_real == 1), yet info is read back below
-    DDLA_CHECK(ddlaMemset(ddla_handle, d_info, 0, sizeof(int)));
+    DDLA_CHECK(ddlaMemset(ddla_handle, info_buffer, 0, sizeof(int)));
 
     int owner_row, owner_col;
     int mm_row_start, mm_col_start;
@@ -94,24 +94,24 @@ bool ppotrf(
     int num_col_block = n_loc_A / nb;
     int batchCount = num_row_block * num_col_block;
 
-    T** d_A_array = nullptr;
-    T** d_B_array = nullptr;
-    T** d_C_array = nullptr;
+    T** A_array = nullptr;
+    T** B_array = nullptr;
+    T** C_array = nullptr;
     std::vector<T*> h_A_array(batchCount), h_B_array(batchCount), h_C_array(batchCount);
 
     const std::size_t pointer_buffer_bytes = static_cast<std::size_t>(batchCount) * sizeof(T*);
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_A_array, pointer_buffer_bytes));
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_B_array, pointer_buffer_bytes));
-    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&d_C_array, pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&A_array, pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&B_array, pointer_buffer_bytes));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, (void**)&C_array, pointer_buffer_bytes));
     auto cleanup_device_buffers = [&]()
     {
-        DDLA_CHECK(ddlaFree(ddla_handle, d_A_array));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_B_array));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_C_array));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_block_diag));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_block_row));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_block_col));
-        DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+        DDLA_CHECK(ddlaFree(ddla_handle, A_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, B_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, C_array));
+        DDLA_CHECK(ddlaFree(ddla_handle, block_diag));
+        DDLA_CHECK(ddlaFree(ddla_handle, block_row));
+        DDLA_CHECK(ddlaFree(ddla_handle, block_col));
+        DDLA_CHECK(ddlaFree(ddla_handle, info_buffer));
         DDLA_CHECK(ddlaSynchronize(ddla_handle));
     };
     int h_info;
@@ -129,7 +129,7 @@ bool ppotrf(
         {
             if(n_s + nb_real == n && is_head){
                 if(nb_real > 1){
-                    potrf<Backend, T>(ddla_handle, uplo, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
+                    potrf<Backend, T>(ddla_handle, uplo, nb_real - 1, A + mm_row_start + mm_col_start * lldA, lldA, info_buffer);
                     if(uplo == 'L'){
                         trsm<Backend, T>(
                             ddla_handle, side_char, uplo, 'C', 'N',
@@ -185,11 +185,11 @@ bool ppotrf(
                                       A + mm_row_start + nb_real - 1 + (mm_col_start + nb_real - 1) * lldA,
                                       &last_value, sizeof(T)));
             }else
-                potrf<Backend, T>(ddla_handle, uplo, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, d_info);
+                potrf<Backend, T>(ddla_handle, uplo, nb_real, A + mm_row_start + mm_col_start * lldA, lldA, info_buffer);
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, d_info, sizeof(int)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &info, info_buffer, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
-            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_diag, nb_real * sizeof(T),
+            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, block_diag, nb_real * sizeof(T),
                                     A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T), nb_real * sizeof(T),
                                     nb_real));
         }
@@ -206,15 +206,15 @@ bool ppotrf(
             mm_row_start += nb_real;
         length_row = m_loc_A - mm_row_start;
         if(mypcol == owner_col){
-            commBcast<Backend>(ddla_handle, CommScope::Col, d_block_diag, (std::size_t)nb_real * nb_real, owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, block_diag, (std::size_t)nb_real * nb_real, owner_row);
             if(length_row > 0){
                 trsm<Backend, T>(
                     ddla_handle, side_char, uplo, 'C', 'N',
                     length_row, nb_real, (T)1.0, 
-                    d_block_diag, nb_real,
+                    block_diag, nb_real,
                     A + mm_row_start + mm_col_start * lldA, lldA
                 );
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_col, length_row * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, block_col, length_row * sizeof(T),
                                         A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
                                         length_row * sizeof(T), nb_real));
             }
@@ -223,21 +223,21 @@ bool ppotrf(
             mm_col_start += nb_real;
         length_col = n_loc_A - mm_col_start;
         if(length_row > 0){
-            commBcast<Backend>(ddla_handle, CommScope::Row, d_block_col, (std::size_t)length_row * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, block_col, (std::size_t)length_row * nb_real, owner_col);
         }
         if(myprow == mypcol){
             if(length_col > 0)
-                DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_row, d_block_col, length_col * nb_real * sizeof(T)));
+                DDLA_CHECK(ddlaMemcpy(ddla_handle, block_row, block_col, length_col * nb_real * sizeof(T)));
         }
         if(length_col > 0){
-            commBcast<Backend>(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, mypcol);
+            commBcast<Backend>(ddla_handle, CommScope::Col, block_row, (std::size_t)nb_real * length_col, mypcol);
         }
         if(myprow == mypcol){
             if(length_row > 0)
                 herk<Backend, T>(
                     ddla_handle, uplo, 'N',
                     length_row, nb_real,
-                    -1.0, d_block_col, length_row,
+                    -1.0, block_col, length_row,
                     1.0, A + mm_row_start + mm_col_start * lldA, lldA
                 );
         }else{
@@ -247,8 +247,8 @@ bool ppotrf(
             //         ddla_handle, 'N', 'T',
             //         length_row, length_col, nb_real,
             //         (T)-1.0,
-            //         d_block_col, length_row,
-            //         d_block_row, length_col,
+            //         block_col, length_row,
+            //         block_row, length_col,
             //         (T)1.0,
             //         A + mm_row_start + mm_col_start * lldA, lldA
             //     );
@@ -280,8 +280,8 @@ bool ppotrf(
                 if(length_col_real > 0)
                     gemm<Backend, T>(ddla_handle, 'N', 'C',
                         row_remain, length_col_real, nb_real, (T)-1.0,
-                        d_block_col + length_row - row_remain, length_row,
-                        d_block_row, length_col,
+                        block_col + length_row - row_remain, length_row,
+                        block_row, length_col,
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - row_remain), lldA
                     );
             }
@@ -296,8 +296,8 @@ bool ppotrf(
                 if(length_row_real > 0)
                     gemm<Backend, T>(ddla_handle, 'N', 'C',
                         length_row_real, col_remain, nb, (T)-1.0,
-                        d_block_col + length_row - length_row_real, length_row,
-                        d_block_row + length_col - col_remain, length_col,
+                        block_col + length_row - length_row_real, length_row,
+                        block_row + length_col - col_remain, length_col,
                         (T)1.0, A + mm_row_start + mm_col_start * lldA + (length_row - length_row_real) + (length_col - col_remain) * lldA, lldA
                     );
             }
@@ -310,22 +310,22 @@ bool ppotrf(
                     g_col_s = indx_l2g_c(array_descA, handle, n_loc_A - col_s);
                 }while(g_row_s < g_col_s);
                 for(; col_s <= num_col_block * nb; col_s += nb){
-                    h_A_array[i_batch_count] = d_block_col + length_row - row_s;
-                    h_B_array[i_batch_count] = d_block_row + length_col - col_s;
+                    h_A_array[i_batch_count] = block_col + length_row - row_s;
+                    h_B_array[i_batch_count] = block_row + length_col - col_s;
                     h_C_array[i_batch_count] = A + m_loc_A - row_s + (n_loc_A - col_s) * lldA;
                     i_batch_count++;
                 }
             }
             if(i_batch_count == 0) continue;
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
             gemmBatched<Backend, T>(
                 ddla_handle, 'N', 'C',
                 nb, nb, nb_real, (T)-1.0,
-                d_A_array, length_row,
-                d_B_array, length_col,
-                (T)1.0, d_C_array, lldA,
+                A_array, length_row,
+                B_array, length_col,
+                (T)1.0, C_array, lldA,
                 i_batch_count
             );
 
@@ -337,15 +337,15 @@ bool ppotrf(
                 mm_col_start += nb_real;
             length_col = n_loc_A - mm_col_start;
             if(myprow == owner_row){
-                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_diag, (std::size_t)nb_real * nb_real, owner_col);
+                commBcast<Backend>(ddla_handle, CommScope::Row, block_diag, (std::size_t)nb_real * nb_real, owner_col);
                 if(length_col > 0){
                     trsm<Backend, T>(
                         ddla_handle, side_char, uplo, 'C', 'N',
                         nb_real, length_col, (T)1.0,
-                        d_block_diag, nb_real,
+                        block_diag, nb_real,
                         A + mm_row_start + mm_col_start * lldA, lldA
                     );
-                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_block_row, nb_real * sizeof(T),
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, block_row, nb_real * sizeof(T),
                                             A + mm_row_start + mm_col_start * lldA, lldA * sizeof(T),
                                             nb_real * sizeof(T), length_col));
                 }
@@ -354,21 +354,21 @@ bool ppotrf(
                 mm_row_start += nb_real;
             length_row = m_loc_A - mm_row_start;
             if(length_col > 0){
-                commBcast<Backend>(ddla_handle, CommScope::Col, d_block_row, (std::size_t)nb_real * length_col, owner_row);
+                commBcast<Backend>(ddla_handle, CommScope::Col, block_row, (std::size_t)nb_real * length_col, owner_row);
             }
             if(myprow == mypcol){
                 if(length_row > 0)
-                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_block_col, d_block_row, nb_real * length_row * sizeof(T)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, block_col, block_row, nb_real * length_row * sizeof(T)));
             }
             if(length_row > 0){
-                commBcast<Backend>(ddla_handle, CommScope::Row, d_block_col, (std::size_t)nb_real * length_row, myprow);
+                commBcast<Backend>(ddla_handle, CommScope::Row, block_col, (std::size_t)nb_real * length_row, myprow);
             }
             if(myprow == mypcol){
                 if(length_col > 0)
                     herk<Backend, T>(
                         ddla_handle, uplo, 'C',
                         length_col, nb_real,
-                        -1.0, d_block_row, nb_real,
+                        -1.0, block_row, nb_real,
                         1.0, A + mm_row_start + mm_col_start * lldA, lldA
                     );
             }else{
@@ -393,8 +393,8 @@ bool ppotrf(
                         gemm<Backend, T>(ddla_handle, 'C', 'N',
                             row_remain, col_len, nb_real,
                             (T)-1.0,
-                            d_block_col + row_offset * nb_real, nb_real,
-                            d_block_row + col_offset * nb_real, nb_real,
+                            block_col + row_offset * nb_real, nb_real,
+                            block_row + col_offset * nb_real, nb_real,
                             (T)1.0,
                             A + row_loc + col_loc * lldA, lldA
                         );
@@ -413,8 +413,8 @@ bool ppotrf(
                         gemm<Backend, T>(ddla_handle, 'C', 'N',
                             nb, col_remain, nb_real,
                             (T)-1.0,
-                            d_block_col + row_offset * nb_real, nb_real,
-                            d_block_row + col_offset * nb_real, nb_real,
+                            block_col + row_offset * nb_real, nb_real,
+                            block_row + col_offset * nb_real, nb_real,
                             (T)1.0,
                             A + row_loc + col_loc * lldA, lldA
                         );
@@ -430,22 +430,22 @@ bool ppotrf(
                         const int g_col = indx_l2g_c(array_descA, handle, col_loc);
                         if(g_row >= g_col)
                             continue;
-                        h_A_array[i_batch_count] = d_block_col + row_offset * nb_real;
-                        h_B_array[i_batch_count] = d_block_row + col_offset * nb_real;
+                        h_A_array[i_batch_count] = block_col + row_offset * nb_real;
+                        h_B_array[i_batch_count] = block_row + col_offset * nb_real;
                         h_C_array[i_batch_count] = A + row_loc + col_loc * lldA;
                         i_batch_count++;
                     }
                 }
                 if(i_batch_count > 0){
-                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
-                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
-                    DDLA_CHECK(ddlaMemcpy(ddla_handle, d_C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, A_array, h_A_array.data(), i_batch_count * sizeof(T*)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, B_array, h_B_array.data(), i_batch_count * sizeof(T*)));
+                    DDLA_CHECK(ddlaMemcpy(ddla_handle, C_array, h_C_array.data(), i_batch_count * sizeof(T*)));
                     gemmBatched<Backend, T>(
                         ddla_handle, 'C', 'N',
                         nb, nb, nb_real, (T)-1.0,
-                        d_A_array, nb_real,
-                        d_B_array, nb_real,
-                        (T)1.0, d_C_array, lldA,
+                        A_array, nb_real,
+                        B_array, nb_real,
+                        (T)1.0, C_array, lldA,
                         i_batch_count
                     );
                 }

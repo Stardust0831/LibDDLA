@@ -8,9 +8,9 @@ namespace ddla{
 template <DdlaBackend Backend, typename T>
 void pgetrs(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
+    T* A, const int* array_descA,
     const int* ipiv, // host
-    T* d_B, const int* array_descB
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -44,35 +44,35 @@ void pgetrs(
     if(side == 'L'){
         if(trans == 'N'){
             // A = P*L*U => X = U^-1 * L^-1 * (P^T * B)
-            plapiv<Backend>(handle, 'F', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
-            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'F', 'R', 'C', n, nrhs, B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, A, array_descA, B, array_descB);
         }else{
             // op(A)^T = U^T * L^T * P^T => X = P * L^-T * U^-T * B
-            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            plapiv<Backend>(handle, 'B', 'R', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            plapiv<Backend>(handle, 'B', 'R', 'C', n, nrhs, B, array_descB, ipiv, array_descA, nullptr);
         }
     }else{
         if(trans == 'N'){
             // X * P * L * U = B => X = B * U^-1 * L^-1 * P^T
-            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            plapiv<Backend>(handle, 'B', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            plapiv<Backend>(handle, 'B', 'C', 'C', n, nrhs, B, array_descB, ipiv, array_descA, nullptr);
         }else{
             // X * U^T * L^T * P^T = B => X = B * P * L^-T * U^-T
-            plapiv<Backend>(handle, 'F', 'C', 'C', n, nrhs, d_B, array_descB, ipiv, array_descA, nullptr);
-            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            plapiv<Backend>(handle, 'F', 'C', 'C', n, nrhs, B, array_descB, ipiv, array_descA, nullptr);
+            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, A, array_descA, B, array_descB);
         }
     }
 }
 
 #define INSTANTIATE_PGETRS(BACKEND, TYPE)                                   \
     template void pgetrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
+    TYPE* A, const int* array_descA, \
     const int* ipiv, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGETRS(DdlaBackend::CPU, float);

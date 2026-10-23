@@ -13,8 +13,8 @@ namespace ddla{
 /**
  * @brief Out-of-place distributed matrix transpose.
  *
- * Computes d_AT = d_A^T (non-conjugate transpose) when conj == false, or
- * d_AT = d_A^H (conjugate transpose) when conj == true.  The descriptor
+ * Computes AT = A^T (non-conjugate transpose) when conj == false, or
+ * AT = A^H (conjugate transpose) when conj == true.  The descriptor
  * descAT must describe the transposed matrix on the same process grid as
  * descA with swapped block sizes and source process indices:
  *   descAT[DDLA_M_]    == descA[DDLA_N_]
@@ -26,8 +26,8 @@ namespace ddla{
  */
 template <DdlaBackend Backend, typename T>
 void ptran(const DdlaHandle_t& handle,
-           const T* d_A, const int* descA,
-           T* d_AT, const int* descAT,
+           const T* A, const int* descA,
+           T* AT, const int* descAT,
            bool conj);
 
 } // namespace ddla

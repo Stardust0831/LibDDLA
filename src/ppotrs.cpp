@@ -10,8 +10,8 @@ template <DdlaBackend Backend, typename T>
 void ppotrs(
     const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans,
     const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
-    T* d_B, const int* array_descB,
+    T* A, const int* array_descA,
+    T* B, const int* array_descB,
     bool is_nega, int location
 )
 {
@@ -45,11 +45,11 @@ void ppotrs(
     const bool needs_permute = (location != -1 && location != n);
     if(needs_permute){
         if(side == 'L')
-            pswap<Backend>(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
-                        d_B, n,        1, array_descB, array_descB[DDLA_M_]);
+            pswap<Backend>(handle, nrhs, B, location, 1, array_descB, array_descB[DDLA_M_],
+                        B, n,        1, array_descB, array_descB[DDLA_M_]);
         else
-            pswap<Backend>(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
-                        d_B, 1, n,        array_descB, 1);
+            pswap<Backend>(handle, array_descB[DDLA_M_], B, 1, location, array_descB, 1,
+                        B, 1, n,        array_descB, 1);
     }
 
     // Solve op(A)*X=B (side='L') or X*op(A)=B (side='R') with the Cholesky
@@ -63,8 +63,8 @@ void ppotrs(
 
     ptrtrs<Backend>(handle, 
         side, uplo, first_trans, 'N', b_rows, b_cols,
-        d_A, array_descA,
-        d_B, array_descB
+        A, array_descA,
+        B, array_descB
     );
     if(is_nega){
         int i_loc = indx_g2l_r(array_descA, handle, n - 1);
@@ -72,34 +72,34 @@ void ppotrs(
         if(i_loc >= 0 && j_loc >= 0){
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             T correction;
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, &correction, d_A + i_loc + j_loc * array_descA[DDLA_LLD_], sizeof(T)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &correction, A + i_loc + j_loc * array_descA[DDLA_LLD_], sizeof(T)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
             correction = -correction;
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, d_A + i_loc + j_loc * array_descA[DDLA_LLD_], &correction, sizeof(T)));
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, A + i_loc + j_loc * array_descA[DDLA_LLD_], &correction, sizeof(T)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
     }
     ptrtrs<Backend>(handle, 
         side, uplo, second_trans, 'N', b_rows, b_cols,
-        d_A, array_descA,
-        d_B, array_descB
+        A, array_descA,
+        B, array_descB
     );
 
     if(needs_permute){
         if(side == 'L')
-            pswap<Backend>(handle, nrhs, d_B, location, 1, array_descB, array_descB[DDLA_M_],
-                        d_B, n,        1, array_descB, array_descB[DDLA_M_]);
+            pswap<Backend>(handle, nrhs, B, location, 1, array_descB, array_descB[DDLA_M_],
+                        B, n,        1, array_descB, array_descB[DDLA_M_]);
         else
-            pswap<Backend>(handle, array_descB[DDLA_M_], d_B, 1, location, array_descB, 1,
-                        d_B, 1, n,        array_descB, 1);
+            pswap<Backend>(handle, array_descB[DDLA_M_], B, 1, location, array_descB, 1,
+                        B, 1, n,        array_descB, 1);
     }
 }
 
 #define INSTANTIATE_PPOTRS(BACKEND, TYPE)                                   \
     template void ppotrs<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, \
     const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
-    TYPE* d_B, const int* array_descB, \
+    TYPE* A, const int* array_descA, \
+    TYPE* B, const int* array_descB, \
     bool is_nega, int location)
 
 #if DDLA_HAS_CPU

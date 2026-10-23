@@ -28,7 +28,7 @@ namespace ddla {
 template <DdlaBackend Backend, typename T>
 void pgetrf_nopiv(
     const DdlaHandle_t& handle, const int& m, const int& n,
-    T* d_A, const int* array_descA,
+    T* A, const int* array_descA,
     int& info  // host
 )
 {
@@ -57,15 +57,15 @@ void pgetrf_nopiv(
     int mm_col_start = 0;  // local col start of trailing submatrix
 
     // Temp buffers
-    T* d_temp_block;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_block, sizeof(T) * nb * nb));
-    T* d_temp_L;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_L, sizeof(T) * m_loc * nb));
-    T* d_temp_U;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_U, sizeof(T) * nb * n_loc));
+    T* temp_block;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_block, sizeof(T) * nb * nb));
+    T* temp_L;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_L, sizeof(T) * m_loc * nb));
+    T* temp_U;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_U, sizeof(T) * nb * n_loc));
 
-    int* d_info = nullptr;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_info, sizeof(int)));
+    int* info_buffer = nullptr;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &info_buffer, sizeof(int)));
 
     info = 0;
 
@@ -82,11 +82,11 @@ void pgetrf_nopiv(
         // Step 1: Panel LU -- factor the nb*nb diagonal block in place
         // ================================================================
         // The diagonal block A11 lives entirely on process (owner_row, owner_col).
-        // Call the local getrf_nopiv directly on the local device buffer.
+        // Call the local getrf_nopiv directly on the local backend buffer.
         int local_info = 0;
         if (myprow == owner_row && mypcol == owner_col) {
-            getrf_nopiv<Backend>(nb_real, nb_real, d_A + i_loc + j_loc * lld, lld, d_info, ddla_handle);
-            DDLA_CHECK(ddlaMemcpy(ddla_handle, &local_info, d_info, sizeof(int)));
+            getrf_nopiv<Backend>(nb_real, nb_real, A + i_loc + j_loc * lld, lld, info_buffer, ddla_handle);
+            DDLA_CHECK(ddlaMemcpy(ddla_handle, &local_info, info_buffer, sizeof(int)));
             DDLA_CHECK(ddlaSynchronize(ddla_handle));
         }
 
@@ -104,14 +104,14 @@ void pgetrf_nopiv(
         // Step 2: Extract/broadcast the factored diagonal block (L1+U1)
         // ================================================================
         if (myprow == owner_row && mypcol == owner_col) {
-            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_block, nb_real * sizeof(T), d_A + i_loc + j_loc * lld,
+            DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_block, nb_real * sizeof(T), A + i_loc + j_loc * lld,
                                     lld * sizeof(T), nb_real * sizeof(T), nb_real));
         }
         if (myprow == owner_row) {
-            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_block, (std::size_t)nb_real * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, temp_block, (std::size_t)nb_real * nb_real, owner_col);
         }
         if (mypcol == owner_col) {
-            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_block, (std::size_t)nb_real * nb_real, owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, temp_block, (std::size_t)nb_real * nb_real, owner_row);
         }
 
         // ================================================================
@@ -120,16 +120,16 @@ void pgetrf_nopiv(
         int right_panel_col_start = (j_loc >= 0) ? (j_loc + nb_real) : mm_col_start;
         if (myprow == owner_row) {
             if (n_loc > right_panel_col_start) {
-                T* d_right_panel = d_A + right_panel_col_start * lld + mm_row_start;
+                T* right_panel = A + right_panel_col_start * lld + mm_row_start;
                 trsm<Backend, T>(
                     ddla_handle,
                     'L', 'L',
                     'N', 'U',
                     nb_real, n_loc - right_panel_col_start, T(1.0),
-                    d_temp_block, nb_real,
-                    d_right_panel, lld
+                    temp_block, nb_real,
+                    right_panel, lld
                 );
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_U, nb_real * sizeof(T), d_right_panel, lld * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_U, nb_real * sizeof(T), right_panel, lld * sizeof(T),
                                         nb_real * sizeof(T), n_loc - right_panel_col_start));
             }
         }
@@ -140,17 +140,17 @@ void pgetrf_nopiv(
         int left_panel_row_start = (i_loc >= 0) ? (i_loc + nb_real) : mm_row_start;
         if (mypcol == owner_col) {
             if (m_loc > left_panel_row_start) {
-                T* d_left_panel = d_A + mm_col_start * lld + left_panel_row_start;
+                T* left_panel = A + mm_col_start * lld + left_panel_row_start;
                 trsm<Backend, T>(
                     ddla_handle,
                     'R', 'U',
                     'N', 'N',
                     m_loc - left_panel_row_start, nb_real, T(1.0),
-                    d_temp_block, nb_real,
-                    d_left_panel, lld
+                    temp_block, nb_real,
+                    left_panel, lld
                 );
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp_L, (m_loc - left_panel_row_start) * sizeof(T),
-                                        d_left_panel, lld * sizeof(T), (m_loc - left_panel_row_start) * sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_L, (m_loc - left_panel_row_start) * sizeof(T),
+                                        left_panel, lld * sizeof(T), (m_loc - left_panel_row_start) * sizeof(T),
                                         nb_real));
             }
         }
@@ -159,10 +159,10 @@ void pgetrf_nopiv(
         // Step 5: Broadcast U panel down column, L panel across row
         // ================================================================
         if (n_loc > right_panel_col_start) {
-            commBcast<Backend>(ddla_handle, CommScope::Col, d_temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
+            commBcast<Backend>(ddla_handle, CommScope::Col, temp_U, (std::size_t)nb_real * (n_loc - right_panel_col_start), owner_row);
         }
         if (m_loc > left_panel_row_start) {
-            commBcast<Backend>(ddla_handle, CommScope::Row, d_temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
+            commBcast<Backend>(ddla_handle, CommScope::Row, temp_L, (std::size_t)(m_loc - left_panel_row_start) * nb_real, owner_col);
         }
 
         // ================================================================
@@ -175,10 +175,10 @@ void pgetrf_nopiv(
             gemm<Backend, T>(ddla_handle, 'N', 'N',
                 trailing_m, trailing_n, nb_real,
                 T(-1.0),
-                d_temp_L, trailing_m,
-                d_temp_U, nb_real,
+                temp_L, trailing_m,
+                temp_U, nb_real,
                 T(1.0),
-                d_A + left_panel_row_start + right_panel_col_start * lld, lld);
+                A + left_panel_row_start + right_panel_col_start * lld, lld);
         }
 
         DDLA_CHECK(ddlaSynchronize(ddla_handle));
@@ -190,17 +190,17 @@ void pgetrf_nopiv(
             mm_col_start += nb;
     }
 
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_block));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_L));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_U));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_info));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_block));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_L));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_U));
+    DDLA_CHECK(ddlaFree(ddla_handle, info_buffer));
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
 }
 
 // Explicit instantiations
 #define INSTANTIATE_PGETRF_NOPIV(BACKEND, TYPE)                                   \
     template void pgetrf_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, \
-    TYPE* d_A, const int* array_descA, \
+    TYPE* A, const int* array_descA, \
     int& info)
 
 #if DDLA_HAS_CPU

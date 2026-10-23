@@ -184,8 +184,8 @@ void pgemm(
     // rank.  The process terminates via the uncaught exception, so the OS
     // reclaims them; this is not a runaway leak in practice.
     const int buffer_max = 2;
-    T* d_A_temp[buffer_max] = {nullptr, nullptr};
-    T* d_B_temp[buffer_max] = {nullptr, nullptr};
+    T* A_temp[buffer_max] = {nullptr, nullptr};
+    T* B_temp[buffer_max] = {nullptr, nullptr};
     int count_a = ((transa == 'N') ? std::max(m_loc_A, m_loc_C) : std::max(n_loc_A, m_loc_C)) * panel_max;
     int count_b = panel_max * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
     count_a = std::max(1, count_a);
@@ -195,17 +195,17 @@ void pgemm(
     // (w x n_loc) tile with ld = w; every block is staged here and copied
     // into the panel with the panel pitch.
     int count_blk = nb * ((transb == 'N') ? std::max(n_loc_B, n_loc_C) : std::max(m_loc_B, n_loc_C));
-    count_blk = std::max(1, count_blk);  // keep d_B_blk a real allocation even at zero local extent
+    count_blk = std::max(1, count_blk);  // keep B_blk a real allocation even at zero local extent
     // ddlaMalloc/ddlaFree dispatch on the handle's backend at run time -- host
     // heap on CPU, and on GPU the stream-ordered cudaMallocAsync/hipMallocAsync
     // pool on the handle's stream (no device-wide synchronize per call).  Going
     // through the handle also keeps the stream type out of these call sites, so
     // no compile-time backend split is needed.
-    T* d_B_blk = nullptr;
-    DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_B_blk), count_blk * sizeof(T)));
+    T* B_blk = nullptr;
+    DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&B_blk), count_blk * sizeof(T)));
     for (int i = 0; i < buffer_max; i++) {
-        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_A_temp[i]), count_a * sizeof(T)));
-        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&d_B_temp[i]), count_b * sizeof(T)));
+        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&A_temp[i]), count_a * sizeof(T)));
+        DDLA_CHECK(ddlaMalloc(h, reinterpret_cast<void**>(&B_temp[i]), count_b * sizeof(T)));
     }
 
     // Wait out the in-flight panel transport before the local gemm reads it
@@ -231,7 +231,7 @@ void pgemm(
         // straight in the panel at column offset b * w; the B tile (sData 'R',
         // transb 'N') is (w x cols) with ld = w, which only matches the panel
         // pitch kk when the stage is one block wide -- otherwise it is staged
-        // in d_B_blk and copied in with the panel pitch. w = nb for every full
+        // in B_blk and copied in with the panel pitch. w = nb for every full
         // block; the tail stage has w = ktail.
         for (int b = 0; b < cnt; ++b) {
             const int g = ks + b * nb;
@@ -242,13 +242,13 @@ void pgemm(
                     'C', transa,
                     m, w,
                     A, 0, g, descA,
-                    d_A_temp[temp_buffer] + (std::size_t)b * w * m_loc_A);
+                    A_temp[temp_buffer] + (std::size_t)b * w * m_loc_A);
             } else {
                 ddla::transport_block<Backend, T>(handle,
                     'R', transa,
                     w, m,
                     A, g, 0, descA,
-                    d_A_temp[temp_buffer]);
+                    A_temp[temp_buffer]);
             }
 
             if (transb == 'N') {
@@ -257,24 +257,24 @@ void pgemm(
                         'R', transb,
                         w, n,
                         B, g, 0, descB,
-                        d_B_blk);
+                        B_blk);
                     DDLA_CHECK(ddlaMemcpy2D(h,
-                        d_B_temp[temp_buffer] + (std::size_t)b * w, (std::size_t)kk * sizeof(T),
-                        d_B_blk, (std::size_t)w * sizeof(T),
+                        B_temp[temp_buffer] + (std::size_t)b * w, (std::size_t)kk * sizeof(T),
+                        B_blk, (std::size_t)w * sizeof(T),
                         (std::size_t)w * sizeof(T), (std::size_t)n_loc_B));
                 } else {
                     ddla::transport_block<Backend, T>(handle,
                         'R', transb,
                         w, n,
                         B, g, 0, descB,
-                        d_B_temp[temp_buffer]);
+                        B_temp[temp_buffer]);
                 }
             } else {
                 ddla::transport_block<Backend, T>(handle,
                     'C', transb,
                     n, w,
                     B, 0, g, descB,
-                    d_B_temp[temp_buffer]);
+                    B_temp[temp_buffer]);
             }
         }
     };
@@ -290,8 +290,8 @@ void pgemm(
                 h, transa, 'N',
                 m_loc_C, n_loc_C, kb,
                 alpha,
-                d_A_temp[temp_buffer], transa == 'N' ? static_cast<int>(m_loc_C) : kb,
-                d_B_temp[temp_buffer], kb,
+                A_temp[temp_buffer], transa == 'N' ? static_cast<int>(m_loc_C) : kb,
+                B_temp[temp_buffer], kb,
                 gemm_beta,
                 C, lldC);
             first_gemm = false;
@@ -301,10 +301,10 @@ void pgemm(
     }
     sync_panel();
     for (int i = 0; i < buffer_max; i++) {
-        DDLA_CHECK(ddlaFree(h, d_A_temp[i]));
-        DDLA_CHECK(ddlaFree(h, d_B_temp[i]));
+        DDLA_CHECK(ddlaFree(h, A_temp[i]));
+        DDLA_CHECK(ddlaFree(h, B_temp[i]));
     }
-    DDLA_CHECK(ddlaFree(h, d_B_blk));
+    DDLA_CHECK(ddlaFree(h, B_blk));
 }
 
 // ---------------------------------------------------------------------------

@@ -87,7 +87,7 @@ struct PivotBroadcast {
 template <DdlaBackend Backend, typename T>
 void pgetf2(
     const DdlaHandle_t& handle, const int& m, const int& n, const int& nb_real,
-    T* d_A, const int& n_s, const int* array_descA,
+    T* A, const int& n_s, const int* array_descA,
     int* ipiv, // host
     int& info  // host
 )
@@ -116,12 +116,12 @@ void pgetf2(
     int max_prow;
     T max_value{};
 
-    T *d_temp;
+    T *temp;
     const size_t row_buffer_elems = static_cast<size_t>(n_loc > 0 ? n_loc : 1);
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp, sizeof(T)*row_buffer_elems));
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp, sizeof(T)*row_buffer_elems));
 
-    T *d_temp_peer = nullptr;
-    DDLA_CHECK(ddlaMalloc(ddla_handle, &d_temp_peer, sizeof(T)*row_buffer_elems));
+    T *temp_peer = nullptr;
+    DDLA_CHECK(ddlaMalloc(ddla_handle, &temp_peer, sizeof(T)*row_buffer_elems));
 
     void* d_pivot_workspace = nullptr;   // the GPU pivot kernel's result slot (zero bytes, hence null, on a CPU handle)
     DDLA_CHECK(ddlaMalloc(ddla_handle, &d_pivot_workspace, pivot_workspace_bytes<Backend, T>()));
@@ -154,7 +154,7 @@ void pgetf2(
             if(i_panel<m_loc){
                 int local_max_index = 0;
                 find_local_pivot<Backend, T>(
-                    ddla_handle, d_A + j_panel * lld + i_panel, m_loc - i_panel,
+                    ddla_handle, A + j_panel * lld + i_panel, m_loc - i_panel,
                     d_pivot_workspace,
                     local_max.value, local_max_index, local_max_value);
                 const int local_row = i_panel + local_max_index;
@@ -191,21 +191,21 @@ void pgetf2(
             if(myprow == owner_row && max_loc_row != i_panel)
                 swap<Backend, T>(
                     ddla_handle, n_loc,
-                    d_A + i_panel, lld,
-                    d_A + max_loc_row, lld
+                    A + i_panel, lld,
+                    A + max_loc_row, lld
                 );
         }else{
             if(myprow == owner_row){
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, sizeof(T), d_A + i_panel, lld * sizeof(T), sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp, sizeof(T), A + i_panel, lld * sizeof(T), sizeof(T),
                                         n_loc));
-                commSendrecv<Backend>(ddla_handle, CommScope::Col, d_temp, d_temp_peer, (std::size_t)n_loc, max_prow);
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_A + i_panel, lld * sizeof(T), d_temp_peer, sizeof(T),
+                commSendrecv<Backend>(ddla_handle, CommScope::Col, temp, temp_peer, (std::size_t)n_loc, max_prow);
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, A + i_panel, lld * sizeof(T), temp_peer, sizeof(T),
                                         sizeof(T), n_loc));
             }else if(myprow == max_prow){
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, sizeof(T), d_A + max_loc_row, lld * sizeof(T), sizeof(T),
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp, sizeof(T), A + max_loc_row, lld * sizeof(T), sizeof(T),
                                         n_loc));
-                commSendrecv<Backend>(ddla_handle, CommScope::Col, d_temp, d_temp_peer, (std::size_t)n_loc, owner_row);
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_A + max_loc_row, lld * sizeof(T), d_temp_peer, sizeof(T),
+                commSendrecv<Backend>(ddla_handle, CommScope::Col, temp, temp_peer, (std::size_t)n_loc, owner_row);
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, A + max_loc_row, lld * sizeof(T), temp_peer, sizeof(T),
                                         sizeof(T), n_loc));
             }
         }
@@ -227,20 +227,20 @@ void pgetf2(
             }
             int length_col = nb_real - i_tf2 - 1;
             if(myprow == owner_row && length_col>0){
-                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, d_temp, 1 * sizeof(T), d_A + i_panel + (j_panel + 1) * lld,
+                DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp, 1 * sizeof(T), A + i_panel + (j_panel + 1) * lld,
                                         lld * sizeof(T), 1*sizeof(T), length_col));
             }
             if(length_col>0)
-                commBcast<Backend>(ddla_handle, CommScope::Col, d_temp, (std::size_t)length_col, owner_row);
+                commBcast<Backend>(ddla_handle, CommScope::Col, temp, (std::size_t)length_col, owner_row);
             // multipliers l = a / pivot, then the rank-1 update of the panel columns to the right: A -= l * u^T
-            T* d_trailing = length_col > 0 ? d_A + a_off + lld : d_A + a_off;
+            T* trailing = length_col > 0 ? A + a_off + lld : A + a_off;
             scale_update<Backend, T>(
                 ddla_handle, length_row, length_col, inverse_pivot,
-                d_A + a_off, d_temp, d_trailing, lld);
+                A + a_off, temp, trailing, lld);
         }
     }
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp));
-    DDLA_CHECK(ddlaFree(ddla_handle, d_temp_peer));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp));
+    DDLA_CHECK(ddlaFree(ddla_handle, temp_peer));
     DDLA_CHECK(ddlaFree(ddla_handle, d_pivot_workspace));
     if(info != 0){
         DDLA_CHECK(ddlaSynchronize(ddla_handle));
@@ -249,7 +249,7 @@ void pgetf2(
 
 #define INSTANTIATE_PGETF2(BACKEND, TYPE)                                   \
     template void pgetf2<BACKEND, TYPE>(const DdlaHandle_t&, const int& m, const int& n, const int& nb_real, \
-    TYPE* d_A, const int& n_s, const int* array_descA, \
+    TYPE* A, const int& n_s, const int* array_descA, \
     int* ipiv, \
     int& info)
 

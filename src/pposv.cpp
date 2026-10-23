@@ -9,8 +9,8 @@ template <DdlaBackend Backend, typename T>
 void pposv(
     const DdlaHandle_t& handle, const char& side, const char& uplo, const char& trans,
     const int & n, const int& nrhs,
-    T* d_A, const int& ia, const int& ja, const int* array_descA,
-    T* d_B, const int& ib, const int& jb, const int* array_descB,
+    T* A, const int& ia, const int& ja, const int* array_descA,
+    T* B, const int& ib, const int& jb, const int* array_descB,
     int& info, // host pointer
     bool is_head, int location
 )
@@ -22,7 +22,7 @@ void pposv(
     // Solve operates on the leading n x n / n x nrhs sub-matrices anchored at
     // global (0,0); ia/ja/ib/jb are reserved and must be 1 (1-based).
     assert(ia == 1 && ja == 1 && ib == 1 && jb == 1);
-    bool is_nega = ppotrf<Backend>(handle, uplo, n, d_A, ia, ja, array_descA, info, is_head, location);
+    bool is_nega = ppotrf<Backend>(handle, uplo, n, A, ia, ja, array_descA, info, is_head, location);
     // is_nega must be *passed to* ppotrs (which applies the corresponding sign
     // flip), not used to skip the solve entirely -- the previous `&& !is_nega`
     // guard silently returned an unsolved B whenever the head correction fired.
@@ -30,15 +30,15 @@ void pposv(
     // ppotrs handles the head-correction B permutation itself (keyed on
     // `location`), so there is nothing else to do here.
     if(info == 0)
-        ppotrs<Backend>(handle, side, uplo, trans, n, nrhs, d_A, array_descA, d_B, array_descB, is_nega, location);
+        ppotrs<Backend>(handle, side, uplo, trans, n, nrhs, A, array_descA, B, array_descB, is_nega, location);
     return;
 }
 
 #define INSTANTIATE_PPOSV(BACKEND, TYPE)                                   \
     template void pposv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& uplo, const char& trans, \
     const int & n, const int& nrhs, \
-    TYPE* d_A, const int& ia, const int& ja, const int* array_descA, \
-    TYPE* d_B, const int& ib, const int& jb, const int* array_descB, \
+    TYPE* A, const int& ia, const int& ja, const int* array_descA, \
+    TYPE* B, const int& ib, const int& jb, const int* array_descB, \
     int& info, \
     bool is_head, int location)
 

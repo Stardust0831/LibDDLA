@@ -12,7 +12,7 @@ template <DdlaBackend Backend, typename T>
 void plapiv(
     const DdlaHandle_t& handle, const char& direc, const char& rowcol, const char& pivroc,
     const int& m, const int& n,
-    T* d_A,const int* array_descA,
+    T* A,const int* array_descA,
     const int* ipiv, const int* array_descIP,
     int* iwork
 )
@@ -66,7 +66,7 @@ void plapiv(
     // direc='F' applies pivots in ascending i (computing P^T*B for rows /
     // B*P for columns); direc='B' in descending i (computing P*Z for rows /
     // Z*P^T for columns).  rowcol='R' swaps rows i and target in the matrix
-    // d_A (array_descA); rowcol='C' swaps columns i and target.  The matrix
+    // A (array_descA); rowcol='C' swaps columns i and target.  The matrix
     // and the pivot vector are assumed to share the same row distribution
     // (same mb/irsrc/nprows), so a global row index maps to the same local
     // offset in both array_descA and dIP.
@@ -94,17 +94,17 @@ void plapiv(
             const int length_v = length_rowcol_C;
             if(owner_col_i == owner_col_t){
                 if(mypcol == owner_col_i)
-                    swap<Backend, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, d_A + target_i_col * lldA, 1);
+                    swap<Backend, T>(ddla_handle, length_v, A + i_col * lldA, 1, A + target_i_col * lldA, 1);
             }else{
                 if(mypcol == owner_col_t){
-                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_col * lldA,
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), A + target_i_col * lldA,
                                             1 * sizeof(T), 1 * sizeof(T), length_v));
                     commSend<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
                     commRecv<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_i);
-                    swap<Backend, T>(ddla_handle, length_v, d_A + target_i_col * lldA, 1, temp_A_target, 1);
+                    swap<Backend, T>(ddla_handle, length_v, A + target_i_col * lldA, 1, temp_A_target, 1);
                 }else if(mypcol == owner_col_i){
                     commRecv<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
-                    swap<Backend, T>(ddla_handle, length_v, d_A + i_col * lldA, 1, temp_A_target, 1);
+                    swap<Backend, T>(ddla_handle, length_v, A + i_col * lldA, 1, temp_A_target, 1);
                     commSend<Backend>(ddla_handle, CommScope::Row, temp_A_target, (std::size_t)length_v, owner_col_t);
                 }
             }
@@ -118,17 +118,17 @@ void plapiv(
             target_i_loc = indx_g2l_r(array_descA, handle, target_i_global);
             if(target_row==owner_row){
                 if(myprow==owner_row)
-                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, d_A + target_i_loc, lldA);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, A + i_locA, lldA, A + target_i_loc, lldA);
             }else{
                 if(myprow==target_row){
-                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), d_A + target_i_loc,
+                    DDLA_CHECK(ddlaMemcpy2D(ddla_handle, temp_A_target, 1 * sizeof(T), A + target_i_loc,
                                             lldA * sizeof(T), 1 * sizeof(T), length_rowcol_R));
                     commSend<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
                     commRecv<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, owner_row);
-                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + target_i_loc, lldA, temp_A_target, 1);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, A + target_i_loc, lldA, temp_A_target, 1);
                 }else if(myprow==owner_row){
                     commRecv<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
-                    swap<Backend, T>(ddla_handle, length_rowcol_R, d_A + i_locA, lldA, temp_A_target, 1);
+                    swap<Backend, T>(ddla_handle, length_rowcol_R, A + i_locA, lldA, temp_A_target, 1);
                     commSend<Backend>(ddla_handle, CommScope::Col, temp_A_target, (std::size_t)length_rowcol_R, target_row);
                 }
             }
@@ -143,7 +143,7 @@ void plapiv(
 #define INSTANTIATE_PLAPIV(BACKEND, TYPE)                                   \
     template void plapiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& direc, const char& rowcol, const char& pivroc, \
     const int& m, const int& n, \
-    TYPE* d_A,const int* array_descA, \
+    TYPE* A,const int* array_descA, \
     const int* ipiv, const int* array_descIP, \
     int* iwork)
 

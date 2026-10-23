@@ -22,8 +22,8 @@ void transport_block(
     const DdlaHandle_t& handle,
     const char& sData, const char& trans,
     const int& m, const int& n,
-    const T* d_A, const int& ia, const int& ja, const int* array_descA,
-    T* d_block_A
+    const T* A, const int& ia, const int& ja, const int* array_descA,
+    T* block_A
 );
 
 }

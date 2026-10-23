@@ -229,7 +229,7 @@ void getf2_nopiv_host(const DdlaHandle_t& ddla_handle, int n, T* A, int lda, int
 // --------------------------------------------------------------------------
 
 template <DdlaBackend Backend, typename T>
-void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t& ddla_handle)
+void getrf_nopiv(int m, int n, T* A, int lda, int* info_buffer, const DdlaHandle_t& ddla_handle)
 {
     detail::require_backend<Backend>(ddla_handle, "getrf_nopiv");
 
@@ -239,8 +239,8 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
     // (32 * sizeof(T) per thread) with arithmetic intensity.
     const int nb = GETF2_MAX_N;
 
-    // Initialize d_info to 0 on device (caller owns d_info memory)
-    DDLA_CHECK(ddlaMemset(ddla_handle, d_info, 0, sizeof(int)));
+    // Initialize info_buffer to 0 in backend memory (caller owns info_buffer memory)
+    DDLA_CHECK(ddlaMemset(ddla_handle, info_buffer, 0, sizeof(int)));
 
     for (int j = 0; j < std::min(m, n); j += nb)
     {
@@ -253,12 +253,12 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
         // ---------------------------------------------------------------
         if constexpr (Backend == DdlaBackend::CPU)
         {
-            getf2_nopiv_host<T>(ddla_handle, jb, d_A + j * lda + j, lda, d_info, j);
+            getf2_nopiv_host<T>(ddla_handle, jb, A + j * lda + j, lda, info_buffer, j);
         }
         else
         {
 #if defined(DDLA_USE_CUDA) || defined(DDLA_USE_HIP)
-            launch_getf2_nopiv_kernel<T>(ddla_handle, jb, d_A + j * lda + j, lda, d_info, j);
+            launch_getf2_nopiv_kernel<T>(ddla_handle, jb, A + j * lda + j, lda, info_buffer, j);
 #endif
         }
 
@@ -280,9 +280,9 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                 'N', 'N',                   // no transpose; U has non-unit diagonal
                 mm - jb, jb,                // (m-jb) rows, jb cols
                 one,
-                d_A + j * lda + j,          // U factor (jb x jb)
+                A + j * lda + j,          // U factor (jb x jb)
                 lda,
-                d_A + j * lda + (j + jb),   // A21 input, L21 output
+                A + j * lda + (j + jb),   // A21 input, L21 output
                 lda
             );
         }
@@ -305,9 +305,9 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                 'N', 'U',                   // no transpose; L has unit diagonal
                 jb, nn,                     // jb rows, (n-jb) cols
                 one,
-                d_A + j * lda + j,          // L factor (jb x jb, implicit unit diag)
+                A + j * lda + j,          // L factor (jb x jb, implicit unit diag)
                 lda,
-                d_A + (j + jb) * lda + j,   // A12 input, U12 output
+                A + (j + jb) * lda + j,   // A12 input, U12 output
                 lda
             );
 
@@ -326,18 +326,18 @@ void getrf_nopiv(int m, int n, T* d_A, int lda, int* d_info, const DdlaHandle_t&
                     'N', 'N',
                     mm - jb, nn, jb,
                     neg_one,
-                    d_A + j * lda + (j + jb),      // L_panel (m-jb x jb)
+                    A + j * lda + (j + jb),      // L_panel (m-jb x jb)
                     lda,
-                    d_A + (j + jb) * lda + j,      // U_panel (jb x n-jb)
+                    A + (j + jb) * lda + j,      // U_panel (jb x n-jb)
                     lda,
                     one,
-                    d_A + (j + jb) * lda + (j + jb), // A22 trailing (m-jb x n-jb)
+                    A + (j + jb) * lda + (j + jb), // A22 trailing (m-jb x n-jb)
                     lda
                 );
             }
         }
     }
-    // d_info stays on device; caller owns the memory and is responsible
+    // info_buffer stays in backend memory; caller owns the memory and is responsible
     // for reading it back after stream synchronization.
 }
 

@@ -20,16 +20,16 @@ namespace ddla {
  * @param trans   'N' -- no transpose (only 'N' supported).
  * @param n       Order of matrix A.
  * @param nrhs    Number of right-hand sides.
- * @param d_A     Device pointer to LU factors (from pgetrf_nopiv).
+ * @param A     Pointer in the selected backend to LU factors (from pgetrf_nopiv).
  * @param array_descA  ScaLAPACK int[9] descriptor for A.
- * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param B     Pointer in the selected backend to RHS / solution B (input/output).
  * @param array_descB  ScaLAPACK int[9] descriptor for B.
  */
 template <DdlaBackend Backend, typename T>
 void pgetrs_nopiv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
-    T* d_B, const int* array_descB
+    T* A, const int* array_descA,
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -54,37 +54,37 @@ void pgetrs_nopiv(
         if(trans == 'N'){
             // A = L*U => X = U^-1 * L^-1 * B: solve L then U.
             ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
             ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
         }else{
             // A^T = U^T * L^T => X = L^-T * U^-T * B: solve U^T then L^T.
             ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
             ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
         }
     }else{
         if(trans == 'N'){
             // X * L * U = B => X = B * U^-1 * L^-1: solve U then L.
             ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
             ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
         }else{
             // X * U^T * L^T = B => X = B * L^-T * U^-T: solve L^T then U^T.
             ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
             ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols,
-                   d_A, array_descA, d_B, array_descB);
+                   A, array_descA, B, array_descB);
         }
     }
 }
 
 #define INSTANTIATE_PGETRS_NOPIV(BACKEND, TYPE)                                   \
     template void pgetrs_nopiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* A, const int* array_descA, \
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGETRS_NOPIV(DdlaBackend::CPU, float);

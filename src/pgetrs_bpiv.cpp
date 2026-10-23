@@ -12,8 +12,8 @@ namespace ddla {
  *
  * pgetrf_bpiv factors each nb x nb diagonal block with a local getrf and
  * applies each block's row permutation (block-partial pivoting) to the right
- * panel with laswp in forward order.  The stored d_ipiv entries are 1-based
- * offsets *within* each diagonal block, kept in device memory on the owning
+ * panel with laswp in forward order.  The stored pivots entries are 1-based
+ * offsets *within* each diagonal block, kept in backend memory on the owning
  * process row only.  The block permutations act on disjoint row sets, so they
  * commute and each block's swaps are local to one process row (side='L') or
  * process column (side='R').
@@ -30,18 +30,18 @@ namespace ddla {
  * @param trans   'N', 'T' or 'C' -- operation applied to A.
  * @param n       Order of matrix A.
  * @param nrhs    Number of right-hand sides.
- * @param d_A     Device pointer to LU factors (from pgetrf_bpiv).
+ * @param A     Pointer in the selected backend to LU factors (from pgetrf_bpiv).
  * @param array_descA  ScaLAPACK int[9] descriptor for A.
- * @param d_ipiv  Device pivot array from pgetrf_bpiv (block-local, 1-based).
- * @param d_B     Device pointer to RHS / solution B (input/output).
+ * @param pivots  Pivot array in the selected backend from pgetrf_bpiv (block-local, 1-based).
+ * @param B     Pointer in the selected backend to RHS / solution B (input/output).
  * @param array_descB  ScaLAPACK int[9] descriptor for B.
  */
 template <DdlaBackend Backend, typename T>
 void pgetrs_bpiv(
     const DdlaHandle_t& handle, const char& side, const char& trans, const int& n, const int& nrhs,
-    T* d_A, const int* array_descA,
-    int* d_ipiv, // device
-    T* d_B, const int* array_descB
+    T* A, const int* array_descA,
+    int* pivots, // host for CPU, device for GPU
+    T* B, const int* array_descB
 )
 {
     check_desc(array_descB, handle);
@@ -78,7 +78,7 @@ void pgetrs_bpiv(
     // block's pivots over the full grid from that single owner, so every
     // process gets correct values regardless of block.
     std::vector<int> h_ipiv(m_loc_A);
-    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_ipiv.data(), d_ipiv, h_ipiv.size() * sizeof(int)));
+    DDLA_CHECK(ddlaMemcpy(ddla_handle, h_ipiv.data(), pivots, h_ipiv.size() * sizeof(int)));
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
 
     // Apply the block-partial pivot permutation to B: rows of B for side='L',
@@ -123,16 +123,16 @@ void pgetrs_bpiv(
                         const int j1 = indx_g2l_c(array_descB, handle, n_s + i - 1);
                         const int j2 = indx_g2l_c(array_descB, handle, n_s + t);
                         swap<Backend, T>(ddla_handle,
-                                                  m_loc_B, d_B + j1 * lldB, 1,
-                                                  d_B + j2 * lldB, 1);
+                                                  m_loc_B, B + j1 * lldB, 1,
+                                                  B + j2 * lldB, 1);
                     }
                 }else{
                     if(myprow == owner_row){
                         const int i1 = indx_g2l_r(array_descB, handle, n_s + i - 1);
                         const int i2 = indx_g2l_r(array_descB, handle, n_s + t);
                         swap<Backend, T>(ddla_handle,
-                                                  n_loc_B, d_B + i1, lldB,
-                                                  d_B + i2, lldB);
+                                                  n_loc_B, B + i1, lldB,
+                                                  B + i2, lldB);
                     }
                 }
             }
@@ -143,19 +143,19 @@ void pgetrs_bpiv(
         if(trans == 'N'){
             // A = Q^T * L * U => X = U^-1 * L^-1 * (Q * B)
             apply_pivots(/*columns=*/false, /*forward=*/true);
-            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', 'N', 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', 'N', 'N', b_rows, b_cols, A, array_descA, B, array_descB);
         }else{
             // op(A)^T = U^T * L^T * Q => X = Q^T * L^-T * U^-T * B
-            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'U', trans, 'N', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'L', 'L', trans, 'U', b_rows, b_cols, A, array_descA, B, array_descB);
             apply_pivots(/*columns=*/false, /*forward=*/false);
         }
     }else{
         if(trans == 'N'){
             // X * P * L * U = B => X = B * U^-1 * L^-1 * P^T
-            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', 'N', 'N', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', 'N', 'U', b_rows, b_cols, A, array_descA, B, array_descB);
             // Columns compose opposite to rows: column swaps applied in the
             // laswp order right-multiply to Z*P, not Z*P^T; apply backward.
             apply_pivots(/*columns=*/true, /*forward=*/false);
@@ -163,17 +163,17 @@ void pgetrs_bpiv(
             // X * U^T * L^T * P^T = B => X = B * P * L^-T * U^-T
             // Column swaps in the laswp order give B*P; apply forward.
             apply_pivots(/*columns=*/true, /*forward=*/true);
-            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
-            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, d_A, array_descA, d_B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'L', trans, 'U', b_rows, b_cols, A, array_descA, B, array_descB);
+            ptrtrs<Backend>(handle, 'R', 'U', trans, 'N', b_rows, b_cols, A, array_descA, B, array_descB);
         }
     }
 }
 
 #define INSTANTIATE_PGETRS_BPIV(BACKEND, TYPE)                                   \
     template void pgetrs_bpiv<BACKEND, TYPE>(const DdlaHandle_t&, const char& side, const char& trans, const int& n, const int& nrhs, \
-    TYPE* d_A, const int* array_descA, \
-    int* d_ipiv, \
-    TYPE* d_B, const int* array_descB)
+    TYPE* A, const int* array_descA, \
+    int* pivots, \
+    TYPE* B, const int* array_descB)
 
 #if DDLA_HAS_CPU
 INSTANTIATE_PGETRS_BPIV(DdlaBackend::CPU, float);
