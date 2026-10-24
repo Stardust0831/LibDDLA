@@ -201,6 +201,21 @@ ddla::DDLA_CHECK(ddla::ddlaSet(handle, MPI_COMM_WORLD, 'R'));   // auto process 
   The automatic form (`'R'`) derives a 2D grid from the number of MPI ranks.
 - **Destroy** with `ddla::DDLA_CHECK(ddla::ddlaDestroy(handle))` when done.
 
+### Distributed matrix multiplication
+
+`pgemm` selects its communication algorithm automatically from the matrix
+shape, transpose flags, block sizes, and process grid. The AB branch broadcasts
+panels of A and B while keeping C in place. For a thin output, BC keeps A in
+place and communicates panels of B and C; AC keeps B in place and communicates
+panels of A and C. The latter branches sum partial products to their output
+owners, so C retains its ordinary two-dimensional block-cyclic distribution.
+All branches support real/complex scalars and `N`, `T`, and `C` operations.
+
+Selection uses ScaLAPACK 2.2.2's communication-volume estimates, with a preference
+for AB when estimated costs are close. There is no public branch override.
+`DDLA_PGEMM_KPANEL` continues to control K-panel batching in AB only; AC and BC
+use one output descriptor block per panel, bounding temporary storage.
+
 ### Descriptor (ScaLAPACK `int[9]`)
 
 Distributed routines describe matrix layouts with a plain length-9 int array
@@ -310,7 +325,7 @@ stream for GPU handles) and safely handle zero-byte requests (zero bytes sets
 
 | Function | Description |
 |----------|-------------|
-| `pgemm` | `C = α·op(A)·op(B) + β·C` (SUMMA algorithm) |
+| `pgemm` | `C = α·op(A)·op(B) + β·C`; automatic AB/SUMMA, AC, or BC communication |
 | `pgeadd` | `C = α·op(A) + β·op(B)` with required one-based `ia,ja`, `ib,jb`, `ic,jc`; aligned block layouts only (block sizes and within-block offsets match after `N/T/C`; `N` also requires matching owners); direct local `N,N` addition and one-destination local-region transpose on square grids (`m*n <= INT_MAX`); transpose-copy with `α=1`, `β=0` |
 | `pdam` | Add scalar to the diagonal of a distributed matrix (leading-block, optional `n`; default `-1` = whole matrix) |
 | `transport_block` | Extract/transpose a contiguous block from a distributed matrix into a local buffer |

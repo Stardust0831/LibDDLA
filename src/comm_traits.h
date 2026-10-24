@@ -6,6 +6,9 @@
 #include "mpi_datatype.h"
 #include <vector>
 #include <cstddef>
+#include <algorithm>
+#include <climits>
+#include <type_traits>
 
 // ---------------------------------------------------------------------------
 // CommTraits<DdlaBackend Backend>: a DdlaBackend-templated abstraction over
@@ -340,6 +343,54 @@ inline void commAllReduce(const DdlaHandle_t& h, CommScope scope,
         DDLA_CHECK(ddlaSynchronize(h));
         MPI_CHECK(MPI_Allreduce(sbuf, rbuf, count, op, CommTraits<Backend>::comm(h, scope)));
 #endif
+    }
+}
+
+// Sum to one owner. The root may pass its send buffer as the receive buffer
+// (an in-place reduction). Only the root's receive buffer is defined
+// afterwards. Unlike all-reduce this does not replicate C.
+template <DdlaBackend Backend = detail::local_backend_v, typename T>
+inline void commReduceSum(const DdlaHandle_t& h, CommScope scope,
+                          const T* sbuf, T* rbuf, std::size_t count, int root)
+{
+    const int rank = scope == CommScope::Row ? h->mypcol_ :
+                     scope == CommScope::Col ? h->myprow_ : h->myid;
+    // MPI spells an in-place root contribution MPI_IN_PLACE; NCCL and the
+    // host-staged path accept sbuf == rbuf as they are.
+    const bool in_place = rank == root && sbuf == rbuf;
+    // Bound MPI element counts and complex NCCL real-component counts.
+    for (std::size_t off = 0; off < count; ) {
+        const int len = static_cast<int>(std::min(count - off, std::size_t(INT_MAX / 2)));
+        if constexpr (Backend == DdlaBackend::CPU) {
+            MPI_CHECK(::MPI_Reduce(in_place ? MPI_IN_PLACE : sbuf + off, rbuf + off, len,
+                                  detail::mpi_datatype<T>(), MPI_SUM, root,
+                                  CommTraits<Backend>::comm(h, scope)));
+        } else {
+#if defined(DDLA_USE_GPU_CPU_TUNNEL)
+            T* hs = detail::tunnel_staging<T>(h, 0, len);
+            T* hr = detail::tunnel_staging<T>(h, 1, len);
+            DDLA_CHECK(ddlaMemcpy(h, hs, sbuf + off, sizeof(T) * len));
+            DDLA_CHECK(ddlaSynchronize(h));
+            MPI_CHECK(::MPI_Reduce(hs, hr, len, detail::mpi_datatype<T>(), MPI_SUM,
+                                  root, CommTraits<Backend>::comm(h, scope)));
+            if (rank == root) {
+                DDLA_CHECK(ddlaMemcpy(h, rbuf + off, hr, sizeof(T) * len));
+                DDLA_CHECK(ddlaSynchronize(h));
+            }
+#elif defined(DDLA_USE_CCL)
+            constexpr bool single = std::is_same_v<T, float> || std::is_same_v<T, std::complex<float>>;
+            constexpr int components = std::is_same_v<T, float> || std::is_same_v<T, double> ? 1 : 2;
+            CCL_CHECK(gpucclReduce(sbuf + off, rbuf + off, std::size_t(len) * components,
+                                  single ? gpucclFloat32 : gpucclFloat64, gpucclSum,
+                                  root, CommTraits<Backend>::comm(h, scope), h->stream));
+#else
+            DDLA_CHECK(ddlaSynchronize(h));
+            MPI_CHECK(::MPI_Reduce(in_place ? MPI_IN_PLACE : sbuf + off, rbuf + off, len,
+                                  detail::mpi_datatype<T>(), MPI_SUM, root,
+                                  CommTraits<Backend>::comm(h, scope)));
+#endif
+        }
+        off += len;
     }
 }
 

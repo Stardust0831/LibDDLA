@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # GPU validation (4-rank suite): configure, build, and run every CTest
 # entry that registers at DDLA_TEST_NP=4 ranks (plus the two 1-rank
-# potrf_bottom_right cases) on 4 V100s — one rank per GPU. Indexed
-# pgeadd also runs at six ranks in validate_gpu6.sbatch.in.
+# potrf_bottom_right cases) on 4 V100s — one rank per GPU. Addition and
+# GEMM also run at six ranks in validate_gpu6.sbatch.in.
 #SBATCH --job-name=libddla-hpc3-gpu4
 #SBATCH --partition=@GPU4_PARTITION@
 #SBATCH --nodes=1

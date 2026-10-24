@@ -45,6 +45,8 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         write_matrix.cpp
         random_generate.cpp
         pgemm.cpp
+        pgemm_select.cpp
+        pgemm_stationary.cpp
         transport_block.cpp
         ptrtrs.cpp
         pgetf2.cpp
@@ -117,6 +119,8 @@ else()
         pgesv_nopiv.cpp
         pgesv_bpiv.cpp
         pgemm.cpp
+        pgemm_select.cpp
+        pgemm_stationary.cpp
         pgeadd.cpp
         pdam.cpp
         ppotrf.cpp

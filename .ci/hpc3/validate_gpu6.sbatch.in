@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# GPU validation (6-rank suite): indexed pgeadd on six V100s, one rank per
-# GPU. This independent build tree can run in parallel with the default
-# four-rank suite.
+# GPU validation (6-rank suite): indexed addition and all GEMM branches
+# on six V100s, one rank per GPU. This independent build tree can run in
+# parallel with the default four-rank suite.
 #SBATCH --job-name=libddla-hpc3-gpu6
 #SBATCH --partition=@GPU6_PARTITION@
 #SBATCH --nodes=1
@@ -41,12 +41,12 @@ cmake -S @SOURCE@ -B @BUILD_GPU6@ \
     -DMPIEXEC_EXECUTABLE="$MPIWRAP" \
     -DMPIEXEC_PREFLAGS=--oversubscribe \
     2>&1 | tee @RESULTS@/gpu6-configure.log
-cmake --build @BUILD_GPU6@ --parallel 16 --target test_pgeadd_indexed 2>&1 | tee @RESULTS@/gpu6-build.log
+cmake --build @BUILD_GPU6@ --parallel 16 --target test_pgeadd_indexed test_pgemm_branches 2>&1 | tee @RESULTS@/gpu6-build.log
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
 set +e
 ctest --test-dir @BUILD_GPU6@ --output-on-failure -j1 \
-    -R "^test_pgeadd_indexed_mpi$" \
+    -R "^test_(pgeadd_indexed|pgemm_branches)_mpi$" \
     --output-junit @RESULTS@/gpu6-ctest.xml 2>&1 | tee @RESULTS@/gpu6-ctest.log
 rc=${PIPESTATUS[0]}
 set -e

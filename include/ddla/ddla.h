@@ -478,10 +478,12 @@ void pgesv_bpiv(
  * @brief Distributed matrix-matrix multiplication:
  *        C := alpha * op(A) * op(B) + beta * C.
  *
- * Uses a 2D block-cyclic data distribution and broadcast of panel columns of
- * A and panel rows of B (AB-path) over MPI/NCCL/RCCL (per the DDLA_USE_CCL /
- * DDLA_USE_GPU_CPU_TUNNEL build configuration).  Supports all standard
- * transpose options:
+ * Uses a 2D block-cyclic data distribution. Automatically selects AB (keep
+ * C in place), BC (keep A in place), or AC (keep B in place) using estimated
+ * communication volume. BC/AC communicate thin panels and reduce partial
+ * products to C's owners; the output remains distributed, not replicated.
+ * Communication uses MPI/NCCL/RCCL according to the build configuration.
+ * Supports all standard transpose options:
  *   - 'N': op(X) = X
  *   - 'T': op(X) = X^T
  *   - 'C': op(X) = X^H  (conjugate-transpose)

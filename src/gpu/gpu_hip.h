@@ -266,6 +266,7 @@ constexpr auto gpucclSum = ncclSum;
 // collective communication (NCCL / RCCL)
 #ifdef DDLA_USE_CCL
 #define gpucclAllReduce ncclAllReduce
+#define gpucclReduce ncclReduce
 #define gpucclBcast ncclBcast
 #define gpucclCommDestroy ncclCommDestroy
 #define gpucclCommInitRank ncclCommInitRank
