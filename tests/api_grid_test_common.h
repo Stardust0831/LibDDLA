@@ -18,7 +18,6 @@
 #include <ddla/ddla.h>
 #include "ddla_connector.h"
 #include "ddla_stream.h"
-#include "ptran.h"
 #include "transport_block.h"
 #include "test_desc_helpers.h"
 

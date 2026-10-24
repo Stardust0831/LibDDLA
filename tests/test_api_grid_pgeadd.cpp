@@ -32,8 +32,8 @@ void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
         upload(handle, d_C.ptr, h_C);
         check_ddla_sync(handle);
 
-        ddla::pgeadd(handle, transa, transb, m, n, alpha, d_A.ptr, descA,
-                     beta, d_B.ptr, descB, d_C.ptr, descC);
+        ddla::pgeadd(handle, transa, transb, m, n, alpha, d_A.ptr, 1, 1, descA,
+                     beta, d_B.ptr, 1, 1, descB, d_C.ptr, 1, 1, descC);
         auto out = download(handle, d_C.ptr, h_C.size());
 
         const double err = local_max_error<Complex>(handle, descC, out, [&](int i, int j){
@@ -57,7 +57,39 @@ void check_pgeadd(const ddla::DdlaHandle_t& handle, const Shape& base)
     }
 }
 
+void check_transpose(const ddla::DdlaHandle_t& handle, const Shape& base)
+{
+    const int nb = base.nb;
+    int nprows = 0, npcols = 0;
+    ddlaGetGridDims(handle, nprows, npcols);
+    const int m = round_up_for_grid(base.m, nb, nprows);
+    const int n = round_up_for_grid(base.n, nb, npcols);
+    int descA[ddla::DDLA_DLEN_], descAT[ddla::DDLA_DLEN_];
+    DDLA_CHECK(ddlaDescInit(descA, handle, m, n, nb, nb, 0, 0));
+    DDLA_CHECK(ddlaDescInit(descAT, handle, n, m, nb, nb, 0, 0));
+
+    auto h_A = make_local<Complex>(handle, descA, [](int i, int j){ return general_value(i, j, 6); });
+    std::vector<Complex> h_AT(local_size(handle, descAT), Complex(0.0, 0.0));
+    DeviceBuffer<Complex> d_A(handle, h_A.size());
+    DeviceBuffer<Complex> d_AT(handle, h_AT.size());
+    upload(handle, d_A.ptr, h_A);
+    upload(handle, d_AT.ptr, h_AT);
+    check_ddla_sync(handle);
+
+    ddla::pgeadd(handle, 'C', 'N', n, m, Complex(1), d_A.ptr, 1, 1, descA,
+                 Complex(0), d_AT.ptr, 1, 1, descAT, d_AT.ptr, 1, 1, descAT);
+    auto out = download(handle, d_AT.ptr, h_AT.size());
+    const double err = local_max_error<Complex>(handle, descAT, out, [&](int i, int j){
+        return std::conj(general_value(j, i, 6));
+    });
+    require_close(handle, "pgeadd conjugate transpose-copy", err, 1e-12);
+}
+
 int main(int argc, char** argv)
 {
-    return run_grid_test(argc, argv, "test_api_grid_pgeadd", check_pgeadd);
+    return run_grid_test(argc, argv, "test_api_grid_pgeadd",
+        [](const ddla::DdlaHandle_t& h, const Shape& base) {
+            check_pgeadd(h, base);
+            check_transpose(h, base);
+        });
 }

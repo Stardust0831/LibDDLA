@@ -34,8 +34,8 @@ set(DDLA_TEST_NP 4 CACHE STRING "MPI ranks used by ctest-registered tests")
 # with `ctest -L cpu`.
 function(add_test_executable test_name)
     # Optional second argument overrides the MPI rank count for tests with a
-    # fixed rank requirement (e.g. test_ptran needs 6, test_potrf_bottom_right
-    # needs 1).  Defaults to DDLA_TEST_NP.
+    # fixed rank requirement (e.g. test_potrf_bottom_right needs 1).
+    # Defaults to DDLA_TEST_NP.
     set(_np "${DDLA_TEST_NP}")
     if(ARGC GREATER 1)
         set(_np "${ARGV1}")
@@ -77,6 +77,8 @@ endfunction()
 enable_testing()
 
 add_test_executable(test_backend_gemm)
+add_test_executable(test_pgeadd_indexed)
+add_test_executable(test_pgeadd_direct)
 add_test_executable(test_backend_level1)
 # BLAS-3 families that had no numerical coverage before the wrapper
 # unification (trsm, syrk, trmm, gemmBatched), plus per-family handle and
@@ -115,13 +117,11 @@ add_test_executable(test_api_grid_ppotrf_bottom_right)
 add_test_executable(test_api_grid_submatrix)
 add_test_executable(test_api_grid_pgeadd)
 add_test_executable(test_api_grid_pdam)
-add_test_executable(test_api_grid_ptran)
 add_test_executable(test_api_grid_scalapack_desc)
 add_test_executable(test_random_generate)
 
 if(DDLA_USE_CUDA OR DDLA_USE_HIP)
     add_test_executable(test_pzgemm)
-    add_test_executable(test_ptran 6)
     add_test_executable(test_pdam)
     add_test_executable(test_getrf_nopiv)
     add_test_executable(test_pgetrf_nopiv)

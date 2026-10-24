@@ -48,12 +48,12 @@ cmake -S @SOURCE@ -B $BUILD_GPU \
     2>&1 | tee @RESULTS@/gpu-configure.log
 cmake --build $BUILD_GPU --parallel 16 2>&1 | tee @RESULTS@/gpu-build.log
 
-# HIP GPU tests: 4 MPI ranks, one DCU per rank. test_ptran_mpi needs 6 ranks
-# (excluded); test_getrf_nopiv_mpi's n=15000 case is pathologically slow on
-# gfx906 (excluded; single-GPU test_getrf_nopiv stays in).
+# HIP GPU tests: four MPI ranks, one DCU per rank. test_getrf_nopiv_mpi's
+# n=15000 case is pathologically slow on gfx906 (excluded; the single-GPU
+# test_getrf_nopiv stays in).
 set +e
 ctest --test-dir $BUILD_GPU -L gpu \
-    -E "test_ptran_mpi|test_getrf_nopiv_mpi" \
+    -E "test_getrf_nopiv_mpi" \
     --output-on-failure -j1 \
     --output-junit @RESULTS@/gpu-ctest.xml 2>&1 | tee @RESULTS@/gpu-ctest.log
 gpu_rc=${PIPESTATUS[0]}

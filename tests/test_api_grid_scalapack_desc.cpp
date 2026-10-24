@@ -382,9 +382,9 @@ void check_ppotrf_bogus_ctxt(const ddla::DdlaHandle_t& handle,
 }
 
 // --------------------------------------------------------------------------
-// ptran honours a padded LLD the same way (no square-grid restriction).
+// pgeadd transpose honours a padded LLD the same way (no square-grid restriction).
 // --------------------------------------------------------------------------
-void check_ptran_padded_lld(const ddla::DdlaHandle_t& handle,
+void check_pgeadd_transpose_padded_lld(const ddla::DdlaHandle_t& handle,
                             const Shape& base)
 {
     const int n = square_size(handle, base);
@@ -402,7 +402,8 @@ void check_ptran_padded_lld(const ddla::DdlaHandle_t& handle,
     upload(handle, d_A.ptr, h_A);
     upload(handle, d_AT.ptr, h_AT);
     check_ddla_sync(handle);
-    ddla::ptran(handle, d_A.ptr, descA, d_AT.ptr, descAT, true);
+    ddla::pgeadd(handle, 'C', 'N', n, n, Complex(1), d_A.ptr, 1, 1, descA,
+                 Complex(0), d_AT.ptr, 1, 1, descAT, d_AT.ptr, 1, 1, descAT);
     const auto tight = download(handle, d_AT.ptr, h_AT.size());
 
     const int lldA = descA[ddla::DDLA_LLD_] + 3;
@@ -420,12 +421,13 @@ void check_ptran_padded_lld(const ddla::DdlaHandle_t& handle,
     upload(handle, q_A.ptr, p_A);
     upload(handle, q_AT.ptr, p_AT);
     check_ddla_sync(handle);
-    ddla::ptran(handle, q_A.ptr, sdA, q_AT.ptr, sdAT, true);
+    ddla::pgeadd(handle, 'C', 'N', n, n, Complex(1), q_A.ptr, 1, 1, sdA,
+                 Complex(0), q_AT.ptr, 1, 1, sdAT, q_AT.ptr, 1, 1, sdAT);
     const auto padded = download(handle, q_AT.ptr, p_AT.size());
 
     const double err = diff_over_owned(handle, descAT, padded, lldAT,
                                        tight, descAT[ddla::DDLA_LLD_]);
-    require_close(handle, "ptran honours padded LLD_A", err, 0.0);
+    require_close(handle, "pgeadd transpose honours padded LLD_A", err, 0.0);
 }
 
 } // namespace
@@ -440,6 +442,6 @@ int main(int argc, char** argv)
                              check_routine_rejects_bad_desc(handle, base);
                              check_padded_lld(handle, base);
                              check_ppotrf_bogus_ctxt(handle, base);
-                             check_ptran_padded_lld(handle, base);
+                             check_pgeadd_transpose_padded_lld(handle, base);
                          });
 }

@@ -344,7 +344,7 @@ void check_ptrtrs(const DdlaHandle_t& h, int n, int nb, int nrhs)
                 }
 }
 
-// ---- helpers: pgeadd, pdam, ptran ------------------------------------------------------------------------------------
+// ---- helpers: pgeadd, pdam ------------------------------------------------------------------------------------
 template <DdlaBackend B, typename T>
 void check_helpers(const DdlaHandle_t& h, const Shape& base)
 {
@@ -371,7 +371,7 @@ void check_helpers(const DdlaHandle_t& h, const Shape& base)
         upload(h, bB.ptr, hB);
         upload(h, bC.ptr, hC);
         check_ddla_sync(h);
-        ddla::pgeadd<B>(h, ta, tb, m, n, alpha, bA.ptr, dA, beta, bB.ptr, dB, bC.ptr, dC);
+        ddla::pgeadd<B>(h, ta, tb, m, n, alpha, bA.ptr, 1, 1, dA, beta, bB.ptr, 1, 1, dB, bC.ptr, 1, 1, dC);
         auto out = download(h, bC.ptr, hC.size());
         const double err = local_max_error<T>(h, dC, out, [&](int i, int j) {
             return alpha * to_T<T>(op_value(ta, a_rows, a_cols, i, j, general_value, 4))
@@ -400,7 +400,7 @@ void check_helpers(const DdlaHandle_t& h, const Shape& base)
                       local_max_error<T>(h, desc, out, [&](int i, int j) { return i == j ? alpha : T(0); }), tol);
     }
 
-    for (bool conj : {false, true}) {   // ptran
+    for (bool conj : {false, true}) {   // pgeadd transpose-copy
         const int m = round_up_for_grid(base.m, nb, nprows);
         const int n = round_up_for_grid(base.n, nb, npcols);
         int dA[DDLA_DLEN_], dAT[DDLA_DLEN_];
@@ -412,13 +412,14 @@ void check_helpers(const DdlaHandle_t& h, const Shape& base)
         upload(h, bA.ptr, hA);
         upload(h, bAT.ptr, hAT);
         check_ddla_sync(h);
-        ddla::ptran<B>(h, bA.ptr, dA, bAT.ptr, dAT, conj);
+        ddla::pgeadd<B>(h, conj ? 'C' : 'T', 'N', n, m, T(1), bA.ptr, 1, 1, dA,
+                        T(0), bAT.ptr, 1, 1, dAT, bAT.ptr, 1, 1, dAT);
         auto out = download(h, bAT.ptr, hAT.size());
         const double err = local_max_error<T>(h, dAT, out, [&](int i, int j) {
             const Complex v = general_value(j, i, 6);
             return to_T<T>(conj ? std::conj(v) : v);
         });
-        require_close(h, tag_of(B, "ptran", ty, conj ? "conj" : "plain"), err, tol);
+        require_close(h, tag_of(B, "pgeadd transpose", ty, conj ? "conj" : "plain"), err, tol);
     }
 }
 
@@ -488,7 +489,7 @@ void check_rejected(const DdlaHandle_t& h, const char* name)
     bool threw2 = false;
     try { ddla::ptrtrs<Wrong>(h, 'L', 'L', 'N', 'N', n, n, d.ptr, desc, d.ptr, desc); } catch (const std::runtime_error&) { threw2 = true; }
     bool threw3 = false;
-    try { ddla::ptran<Wrong>(h, d.ptr, desc, d.ptr, desc, false); } catch (const std::runtime_error&) { threw3 = true; }
+    try { ddla::pgeadd<Wrong>(h, 'T', 'N', n, n, 1.0, d.ptr, 1, 1, desc, 0.0, d.ptr, 1, 1, desc, d.ptr, 1, 1, desc); } catch (const std::runtime_error&) { threw3 = true; }
     require_close(h, std::string(name) + " wrong-backend template rejected",
                   (threw ? 0.0 : 1.0) + (threw2 ? 0.0 : 1.0) + (threw3 ? 0.0 : 1.0), 0.0);
 }

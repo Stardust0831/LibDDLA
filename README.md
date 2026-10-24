@@ -19,7 +19,7 @@ runtime. All functions live in the `ddla` namespace.
   `pgemm`, and the distributed LU (`pgetrf`, `pgetrs`, `pgesv` and their
   `_nopiv` / `_bpiv` variants), Cholesky (`ppotrf`, `ppotrs`, `pposv`, the
   bottom-right variants) and triangular-solve (`ptrtrs`) routines with their
-  helpers (`pgeadd`, `pdam`, `ptran`). Each of them is templated on the
+  helpers (`pgeadd`, `pdam`). Each of them is templated on the
   backend, like `pgemm`: `pgetrf<DdlaBackend::CPU>(handle, ...)` runs on a CPU
   handle (host BLAS/LAPACK, MPI), `<DdlaBackend::GPU>` on a GPU handle, and the
   default is the build's default backend. Only the variable-size batched GEMMs
@@ -311,9 +311,8 @@ stream for GPU handles) and safely handle zero-byte requests (zero bytes sets
 | Function | Description |
 |----------|-------------|
 | `pgemm` | `C = α·op(A)·op(B) + β·C` (SUMMA algorithm) |
-| `pgeadd` | `C = α·op(A) + β·op(B)` |
+| `pgeadd` | `C = α·op(A) + β·op(B)` with required one-based `ia,ja`, `ib,jb`, `ic,jc`; aligned block layouts only (block sizes and within-block offsets match after `N/T/C`; `N` also requires matching owners); direct local `N,N` addition and one-destination local-region transpose on square grids (`m*n <= INT_MAX`); transpose-copy with `α=1`, `β=0` |
 | `pdam` | Add scalar to the diagonal of a distributed matrix (leading-block, optional `n`; default `-1` = whole matrix) |
-| `ptran` | Out-of-place distributed transpose (with optional conjugate) |
 | `transport_block` | Extract/transpose a contiguous block from a distributed matrix into a local buffer |
 
 ### LU factorization, solve, and drivers
@@ -414,7 +413,7 @@ All other headers — the `ddla_connector.h` runtime/CHECK utilities, the
 per-routine backend wrappers (`gemm.h`, `trsm.h`, `scal.h`, `axpy.h`,
 `swap.h`, `geru.h`, `iamax.h`, `geam.h`, `herk.h`, `syrk.h`, `trmm.h`,
 `gemmBatched.h`, `gemmVbatched.h`, `getrf.h`, `potrf.h`, `laswp.h`,
-`ptran.h`, `random_generate.h`, `write_matrix.h`, `transport_block.h`),
+`random_generate.h`, `write_matrix.h`, `transport_block.h`),
 `ddla_stream.h`, and `comm_traits.h` — are private under `src/` and included
 by relative path; the public surface is the three headers above.
 

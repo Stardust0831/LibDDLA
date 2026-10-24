@@ -58,10 +58,10 @@ void check_ppotrf(int n, const DdlaHandle_t& ddla_handle)
         'C', 'N',
         n, n,
         {1.0, 0.0},
-        d_A, matrix_desc,
+        d_A, 1, 1, matrix_desc,
         {1.0, 0.0},
-        d_A, matrix_desc,
-        d_A_copy, matrix_desc
+        d_A, 1, 1, matrix_desc,
+        d_A_copy, 1, 1, matrix_desc
     );
     DDLA_CHECK(ddlaSynchronize(ddla_handle));
     printf("myid:%d, pgeadd time:%lf\n", ddla_handle->myid, MPI_Wtime() - start_time_geadd);

@@ -29,7 +29,7 @@ modified by CI.
 
 | Stage | Partition | Job | Toolchain |
 |---|---|---|---|
-| GPU (HIP) | `kshdnormal` (4 ranks, 4 DCUs) | configure + build + `ctest -L gpu -E "test_ptran_mpi\|test_getrf_nopiv_mpi"` (40 cases) | gcc/11.2.0 + HPC-X + DTK 25.04.4 (gfx906) + RCCL (`DDLA_USE_CCL=ON`) |
+| GPU (HIP) | `kshdnormal` (4 ranks, 4 DCUs) | configure + build + `ctest -L gpu -E "test_getrf_nopiv_mpi"` | gcc/11.2.0 + HPC-X + DTK 25.04.4 (gfx906) + RCCL (`DDLA_USE_CCL=ON`) |
 
 KSSG notes baked into the control files:
 
@@ -55,10 +55,9 @@ KSSG notes baked into the control files:
   LibDDLA's HIP lib discovery; `DDLA_USE_CCL=ON` is mandatory — direct MPI
   on device pointers is pathologically slow (RCCL is ~1300× faster on
   panel-size broadcasts).
-- Two tests are excluded on the GPU suite: `test_ptran_mpi` (hardcoded 6
-  ranks, allocation has 4) and `test_getrf_nopiv_mpi` (n=15000 case is
-  pathologically slow on gfx906; its single-GPU sibling `test_getrf_nopiv`
-  stays in the suite and passes).
+- `test_getrf_nopiv_mpi` is excluded on the GPU suite: its n=15000 case
+  is pathologically slow on gfx906. Its single-GPU sibling
+  `test_getrf_nopiv` stays in the suite.
 
 The whole validation is **one** sbatch job: ~2.5 min build + ~7 min tests
 (the `test_pgetrf_nopiv` sweep with RCCL is 31 s) on a kshdnormal node;

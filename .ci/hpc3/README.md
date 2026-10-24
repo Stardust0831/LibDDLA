@@ -28,16 +28,16 @@ modified by CI.
 | Stage | Partition | Job | Toolchain |
 |---|---|---|---|
 | CPU | `p1` (8 cores) | configure + build + `ctest -L cpu` (5 cases) | gcc/11.4.0, openmpi/4.1.1, cmake/3.25.3, OpenBLAS |
-| GPU 4-rank suite | `v100g32fat` (4×V100) | configure + build + ctest minus `test_ptran_mpi` (42 cases) | gcc/11.3.0, openmpi/4.1.8-cuda, cmake/3.25.3, NVHPC 25.5 |
-| GPU 6-rank suite | `v100m3` (6×V100) | build `test_ptran` + ctest `-R ^test_ptran_mpi$` (1 case) | same |
+| GPU 4-rank suite | `v100g32fat` (4×V100) | configure + build + the default four-rank CTest suite | gcc/11.3.0, openmpi/4.1.8-cuda, cmake/3.25.3, NVHPC 25.5 |
+| GPU 6-rank suite | `v100m3` (6×V100) | build `test_pgeadd_indexed` + CTest at six ranks (1 case) | same |
 
 The GPU side is split into **two parallel jobs on different partitions**
 because `v100g32` is chronologically congested (the CI's own 8-GPU job has
 sat pending there for days): the default suite registers every test at
 `DDLA_TEST_NP=4` (two `potrf_bottom_right` cases at 1), so it runs on 4
-GPUs on `v100g32fat`; the single 6-rank exception `test_ptran` gets its own
-6-GPU job on `v100m3` (same V100 nodes, more idle capacity). One rank per
-GPU in both jobs via `gpurank_wrapper.sh`.
+GPUs on `v100g32fat`. Indexed `pgeadd` tests additionally run at
+`DDLA_TEST_NP=6` in their own job on `v100m3` (same V100 nodes, more idle
+capacity). One rank per GPU in both jobs via `gpurank_wrapper.sh`.
 
 Each stage writes `result_{cpu,gpu,gpu6}.json` +
 `summary_{cpu,gpu,gpu6}.md`; all three jobs must finish with exit 0 for the

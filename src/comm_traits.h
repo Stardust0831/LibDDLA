@@ -240,6 +240,41 @@ inline void commRecv(const DdlaHandle_t& h, CommScope scope, T* buf, std::size_t
     }
 }
 
+// A local transpose can send to one rank and receive a different-sized
+// region from another. MPI_Sendrecv also handles cycles longer than two.
+template <DdlaBackend Backend = detail::local_backend_v, typename T>
+inline void commSendrecv(const DdlaHandle_t& h, CommScope scope,
+    const T* sbuf, std::size_t scount, int dest, T* rbuf, std::size_t rcount, int source)
+{
+    if constexpr (Backend == DdlaBackend::CPU) {
+        MPI_CHECK(MPI_Sendrecv(sbuf, (int)scount, detail::mpi_datatype<T>(), dest, 0,
+                               rbuf, (int)rcount, detail::mpi_datatype<T>(), source, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+    } else {
+#if defined(DDLA_USE_GPU_CPU_TUNNEL)
+        T* hs = detail::tunnel_staging<T>(h, 0, scount);
+        T* hr = detail::tunnel_staging<T>(h, 1, rcount);
+        if (scount) DDLA_CHECK(ddlaMemcpy(h, hs, sbuf, scount * sizeof(T)));
+        DDLA_CHECK(ddlaSynchronize(h));
+        MPI_CHECK(MPI_Sendrecv(hs, (int)scount, detail::mpi_datatype<T>(), dest, 0,
+                               hr, (int)rcount, detail::mpi_datatype<T>(), source, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+        if (rcount) DDLA_CHECK(ddlaMemcpy(h, rbuf, hr, rcount * sizeof(T)));
+        DDLA_CHECK(ddlaSynchronize(h));
+#elif defined(DDLA_USE_CCL)
+        CommTraits<Backend>::group_start(h);
+        if (scount) commSend<Backend>(h, scope, sbuf, scount, dest);
+        if (rcount) commRecv<Backend>(h, scope, rbuf, rcount, source);
+        CommTraits<Backend>::group_end(h);
+#else
+        DDLA_CHECK(ddlaSynchronize(h));
+        MPI_CHECK(MPI_Sendrecv(sbuf, (int)scount, detail::mpi_datatype<T>(), dest, 0,
+                               rbuf, (int)rcount, detail::mpi_datatype<T>(), source, 0,
+                               CommTraits<Backend>::comm(h, scope), MPI_STATUS_IGNORE));
+#endif
+    }
+}
+
 // Simultaneous exchange with ONE peer: both ranks call this with the same count, each sends sbuf and receives rbuf.  The CCL path
 // issues the pair inside a group; every MPI path uses MPI_Sendrecv, because two ranks that both enter a blocking MPI_Send first
 // (what commGroupStart/commSend/commRecv/commGroupEnd degrades to on a CPU handle) hang once the message exceeds the eager limit.
@@ -335,8 +370,7 @@ inline void commAlltoallv(const DdlaHandle_t& h, CommScope scope, int nprocs,
         CommTraits<Backend>::group_end(h);
 #else
         // Tunnel (and "dead config" without CCL): host-staged single
-        // MPI_Alltoallv collective -- today's non-CCL ptran.cpp logic,
-        // hoisted out of its #ifdef unchanged.
+        // MPI_Alltoallv collective.
         int send_total = nprocs > 0 ? sdispls[nprocs - 1] + sendcounts[nprocs - 1] : 0;
         int recv_total = nprocs > 0 ? rdispls[nprocs - 1] + recvcounts[nprocs - 1] : 0;
         T* h_send = detail::tunnel_staging<T>(h, 0, static_cast<std::size_t>(send_total));

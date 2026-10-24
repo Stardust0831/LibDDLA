@@ -4,7 +4,7 @@
 # and writes per-stage result/summary files. The GPU side is split into two
 # jobs/partitions to avoid the congested v100g32 partition: gpu4 (4 GPUs,
 # the whole 4-rank suite, v100g32fat) and gpu6 (6 GPUs, the 6-rank
-# test_ptran, v100m3).
+# indexed pgeadd suite, v100m3).
 #
 # Usage: submit.sh <run_root>
 #   <run_root> must contain source/ (the commit), control/ (rendered from

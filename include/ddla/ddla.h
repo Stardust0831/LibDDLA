@@ -2,6 +2,7 @@
 #define DDLA_H
 
 #include <ddla/ddla_config.h>
+#include <ddla/ddla_vector.h>
 #include "ddla_desc.h"
 #include <cstdint>
 #include <complex>
@@ -17,7 +18,7 @@ template <typename T> struct real_type            { using type = T; };
 template <typename U> struct real_type<std::complex<U>> { using type = U; };
 
 // ---------------------------------------------------------------------------
-// Distributed triangular solves, LU and Cholesky factorizations/solvers and their helpers (ptrtrs ... ptran, below).
+// Distributed triangular solves, LU and Cholesky factorizations/solvers and their helpers (ptrtrs ... pdam, below).
 // Like pgemm, every routine is templated on the backend and runs on both: `pgetrf<DdlaBackend::CPU>(handle, ...)` for a
 // CPU handle, `pgetrf<DdlaBackend::GPU>(handle, ...)` for a GPU one.  The default is the build's default backend, so a
 // plain `pgetrf(handle, ...)` deduces the scalar type as before.  The template backend must equal the handle's backend
@@ -525,38 +526,52 @@ void pgemm(
 
 
 /**
- * @brief Distributed matrix addition: C := alpha * op(A) + beta * op(B).
+ * @brief Distributed addition: C(ic:ic+m-1,jc:jc+n-1) = alpha*op(A) + beta*op(B).
  *
- * Element-wise addition of two distributed matrices with optional transpose
- * operations.  Communication between processes is required when the data
- * distribution of op(A) differs from that of op(B) (e.g. one is transposed
- * and the other is not).
+ * The block sizes of op(A), op(B), and C must match: N keeps MB/NB;
+ * T/C swaps them. Starting offsets within these blocks must also match
+ * after applying N/T/C. N inputs must have the same owning ranks as C at
+ * their origins; N,N adds the local regions directly. On square grids T/C
+ * transposes each whole local region and sends it to one destination rank;
+ * rectangular grids exchange aligned blocks as needed. The single-message
+ * path requires m*n <= INT_MAX; larger regions use the block path. There
+ * is no reblocking or general redistribution; incompatible layouts throw
+ * std::invalid_argument, including for zero coefficients and empty regions.
+ * All six origins are required one-based global indices and may lie inside
+ * aligned distribution blocks. ia/ja and ib/jb locate the stored input regions before
+ * N/T/C is applied; transposed inputs have n stored rows and m stored columns.
+ * A zero coefficient leaves that input unread. Only the requested output
+ * region is modified. C may alias an input; input values are consumed before
+ * output is written.
  *
- * @tparam T    Scalar type.
+ * @tparam T       Scalar type.
  * @param handle   Handle owning the process grid and stream.
  * @param transa   Operation for A ('N','T','C').
  * @param transb   Operation for B ('N','T','C').
- * @param m        Rows of C.
- * @param n        Cols of C.
- * @param alpha    Scalar multiplier for op(A).
- * @param A      Pointer in the selected backend to distributed A.
+ * @param m        Rows of the output region.
+ * @param n        Columns of the output region.
+ * @param alpha    Multiplier for op(A).
+ * @param A        Distributed input A in the selected backend.
+ * @param ia       Starting global row in stored A (one-based).
+ * @param ja       Starting global column in stored A (one-based).
  * @param descA    ScaLAPACK int[9] descriptor for A.
- * @param beta     Scalar multiplier for op(B).
- * @param B      Pointer in the selected backend to distributed B.
+ * @param beta     Multiplier for op(B).
+ * @param B        Distributed input B in the selected backend.
+ * @param ib       Starting global row in stored B (one-based).
+ * @param jb       Starting global column in stored B (one-based).
  * @param descB    ScaLAPACK int[9] descriptor for B.
- * @param C      Pointer in the selected backend to result C (output).
+ * @param C        Distributed output C in the selected backend.
+ * @param ic       Starting global row in C (one-based).
+ * @param jc       Starting global column in C (one-based).
  * @param descC    ScaLAPACK int[9] descriptor for C.
  */
 template <DdlaBackend Backend = default_backend_v, typename T>
 void pgeadd(
-    const DdlaHandle_t& handle,
-    char transa, char transb,
+    const DdlaHandle_t& handle, char transa, char transb,
     int m, int n,
-    const T& alpha,
-    const T* A, const int* descA,
-    const T& beta,
-    const T* B, const int* descB,
-    T* C, const int* descC
+    const T& alpha, const T* A, int ia, int ja, const int* descA,
+    const T& beta, const T* B, int ib, int jb, const int* descB,
+    T* C, int ic, int jc, const int* descC
 );
 
 /**
@@ -1331,12 +1346,6 @@ void gemmVbatched2s(
     int batch_count,
     const int* segment_sizes,
     int segment_count);
-
-template <DdlaBackend Backend = default_backend_v, typename T>
-void ptran(const DdlaHandle_t& handle,
-           const T* A, const int* descA,
-           T* AT, const int* descAT,
-           bool conj = false);
 
 template <DdlaBackend Backend = default_backend_v, typename T>
 void transport_block(

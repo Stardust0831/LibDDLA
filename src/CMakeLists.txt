@@ -16,7 +16,7 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
     # are left out.  transport_block.cpp is here because the CPU pgemm and the
     # triangular solves call the unified transport_block<DdlaBackend::CPU,T>.
     # The files that keep a GPU kernel next to their CPU arm (getrf_nopiv, pdam,
-    # ptran, potrf_bottom_right_transform) compile as plain C++ here: all kernel
+    # pgeadd, potrf_bottom_right_transform) compile as plain C++ here: all kernel
     # code is behind DDLA_USE_CUDA / DDLA_USE_HIP.
     list(APPEND lib_sources
         gemm.cpp
@@ -69,7 +69,6 @@ if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
         ppotrf_bottom_right.cpp
         ppotrs.cpp
         pposv.cpp
-        ptran.cpp
         ddla_handle_t.cpp
         ddla_desc.cpp
     )
@@ -127,7 +126,6 @@ else()
         ppotrs.cpp
         pposv.cpp
         transport_block.cpp
-        ptran.cpp
         ddla_handle_t.cpp
         ddla_desc.cpp
     )
@@ -147,7 +145,7 @@ if(DDLA_USE_CUDA)
         pdam.cpp
         pgetf2_kernels.cpp
         potrf_bottom_right_transform.cpp
-        ptran.cpp
+        pgeadd.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp
@@ -171,7 +169,7 @@ if(DDLA_USE_HIP)
         pdam.cpp
         pgetf2_kernels.cpp
         potrf_bottom_right_transform.cpp
-        ptran.cpp
+        pgeadd.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp

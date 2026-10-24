@@ -84,7 +84,6 @@ api_grid_files=(
     "test_api_grid_device_memory"
     "test_api_grid_pgemm"
     "test_api_grid_pgeadd"
-    "test_api_grid_ptran"
     "test_api_grid_transport_block"
     "test_api_grid_pdam"
     "test_api_grid_pswap"
