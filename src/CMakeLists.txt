@@ -12,123 +12,125 @@ message(STATUS "Building ddla library version ${CMAKE_PROJECT_VERSION}")
 
 if(DDLA_USE_CPU AND NOT DDLA_DUAL_BUILD)
     # CPU-only build: every backend-templated routine; the sources that only
-    # carry GPU kernels (pgetf2_kernels.cpp, pgeqrf_kernels.cpp, pgebrd_kernels.cpp)
+    # carry GPU kernels (LU/pgetf2_kernels.cpp, QR/pgeqrf_kernels.cpp, SVD/pgebrd_kernels.cpp)
     # are left out.  transport_block.cpp is here because the CPU pgemm and the
     # triangular solves call the unified transport_block<DdlaBackend::CPU,T>.
     # The files that keep a GPU kernel next to their CPU arm (getrf_nopiv, pdam,
     # pgeadd, potrf_bottom_right_transform) compile as plain C++ here: all kernel
     # code is behind DDLA_USE_CUDA / DDLA_USE_HIP.
     list(APPEND lib_sources
-        gemm.cpp
-        herk.cpp
-        her2k.cpp
-        hemv.cpp
-        hemm.cpp
-        her2.cpp
-        gemv.cpp
-        trmv.cpp
-        nrm2.cpp
-        dot.cpp
-        trsm.cpp
-        syrk.cpp
-        trmm.cpp
-        gemmBatched.cpp
-        scal.cpp
-        geam.cpp
-        swap.cpp
-        getrf.cpp
-        potrf.cpp
-        laswp.cpp
-        axpy.cpp
-        iamax.cpp
-        geru.cpp
+        BLAS/gemm.cpp
+        BLAS/herk.cpp
+        BLAS/her2k.cpp
+        BLAS/hemv.cpp
+        BLAS/hemm.cpp
+        BLAS/her2.cpp
+        BLAS/gemv.cpp
+        BLAS/trmv.cpp
+        BLAS/nrm2.cpp
+        BLAS/dot.cpp
+        BLAS/trsm.cpp
+        BLAS/syrk.cpp
+        BLAS/trmm.cpp
+        BLAS/trtrm.cpp
+        BLAS/gemmBatched.cpp
+        BLAS/scal.cpp
+        BLAS/geam.cpp
+        BLAS/swap.cpp
+        LU/getrf.cpp
+        Cholesky/potrf.cpp
+        LU/laswp.cpp
+        BLAS/axpy.cpp
+        BLAS/iamax.cpp
+        BLAS/geru.cpp
         write_matrix.cpp
         random_generate.cpp
-        pgemm.cpp
-        pgemm_select.cpp
-        pgemm_stationary.cpp
+        PBLAS/pgemm.cpp
+        PBLAS/pgemm_select.cpp
+        PBLAS/pgemm_stationary.cpp
         transport_block.cpp
-        ptrtrs.cpp
-        pgetf2.cpp
-        pgetf2_panel.cpp
-        pgetrf.cpp
-        pgetrf_bpiv.cpp
-        pgetrf_nopiv.cpp
-        getrf_nopiv.cpp
-        plapiv.cpp
-        pswap.cpp
-        pgetrs.cpp
-        pgetrs_nopiv.cpp
-        pgetrs_bpiv.cpp
-        pgesv.cpp
-        pgesv_nopiv.cpp
-        pgesv_bpiv.cpp
-        pgeadd.cpp
-        pdam.cpp
-        ppotrf.cpp
-        potrf_bottom_right.cpp
-        potrf_bottom_right_transform.cpp
-        ppotrf_bottom_right.cpp
-        ppotrs.cpp
-        pposv.cpp
+        PBLAS/ptrtrs.cpp
+        LU/pgetf2.cpp
+        LU/pgetf2_panel.cpp
+        LU/pgetrf.cpp
+        LU/pgetrf_bpiv.cpp
+        LU/pgetrf_nopiv.cpp
+        LU/getrf_nopiv.cpp
+        PBLAS/plapiv.cpp
+        PBLAS/pswap.cpp
+        LU/pgetrs.cpp
+        LU/pgetrs_nopiv.cpp
+        LU/pgetrs_bpiv.cpp
+        LU/pgesv.cpp
+        LU/pgesv_nopiv.cpp
+        LU/pgesv_bpiv.cpp
+        PBLAS/pgeadd.cpp
+        PBLAS/pdam.cpp
+        Cholesky/ppotrf.cpp
+        Cholesky/potrf_bottom_right.cpp
+        Cholesky/potrf_bottom_right_transform.cpp
+        Cholesky/ppotrf_bottom_right.cpp
+        Cholesky/ppotrs.cpp
+        Cholesky/pposv.cpp
         ddla_handle_t.cpp
         ddla_desc.cpp
     )
 else()
     # GPU-only or dual build: full accelerator source set.
     list(APPEND lib_sources
-        gemm.cpp
-        herk.cpp
-        her2k.cpp
-        hemv.cpp
-        hemm.cpp
-        her2.cpp
-        gemv.cpp
-        trmv.cpp
-        nrm2.cpp
-        dot.cpp
-        trsm.cpp
-        syrk.cpp
-        trmm.cpp
-        gemmBatched.cpp
-        scal.cpp
-        geam.cpp
-        swap.cpp
-        getrf.cpp
-        potrf.cpp
-        laswp.cpp
-        axpy.cpp
-        iamax.cpp
-        geru.cpp
+        BLAS/gemm.cpp
+        BLAS/herk.cpp
+        BLAS/her2k.cpp
+        BLAS/hemv.cpp
+        BLAS/hemm.cpp
+        BLAS/her2.cpp
+        BLAS/gemv.cpp
+        BLAS/trmv.cpp
+        BLAS/nrm2.cpp
+        BLAS/dot.cpp
+        BLAS/trsm.cpp
+        BLAS/syrk.cpp
+        BLAS/trmm.cpp
+        BLAS/trtrm.cpp
+        BLAS/gemmBatched.cpp
+        BLAS/scal.cpp
+        BLAS/geam.cpp
+        BLAS/swap.cpp
+        LU/getrf.cpp
+        Cholesky/potrf.cpp
+        LU/laswp.cpp
+        BLAS/axpy.cpp
+        BLAS/iamax.cpp
+        BLAS/geru.cpp
         write_matrix.cpp
         random_generate.cpp
-        ptrtrs.cpp
-        pgetf2.cpp
-        pgetf2_kernels.cpp
-        pgetf2_panel.cpp
-        pgetrf.cpp
-        pgetrf_bpiv.cpp
-        pgetrf_nopiv.cpp
-        getrf_nopiv.cpp
-        plapiv.cpp
-        pswap.cpp
-        pgetrs.cpp
-        pgetrs_nopiv.cpp
-        pgetrs_bpiv.cpp
-        pgesv.cpp
-        pgesv_nopiv.cpp
-        pgesv_bpiv.cpp
-        pgemm.cpp
-        pgemm_select.cpp
-        pgemm_stationary.cpp
-        pgeadd.cpp
-        pdam.cpp
-        ppotrf.cpp
-        potrf_bottom_right.cpp
-        potrf_bottom_right_transform.cpp
-        ppotrf_bottom_right.cpp
-        ppotrs.cpp
-        pposv.cpp
+        PBLAS/ptrtrs.cpp
+        LU/pgetf2.cpp
+        LU/pgetf2_kernels.cpp
+        LU/pgetf2_panel.cpp
+        LU/pgetrf.cpp
+        LU/pgetrf_bpiv.cpp
+        LU/pgetrf_nopiv.cpp
+        LU/getrf_nopiv.cpp
+        PBLAS/plapiv.cpp
+        PBLAS/pswap.cpp
+        LU/pgetrs.cpp
+        LU/pgetrs_nopiv.cpp
+        LU/pgetrs_bpiv.cpp
+        LU/pgesv.cpp
+        LU/pgesv_nopiv.cpp
+        LU/pgesv_bpiv.cpp
+        PBLAS/pgemm.cpp
+        PBLAS/pgemm_select.cpp
+        PBLAS/pgemm_stationary.cpp
+        PBLAS/pgeadd.cpp
+        PBLAS/pdam.cpp
+        Cholesky/ppotrf.cpp
+        Cholesky/potrf_bottom_right.cpp
+        Cholesky/potrf_bottom_right_transform.cpp
+        Cholesky/ppotrf_bottom_right.cpp
+        Cholesky/ppotrs.cpp
+        Cholesky/pposv.cpp
         transport_block.cpp
         ddla_handle_t.cpp
         ddla_desc.cpp
@@ -137,19 +139,20 @@ endif()
 
 if(DDLA_USE_CUDA)
     list(APPEND lib_sources
-        gemm_vbatched.cpp
+        BLAS/gemm_vbatched.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp
         vbatched/zgemm_vbatched_core.cpp
     )
     set_source_files_properties(
-        getrf_nopiv.cpp
-        gemm_vbatched.cpp
-        pdam.cpp
-        pgetf2_kernels.cpp
-        potrf_bottom_right_transform.cpp
-        pgeadd.cpp
+        LU/getrf_nopiv.cpp
+        BLAS/gemm_vbatched.cpp
+        PBLAS/pdam.cpp
+        LU/pgetf2_kernels.cpp
+        Cholesky/potrf_bottom_right_transform.cpp
+        PBLAS/pgeadd.cpp
+        BLAS/trtrm.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp
@@ -161,19 +164,20 @@ endif()
 
 if(DDLA_USE_HIP)
     list(APPEND lib_sources
-        gemm_vbatched.cpp
+        BLAS/gemm_vbatched.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp
         vbatched/zgemm_vbatched_core.cpp
     )
     set_source_files_properties(
-        getrf_nopiv.cpp
-        gemm_vbatched.cpp
-        pdam.cpp
-        pgetf2_kernels.cpp
-        potrf_bottom_right_transform.cpp
-        pgeadd.cpp
+        LU/getrf_nopiv.cpp
+        BLAS/gemm_vbatched.cpp
+        PBLAS/pdam.cpp
+        LU/pgetf2_kernels.cpp
+        Cholesky/potrf_bottom_right_transform.cpp
+        PBLAS/pgeadd.cpp
+        BLAS/trtrm.cpp
         vbatched/sgemm_vbatched_core.cpp
         vbatched/dgemm_vbatched_core.cpp
         vbatched/cgemm_vbatched_core.cpp
@@ -208,7 +212,7 @@ if(DDLA_USE_DEBUG)
 endif()
 
 if(DDLA_USE_HIP)
-    # CXX-language TUs (gemm.cpp, scal.cpp, the tests, ...) include vendor HIP
+    # CXX-language TUs (BLAS/gemm.cpp, BLAS/scal.cpp, the tests, ...) include vendor HIP
     # headers through ddla_connector.h. Only the LANGUAGE HIP sources get ROCm
     # include paths from hipcc itself, so point every other compile at
     # ${ROCM_PATH}/include explicitly (the df_dcu module env does this via
@@ -230,7 +234,7 @@ endif()
 target_link_libraries(ddla_lib PUBLIC ${math_libs})
 
 # ---------------------------------------------------------------------------
-# geam.cpp, gemmBatched.cpp: the CPU arms of ddla::geam and ddla::gemmBatched run on OpenMP threads.  Those translation
+# BLAS/geam.cpp, BLAS/gemmBatched.cpp: the CPU arms of ddla::geam and ddla::gemmBatched run on OpenMP threads.  Those translation
 # units are compiled by the plain host compiler in every build (never by nvcc/hipcc) with -ffp-contract=off; with OpenMP found they get -fopenmp
 # and libgomp is linked PRIVATE (the shared library records the NEEDED entry); without OpenMP it runs serially
 # with identical results.
@@ -247,7 +251,7 @@ if(DDLA_USE_OPENMP)
         message(WARNING "ddla: OpenMP not found; the host kernels run serially")
     endif()
 endif()
-set_source_files_properties(geam.cpp gemmBatched.cpp PROPERTIES COMPILE_OPTIONS "${_ddla_cpu_kernel_opts}")
+set_source_files_properties(BLAS/geam.cpp BLAS/gemmBatched.cpp PROPERTIES COMPILE_OPTIONS "${_ddla_cpu_kernel_opts}")
 
 install(TARGETS ddla_lib
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

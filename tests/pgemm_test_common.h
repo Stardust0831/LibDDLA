@@ -1,7 +1,7 @@
 #ifndef DDLA_PGEMM_TEST_COMMON_H
 #define DDLA_PGEMM_TEST_COMMON_H
 #include "matrix_test_common.h"
-#include "pgemm_impl.h"
+#include "PBLAS/pgemm_impl.h"
 
 using pgemm_impl::Algorithm;
 

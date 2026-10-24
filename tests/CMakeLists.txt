@@ -192,27 +192,33 @@ add_test_executable(test_api_grid_pgeqrf)
 # work); the math is host code compiled into every backend, so one cpu label
 # registration is enough and the gpu label keeps gpu ctest fast.
 add_test_executable(test_qr_norm_fold)
-set_tests_properties(test_qr_norm_fold_mpi PROPERTIES LABELS cpu)
+if(TARGET test_qr_norm_fold)
+    set_tests_properties(test_qr_norm_fold_mpi PROPERTIES LABELS cpu)
+endif()
 
 # The pgeqrf grid test's bitwise-repeat poisoning needs glibc's malloc
 # perturbation to reach tcache-sized allocations: the per-thread tcache
 # serves them WITHOUT perturbation unless the tunable disables it (glibc
 # 2.28 on this cluster).
-set_tests_properties(test_api_grid_pgeqrf_mpi PROPERTIES
-    ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0")
+if(TARGET test_api_grid_pgeqrf)
+    set_tests_properties(test_api_grid_pgeqrf_mpi PROPERTIES
+        ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0")
+endif()
 # QL factorization (pgeqrf with uplo = 'L') and the uplo dispatch, same
 # bitwise-repeat poisoning requirement as the pgeqrf grid test.
 add_test_executable(test_api_grid_pgeqrf_ql)
-set_tests_properties(test_api_grid_pgeqrf_ql_mpi PROPERTIES
-    ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0")
+if(TARGET test_api_grid_pgeqrf_ql)
+    set_tests_properties(test_api_grid_pgeqrf_ql_mpi PROPERTIES
+        ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0")
+endif()
 # the GLIBC_TUNABLES overrides replace the whole ENVIRONMENT list:
 # re-append the GPU lane thread caps so the host-side panel work does not
 # oversubscribe (measured 2026-10-24: pgeqrf ~16-thread pools, GPUs idle).
-if(DDLA_USE_CUDA OR DDLA_USE_HIP)
+if((DDLA_USE_CUDA OR DDLA_USE_HIP) AND TARGET test_api_grid_pgeqrf)
     set_tests_properties(test_api_grid_pgeqrf_mpi PROPERTIES
         ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0;OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
 endif()
-if(DDLA_USE_CUDA OR DDLA_USE_HIP)
+if((DDLA_USE_CUDA OR DDLA_USE_HIP) AND TARGET test_api_grid_pgeqrf_ql)
     set_tests_properties(test_api_grid_pgeqrf_ql_mpi PROPERTIES
         ENVIRONMENT "GLIBC_TUNABLES=glibc.malloc.tcache_count=0;OMP_NUM_THREADS=1;OPENBLAS_NUM_THREADS=1")
 endif()
@@ -360,6 +366,8 @@ endif()
 
 if(DDLA_USE_CPU)
     add_test_executable(test_hb2st_cpu_failures)
+endif()
+if(TARGET test_hb2st_cpu_failures)
     target_include_directories(test_hb2st_cpu_failures PRIVATE ${CMAKE_SOURCE_DIR}/src)
     set_tests_properties(test_hb2st_cpu_failures_mpi PROPERTIES TIMEOUT 180 LABELS cpu)
     add_test(NAME test_hb2st_cpu_failures_mpi1
@@ -370,12 +378,15 @@ endif()
 
 if(DDLA_USE_CPU)
     add_test_executable(test_pheevd_cpu_replay)
+endif()
+if(TARGET test_pheevd_cpu_replay)
     target_include_directories(test_pheevd_cpu_replay PRIVATE ${CMAKE_SOURCE_DIR}/src)
     set_tests_properties(test_pheevd_cpu_replay_mpi PROPERTIES TIMEOUT 600 LABELS cpu)
 endif()
 
 # CPU handle even in dual builds; executable LAPACK interposition needs ELF/dl.
-if((DDLA_USE_CPU OR DDLA_DUAL_BUILD) AND UNIX)
+if((DDLA_USE_CPU OR DDLA_DUAL_BUILD) AND UNIX
+   AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/test_pstedc_threads.cpp")
     add_executable(test_pstedc_threads test_pstedc_threads.cpp)
     target_link_libraries(test_pstedc_threads PRIVATE ddla_lib ${CMAKE_DL_LIBS})
     target_include_directories(test_pstedc_threads PRIVATE ${CMAKE_SOURCE_DIR}/src)

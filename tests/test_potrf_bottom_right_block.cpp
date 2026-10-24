@@ -12,7 +12,7 @@
 #include "ddla_connector.h"
 #include "ddla_stream_impl.h"
 
-#include "potrf_bottom_right_internal.h"
+#include "Cholesky/potrf_bottom_right_internal.h"
 
 using namespace ddla;
 
