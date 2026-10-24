@@ -1,0 +1,53 @@
+{
+  "ddla_base": "10873422d01f8a8798ac5462673446494849b96a",
+  "ddla_candidate": "dcd0881d806ef0e4df9f74367a0304f6d383c24d",
+  "abacus": "1aaeb8ff453dce854ef67e7f2e49d30700250194",
+  "libri": "a0661cbb4b4f89ceeb23e040d49accb00943093f",
+  "libri_adapter": "libri-public-api.patch",
+  "fork_pr": "https://github.com/Stardust0831/LibDDLA/pull/8",
+  "configuration": "CUDA 12.9.1, Release, sm_70; one MPI rank per GPU, four physical CPU cores per rank, serial BLAS",
+  "source_sha256": {
+    "src/BLAS/gemm_vbatched.cpp": "22b3bbf740fed7c9dc1897c0310403c711034e2b4eabe813e1214ef23d7ebaa6",
+    "tests/test_gemm_vbatched.cpp": "46a96da470076f9ae095f357fbe90decc5b50e0e37b004d30601459dc683e94f"
+  },
+  "archive_sha256": {
+    "abacus-source.tar.gz": "6f1f23650d35094f0efa02718ebbdd709403a7abd470d5ec978e8a3ba52ac145",
+    "ddla-baseline.tar.gz": "f156c066f154c4d803a94c206562f305429fdc09f5c845350bbc21fbf24df69a",
+    "ddla-candidate.tar.gz": "19b869c31015fbbbe3e7d7d44929924ce7984a17f3bbe0538fc3a828bf0fa0cb",
+    "libri-adapted.tar.gz": "4f53e456bd6ac7eff124eab15b618dc52d8352d72ab00e745a570cd4625fdc69",
+    "libri-upstream.tar.gz": "04d391b66b0ee59e36c6fe1db6d9b736512858d8b0fa9450857dba27c670458e"
+  },
+  "test_jobs": {
+    "ddla_build_regression": 1924093,
+    "libri_tests_abacus_build": 1924104,
+    "si64_single_point_and_microbenchmark": 1924186,
+    "final_regression_and_profile": 1924210,
+    "si64_forces": 1924357,
+    "cspbi3": 1924380,
+    "si8_and_si128": 1924381,
+    "hse_profile": 1924510,
+    "final_regression": 1924678,
+    "cspbi3_cpu_reference_60g": 1925075
+  },
+  "test_notes": [
+    "Job 1924186 was stopped after all six Si64 single-point runs completed, to split the remaining cases into independent jobs.",
+    "Jobs 1924306, 1924307, 1924308 were cancelled by the scheduler before execution. Standard script-only submissions were used for retries.",
+    "The original DDLA candidate archive contains b79e6d5. Subsequent commits only strengthen the regression tests. The final dcd0881 test source was rebuilt and run against both libraries on 1/2 GPU ranks; production sources are identical.",
+    "The ABACUS reference branch selects additional RI initialization optimizations when device_exx=gpu. CPU contraction reference runs therefore also exercise its older initialization path; only baseline-versus-candidate GPU runs are used for the DDLA performance ratios.",
+    "The CsPbI3 CPU reference in job 1924380 exceeded its 30 GiB host-memory allocation after approximately 712 s of RI initialization. Its failed inputs/logs were retained in results/failed-cpu-reference-30GiB. Job 1925075 retries that reference with 60 GiB host memory (four GPUs allocated), retaining two MPI ranks, four threads per rank and two visible GPUs. Completed GPU timing samples are reused unchanged.",
+    "Job 1925075 completed the CsPbI3 CPU reference successfully in 775.787 s; all comparisons passed."
+  ],
+  "gpu_regression": {
+    "mpi_ranks": [
+      1,
+      2
+    ],
+    "scalar_types": [
+      "float",
+      "double",
+      "complex<float>",
+      "complex<double>"
+    ],
+    "cases_per_rank": 64
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "install-baseline/lib/libddla.so.0.0.5": "b962d986900df713ac0543ba92ca0362438b34d4d4db04a50f304e34e05118b0",
+  "install-candidate/lib/libddla.so.0.0.5": "6ba876ba6ed20eed706f21f882a9b5f09e1b632efbbc27ab8dcde93834782ab8",
+  "ddla-candidate/src/BLAS/gemm_vbatched.cpp": "22b3bbf740fed7c9dc1897c0310403c711034e2b4eabe813e1214ef23d7ebaa6",
+  "ddla-candidate/tests/test_gemm_vbatched.cpp": "46a96da470076f9ae095f357fbe90decc5b50e0e37b004d30601459dc683e94f",
+  "abacus-build/abacus_std_gpu": "939e50e718f7d5c48441014769b4d70ae3966985e68ee29b1e0e8db9b2c80dbf"
+}

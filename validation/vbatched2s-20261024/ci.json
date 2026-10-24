@@ -1,0 +1,20 @@
+[
+  {
+    "name": "CPU build + ctest (mpirun)",
+    "head_sha": "dcd0881d806ef0e4df9f74367a0304f6d383c24d",
+    "conclusion": "success",
+    "html_url": "https://github.com/Stardust0831/LibDDLA/actions/runs/40110583376/job/120921268177"
+  },
+  {
+    "name": "CUDA build (compile check, no GPU runner)",
+    "head_sha": "dcd0881d806ef0e4df9f74367a0304f6d383c24d",
+    "conclusion": "success",
+    "html_url": "https://github.com/Stardust0831/LibDDLA/actions/runs/40110583376/job/120921268108"
+  },
+  {
+    "name": "HIP build (compile check, no DCU runner)",
+    "head_sha": "dcd0881d806ef0e4df9f74367a0304f6d383c24d",
+    "conclusion": "success",
+    "html_url": "https://github.com/Stardust0831/LibDDLA/actions/runs/40110583376/job/120921268072"
+  }
+]

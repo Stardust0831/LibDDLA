@@ -1,0 +1,332 @@
+{
+  "baseline": {
+    "validation_kernel_count": 684,
+    "validation_gpu_ms": 1.629401,
+    "all_gpu_kernel_ms": 6452.142954,
+    "validation_rows": [
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "817532",
+        "Instances": "342",
+        "Avg (ns)": "2390.4",
+        "Med (ns)": "2400.0",
+        "Min (ns)": "1856",
+        "Max (ns)": "7008",
+        "StdDev (ns)": "341.6",
+        "Name": "<unnamed>::validate_and_max_dimensions(cublasOperation_t, cublasOperation_t, const int *, const int *, const int *, const int *, const int *, const int *, int, int *)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "811869",
+        "Instances": "342",
+        "Avg (ns)": "2373.9",
+        "Med (ns)": "2400.0",
+        "Min (ns)": "1856",
+        "Max (ns)": "3200",
+        "StdDev (ns)": "220.0",
+        "Name": "<unnamed>::validate_and_max_dimensions(cublasOperation_t, cublasOperation_t, const int *, const int *, const int *, const int *, const int *, const int *, int, int *)"
+      }
+    ],
+    "batched_gemm_kernel_count": 99828,
+    "batched_gemm_gpu_ms": 4444.25038,
+    "cuda_api_rank_0": [
+      {
+        "name": "cudaMallocAsync_v11020",
+        "calls": 3078,
+        "time_ms": 5875.977588
+      },
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 674186,
+        "time_ms": 4903.024488
+      },
+      {
+        "name": "cudaStreamSynchronize",
+        "calls": 2208,
+        "time_ms": 4733.367416
+      },
+      {
+        "name": "cudaFreeAsync_v11020",
+        "calls": 3078,
+        "time_ms": 15.22135
+      }
+    ],
+    "cuda_api_rank_1": [
+      {
+        "name": "cudaMallocAsync_v11020",
+        "calls": 3078,
+        "time_ms": 5819.122653
+      },
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 674188,
+        "time_ms": 5227.869029
+      },
+      {
+        "name": "cudaStreamSynchronize",
+        "calls": 2208,
+        "time_ms": 4585.870754
+      },
+      {
+        "name": "cudaFreeAsync_v11020",
+        "calls": 3078,
+        "time_ms": 15.564234
+      }
+    ],
+    "ddla_compute_kernel_count": 684,
+    "ddla_compute_gpu_ms": 3935.846491,
+    "ddla_compute_rows": [
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "55.5",
+        "Total Time (ns)": "1799807168",
+        "Instances": "285",
+        "Avg (ns)": "6315112.9",
+        "Med (ns)": "5822447.0",
+        "Min (ns)": "2563225",
+        "Max (ns)": "9884709",
+        "StdDev (ns)": "2650669.0",
+        "Name": "void gemm_template_vbatched_tt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "3.4",
+        "Total Time (ns)": "109652968",
+        "Instances": "42",
+        "Avg (ns)": "2610785.0",
+        "Med (ns)": "2696296.5",
+        "Min (ns)": "2305209",
+        "Max (ns)": "2749176",
+        "StdDev (ns)": "153998.4",
+        "Name": "void gemm_template_vbatched_nt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "2.3",
+        "Total Time (ns)": "74950669",
+        "Instances": "15",
+        "Avg (ns)": "4996711.3",
+        "Med (ns)": "5016786.0",
+        "Min (ns)": "4879314",
+        "Max (ns)": "5034353",
+        "StdDev (ns)": "42233.1",
+        "Name": "void gemm_template_vbatched_tn_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)16, (int)16, (int)32, (int)8, (int)1, (int)8, (int)16, (int)8, (int)16, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "55.1",
+        "Total Time (ns)": "1768102044",
+        "Instances": "285",
+        "Avg (ns)": "6203866.8",
+        "Med (ns)": "5752530.0",
+        "Min (ns)": "2544697",
+        "Max (ns)": "9657992",
+        "StdDev (ns)": "2580702.6",
+        "Name": "void gemm_template_vbatched_tt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "3.4",
+        "Total Time (ns)": "108233982",
+        "Instances": "42",
+        "Avg (ns)": "2576999.6",
+        "Med (ns)": "2688025.5",
+        "Min (ns)": "2294874",
+        "Max (ns)": "2735865",
+        "StdDev (ns)": "172815.2",
+        "Name": "void gemm_template_vbatched_nt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "2.3",
+        "Total Time (ns)": "75099660",
+        "Instances": "15",
+        "Avg (ns)": "5006644.0",
+        "Med (ns)": "5024660.0",
+        "Min (ns)": "4892853",
+        "Max (ns)": "5043892",
+        "StdDev (ns)": "42076.3",
+        "Name": "void gemm_template_vbatched_tn_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)16, (int)16, (int)32, (int)8, (int)1, (int)8, (int)16, (int)8, (int)16, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      }
+    ]
+  },
+  "candidate": {
+    "validation_kernel_count": 456,
+    "validation_gpu_ms": 2.015869,
+    "all_gpu_kernel_ms": 6466.845164,
+    "validation_rows": [
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "708192",
+        "Instances": "114",
+        "Avg (ns)": "6212.2",
+        "Med (ns)": "5936.0",
+        "Min (ns)": "4608",
+        "Max (ns)": "8192",
+        "StdDev (ns)": "1122.5",
+        "Name": "void <unnamed>::validate_and_max_dimensions<(int)2>(<unnamed>::ValidationInput<T1>, int, int *)"
+      },
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "296095",
+        "Instances": "114",
+        "Avg (ns)": "2597.3",
+        "Med (ns)": "2528.0",
+        "Min (ns)": "2400",
+        "Max (ns)": "3552",
+        "StdDev (ns)": "194.8",
+        "Name": "void <unnamed>::validate_and_max_dimensions<(int)1>(<unnamed>::ValidationInput<T1>, int, int *)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "717311",
+        "Instances": "114",
+        "Avg (ns)": "6292.2",
+        "Med (ns)": "6000.0",
+        "Min (ns)": "4672",
+        "Max (ns)": "8416",
+        "StdDev (ns)": "1212.4",
+        "Name": "void <unnamed>::validate_and_max_dimensions<(int)2>(<unnamed>::ValidationInput<T1>, int, int *)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "0.0",
+        "Total Time (ns)": "294271",
+        "Instances": "114",
+        "Avg (ns)": "2581.3",
+        "Med (ns)": "2512.0",
+        "Min (ns)": "2368",
+        "Max (ns)": "3360",
+        "StdDev (ns)": "189.8",
+        "Name": "void <unnamed>::validate_and_max_dimensions<(int)1>(<unnamed>::ValidationInput<T1>, int, int *)"
+      }
+    ],
+    "batched_gemm_kernel_count": 99828,
+    "batched_gemm_gpu_ms": 4458.818519,
+    "cuda_api_rank_0": [
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 674073,
+        "time_ms": 5035.738682
+      },
+      {
+        "name": "cudaMallocAsync_v11020",
+        "calls": 2964,
+        "time_ms": 4704.357718
+      },
+      {
+        "name": "cudaStreamSynchronize",
+        "calls": 2094,
+        "time_ms": 4415.965466
+      },
+      {
+        "name": "cudaFreeAsync_v11020",
+        "calls": 2964,
+        "time_ms": 16.163787
+      }
+    ],
+    "cuda_api_rank_1": [
+      {
+        "name": "cudaMemcpyAsync",
+        "calls": 674068,
+        "time_ms": 5129.930467
+      },
+      {
+        "name": "cudaMallocAsync_v11020",
+        "calls": 2964,
+        "time_ms": 5011.643821
+      },
+      {
+        "name": "cudaStreamSynchronize",
+        "calls": 2094,
+        "time_ms": 4216.669382
+      },
+      {
+        "name": "cudaFreeAsync_v11020",
+        "calls": 2964,
+        "time_ms": 15.635686
+      }
+    ],
+    "ddla_compute_kernel_count": 684,
+    "ddla_compute_gpu_ms": 3950.110067,
+    "ddla_compute_rows": [
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "55.6",
+        "Total Time (ns)": "1803727197",
+        "Instances": "285",
+        "Avg (ns)": "6328867.4",
+        "Med (ns)": "5906095.0",
+        "Min (ns)": "2563705",
+        "Max (ns)": "9890724",
+        "StdDev (ns)": "2648015.1",
+        "Name": "void gemm_template_vbatched_tt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "3.4",
+        "Total Time (ns)": "109634087",
+        "Instances": "42",
+        "Avg (ns)": "2610335.4",
+        "Med (ns)": "2696776.5",
+        "Min (ns)": "2306073",
+        "Max (ns)": "2745688",
+        "StdDev (ns)": "154673.6",
+        "Name": "void gemm_template_vbatched_nt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-0-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "2.3",
+        "Total Time (ns)": "74723049",
+        "Instances": "15",
+        "Avg (ns)": "4981536.6",
+        "Med (ns)": "5000945.0",
+        "Min (ns)": "4869458",
+        "Max (ns)": "5011762",
+        "StdDev (ns)": "40419.7",
+        "Name": "void gemm_template_vbatched_tn_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)16, (int)16, (int)32, (int)8, (int)1, (int)8, (int)16, (int)8, (int)16, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "55.2",
+        "Total Time (ns)": "1778711367",
+        "Instances": "285",
+        "Avg (ns)": "6241092.5",
+        "Med (ns)": "6032466.0",
+        "Min (ns)": "2529434",
+        "Max (ns)": "9657032",
+        "StdDev (ns)": "2577567.3",
+        "Name": "void gemm_template_vbatched_tt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "3.4",
+        "Total Time (ns)": "108438170",
+        "Instances": "42",
+        "Avg (ns)": "2581861.2",
+        "Med (ns)": "2688569.5",
+        "Min (ns)": "2288475",
+        "Max (ns)": "2751481",
+        "StdDev (ns)": "172907.6",
+        "Name": "void gemm_template_vbatched_nt_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)8, (int)16, (int)16, (int)8, (int)1, (int)8, (int)8, (int)8, (int)8, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      },
+      {
+        "rank_file": "rank-1-summary_cuda_gpu_kern_sum.csv",
+        "Time (%)": "2.3",
+        "Total Time (ns)": "74876197",
+        "Instances": "15",
+        "Avg (ns)": "4991746.5",
+        "Med (ns)": "5010420.0",
+        "Min (ns)": "4876020",
+        "Max (ns)": "5026003",
+        "StdDev (ns)": "42364.6",
+        "Name": "void gemm_template_vbatched_tn_kernel<thrust::THRUST_200802_SM_700_NS::complex<double>, (int)8, (int)16, (int)16, (int)32, (int)8, (int)1, (int)8, (int)16, (int)8, (int)16, (int)0, (int)0>(int *, int *, int *, const T1 *const *, int, int, int *, const T1 *const *, int, int, int *, T1 **, int, int, int *, T1, T1, int, int, int)"
+      }
+    ]
+  }
+}

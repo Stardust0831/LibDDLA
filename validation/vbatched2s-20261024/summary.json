@@ -1,0 +1,693 @@
+{
+  "cases": [
+    {
+      "material": "si64",
+      "mode": "single_point",
+      "gpus": 1,
+      "wall_samples": {
+        "baseline": [
+          131.31831662822515,
+          132.7740434743464,
+          131.08456781692803
+        ],
+        "candidate": [
+          129.20325055439025,
+          132.09940588474274,
+          130.91367726959288
+        ]
+      },
+      "wall_medians": {
+        "baseline": 131.31831662822515,
+        "candidate": 130.91367726959288
+      },
+      "wall_speedup": 1.0030908868123762,
+      "wall_time_reduction_percent": 0.30813626691380547,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              25.48,
+              25.6,
+              24.6
+            ],
+            "candidate": [
+              24.85,
+              24.59,
+              25.0
+            ]
+          },
+          "medians": {
+            "baseline": 25.48,
+            "candidate": 24.85
+          },
+          "speedup": 1.0253521126760563
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          6558,
+          6558,
+          6558
+        ],
+        "candidate": [
+          6558,
+          6558,
+          6558
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ]
+        ],
+        "candidate": [
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ]
+        ]
+      }
+    },
+    {
+      "material": "si64",
+      "mode": "forces",
+      "gpus": 1,
+      "wall_samples": {
+        "baseline": [
+          175.5805685147643,
+          174.0226063746959,
+          177.4925790205598
+        ],
+        "candidate": [
+          178.99851024523377,
+          175.56588985212147,
+          180.36198072321713
+        ]
+      },
+      "wall_medians": {
+        "baseline": 175.5805685147643,
+        "candidate": 178.99851024523377
+      },
+      "wall_speedup": 0.9809051945416374,
+      "wall_time_reduction_percent": -1.9466514770864585,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              26.95,
+              27.56,
+              27.45
+            ],
+            "candidate": [
+              27.68,
+              27.75,
+              27.18
+            ]
+          },
+          "medians": {
+            "baseline": 27.45,
+            "candidate": 27.68
+          },
+          "speedup": 0.9916907514450867
+        },
+        "Exx_LRI.cal_exx_force": {
+          "samples": {
+            "baseline": [
+              35.32,
+              33.3,
+              33.47
+            ],
+            "candidate": [
+              33.87,
+              33.02,
+              33.8
+            ]
+          },
+          "medians": {
+            "baseline": 33.47,
+            "candidate": 33.8
+          },
+          "speedup": 0.9902366863905326
+        },
+        "ESolver_KS_LCAO.cal_force": {
+          "samples": {
+            "baseline": [
+              36.29,
+              34.31,
+              34.49
+            ],
+            "candidate": [
+              35.08,
+              34.03,
+              34.89
+            ]
+          },
+          "medians": {
+            "baseline": 34.49,
+            "candidate": 34.89
+          },
+          "speedup": 0.9885353969618802
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          6578,
+          6578,
+          6578
+        ],
+        "candidate": [
+          6578,
+          6578,
+          6578
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ]
+        ],
+        "candidate": [
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ],
+          [
+            7,
+            96
+          ]
+        ]
+      }
+    },
+    {
+      "material": "cspbi3_20",
+      "mode": "single_point",
+      "gpus": 2,
+      "wall_samples": {
+        "baseline": [
+          138.92383744940162,
+          140.32097480632365,
+          143.99284286797047
+        ],
+        "candidate": [
+          140.32343597896397,
+          138.8596565797925,
+          145.94154980406165
+        ]
+      },
+      "wall_medians": {
+        "baseline": 140.32097480632365,
+        "candidate": 140.32343597896397
+      },
+      "wall_speedup": 0.9999824607156805,
+      "wall_time_reduction_percent": -0.0017539591951276634,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              13.31,
+              13.47,
+              12.53
+            ],
+            "candidate": [
+              13.01,
+              13.01,
+              12.72
+            ]
+          },
+          "medians": {
+            "baseline": 13.31,
+            "candidate": 13.01
+          },
+          "speedup": 1.0230591852421216
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          2766,
+          2766,
+          2766
+        ],
+        "candidate": [
+          2766,
+          2766,
+          2766
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ]
+        ],
+        "candidate": [
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ]
+        ]
+      }
+    },
+    {
+      "material": "cspbi3_20",
+      "mode": "forces",
+      "gpus": 2,
+      "wall_samples": {
+        "baseline": [
+          176.28092173486948,
+          181.94535863026977,
+          183.54553066380322
+        ],
+        "candidate": [
+          181.59971210360527,
+          183.28307099081576,
+          181.17246582731605
+        ]
+      },
+      "wall_medians": {
+        "baseline": 181.94535863026977,
+        "candidate": 181.59971210360527
+      },
+      "wall_speedup": 1.0019033429219717,
+      "wall_time_reduction_percent": 0.18997270898615248,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              13.6,
+              13.25,
+              14.6
+            ],
+            "candidate": [
+              14.57,
+              13.38,
+              14.47
+            ]
+          },
+          "medians": {
+            "baseline": 13.6,
+            "candidate": 14.47
+          },
+          "speedup": 0.9398756046993779
+        },
+        "Exx_LRI.cal_exx_force": {
+          "samples": {
+            "baseline": [
+              15.46,
+              18.12,
+              18.09
+            ],
+            "candidate": [
+              18.09,
+              18.58,
+              18.01
+            ]
+          },
+          "medians": {
+            "baseline": 18.09,
+            "candidate": 18.09
+          },
+          "speedup": 1.0
+        },
+        "ESolver_KS_LCAO.cal_force": {
+          "samples": {
+            "baseline": [
+              15.85,
+              18.56,
+              18.49
+            ],
+            "candidate": [
+              18.45,
+              19.05,
+              18.45
+            ]
+          },
+          "medians": {
+            "baseline": 18.49,
+            "candidate": 18.45
+          },
+          "speedup": 1.0021680216802167
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          2786,
+          2766,
+          2786
+        ],
+        "candidate": [
+          2766,
+          2786,
+          2786
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ]
+        ],
+        "candidate": [
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ],
+          [
+            6,
+            89
+          ]
+        ]
+      }
+    },
+    {
+      "material": "si8",
+      "mode": "forces",
+      "gpus": 2,
+      "wall_samples": {
+        "baseline": [
+          71.65454200468957,
+          69.31970920786262,
+          68.74330846965313
+        ],
+        "candidate": [
+          71.68027872219682,
+          68.98676572367549,
+          72.31211306527257
+        ]
+      },
+      "wall_medians": {
+        "baseline": 69.31970920786262,
+        "candidate": 71.68027872219682
+      },
+      "wall_speedup": 0.9670680756769544,
+      "wall_time_reduction_percent": -3.405336723579988,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              8.29,
+              7.99,
+              7.28
+            ],
+            "candidate": [
+              8.97,
+              7.92,
+              9.47
+            ]
+          },
+          "medians": {
+            "baseline": 7.99,
+            "candidate": 8.97
+          },
+          "speedup": 0.890746934225195
+        },
+        "Exx_LRI.cal_exx_force": {
+          "samples": {
+            "baseline": [
+              9.43,
+              9.69,
+              8.54
+            ],
+            "candidate": [
+              9.07,
+              8.72,
+              8.27
+            ]
+          },
+          "medians": {
+            "baseline": 9.43,
+            "candidate": 8.72
+          },
+          "speedup": 1.0814220183486238
+        },
+        "ESolver_KS_LCAO.cal_force": {
+          "samples": {
+            "baseline": [
+              22.49,
+              22.04,
+              21.04
+            ],
+            "candidate": [
+              22.21,
+              21.21,
+              20.67
+            ]
+          },
+          "medians": {
+            "baseline": 22.04,
+            "candidate": 21.21
+          },
+          "speedup": 1.0391324846770391
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          1970,
+          1970,
+          1970
+        ],
+        "candidate": [
+          1970,
+          1970,
+          1970
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            6,
+            76
+          ],
+          [
+            6,
+            76
+          ],
+          [
+            6,
+            76
+          ]
+        ],
+        "candidate": [
+          [
+            6,
+            76
+          ],
+          [
+            6,
+            76
+          ],
+          [
+            6,
+            76
+          ]
+        ]
+      }
+    },
+    {
+      "material": "si128",
+      "mode": "forces",
+      "gpus": 2,
+      "wall_samples": {
+        "baseline": [
+          308.88573059625924,
+          314.1248788870871,
+          316.1572247557342
+        ],
+        "candidate": [
+          306.97581206075847,
+          313.1173601448536,
+          314.34885833598673
+        ]
+      },
+      "wall_medians": {
+        "baseline": 314.1248788870871,
+        "candidate": 313.1173601448536
+      },
+      "wall_speedup": 1.0032177032335972,
+      "wall_time_reduction_percent": 0.320738282750177,
+      "timers": {
+        "Exx_LRI.cal_exx_elec": {
+          "samples": {
+            "baseline": [
+              49.06,
+              52.56,
+              52.77
+            ],
+            "candidate": [
+              49.8,
+              52.81,
+              53.45
+            ]
+          },
+          "medians": {
+            "baseline": 52.56,
+            "candidate": 52.81
+          },
+          "speedup": 0.9952660480969513
+        },
+        "Exx_LRI.cal_exx_force": {
+          "samples": {
+            "baseline": [
+              61.57,
+              63.55,
+              61.84
+            ],
+            "candidate": [
+              59.63,
+              62.86,
+              62.57
+            ]
+          },
+          "medians": {
+            "baseline": 61.84,
+            "candidate": 62.57
+          },
+          "speedup": 0.9883330669649992
+        },
+        "ESolver_KS_LCAO.cal_force": {
+          "samples": {
+            "baseline": [
+              63.32,
+              65.11,
+              63.32
+            ],
+            "candidate": [
+              61.01,
+              64.32,
+              64.08
+            ]
+          },
+          "medians": {
+            "baseline": 63.32,
+            "candidate": 64.08
+          },
+          "speedup": 0.988139825218477
+        }
+      },
+      "peak_memory_mib": {
+        "baseline": [
+          7346,
+          7346,
+          7346
+        ],
+        "candidate": [
+          7348,
+          7348,
+          7348
+        ]
+      },
+      "scf_steps": {
+        "baseline": [
+          [
+            7,
+            105
+          ],
+          [
+            7,
+            105
+          ],
+          [
+            7,
+            105
+          ]
+        ],
+        "candidate": [
+          [
+            7,
+            105
+          ],
+          [
+            7,
+            105
+          ],
+          [
+            7,
+            105
+          ]
+        ]
+      }
+    }
+  ],
+  "numerical": {
+    "gpu": {
+      "comparisons": 18,
+      "maximum_deltas": {
+        "energy_ev_per_atom": 1.8189894035458565e-12,
+        "force_ev_angstrom": 1.000000082740371e-10,
+        "stress_kbar": 1.000444171950221e-10
+      },
+      "all_scf_steps_equal": true
+    },
+    "cpu": {
+      "comparisons": 9,
+      "maximum_deltas": {
+        "energy_ev_per_atom": 7.275957614183426e-13,
+        "force_ev_angstrom": 2.800000231673039e-09,
+        "stress_kbar": 2.9799998912949377e-08
+      },
+      "all_scf_steps_equal": true
+    }
+  },
+  "passed": true
+}

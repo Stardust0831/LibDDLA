@@ -1,0 +1,401 @@
+--- a/include/RI/global/gpu/GPU_Backend.h
++++ b/include/RI/global/gpu/GPU_Backend.h
+@@ -15,9 +15,8 @@
+     #if (defined(DDLA_USE_CUDA) + defined(DDLA_USE_HIP)) != 1
+         #error "__DDLA_RI requires exactly one of DDLA_USE_CUDA or DDLA_USE_HIP"
+     #endif
+-    #include <ddla/ddla_connector.h>
++    #include <ddla/ddla.h>
+     #include <ddla/ddla_handle_t.h>
+-    #include <ddla/gemmVbatched.h>
+ 
+ #elif defined(__MAGMA_RI)
+     #include "Magmablas_Interface-Contiguous.h"
+@@ -41,16 +40,12 @@
+ 
+ #ifdef __DDLA_RI
+     using Int = int;
+-    using Transpose = ddla::deblasOperation_t;
++    using Transpose = char;
+     using Queue = ddla::DdlaHandle_t;
+-    constexpr Transpose NoTrans = ddla::DEBLAS_OP_N;
+-    constexpr Transpose Trans = ddla::DEBLAS_OP_T;
+-    constexpr Transpose ConjTrans = ddla::DEBLAS_OP_C;
+-
+-    inline ddla::deviceStream_t stream(Queue queue)
+-    {
+-        return static_cast<ddla::deviceStream_t>(ddla::ddla_get_stream(queue));
+-    }
++    constexpr Transpose NoTrans = 'N';
++    constexpr Transpose Trans = 'T';
++    constexpr Transpose ConjTrans = 'C';
++
+ #elif defined(__MAGMA_RI)
+     using Int = magma_int_t;
+     using Transpose = magma_trans_t;
+@@ -92,7 +87,7 @@
+ #endif
+ 
+ 
+-inline void validate_local_gpu_count(const MPI_Comm& communicator)
++inline void validate_local_gpu_count(const MPI_Comm& communicator, Queue queue)
+ {
+     MPI_Comm local_communicator = MPI_COMM_NULL;
+     if (MPI_Comm_split_type(
+@@ -107,7 +102,7 @@
+ 
+     int device_count = 0;
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(ddla::deviceGetDeviceCount(&device_count));
++    ddla::DDLA_CHECK(ddla::ddlaGetDeviceCount(queue, &device_count));
+ #elif defined(__MAGMA_RI)
+     device_count = Magma_Wrapper::magma_get_size();
+ #endif
+@@ -122,14 +117,22 @@
+     explicit Context(const MPI_Comm& communicator)
+     {
+ #ifdef __DDLA_RI
+-        validate_local_gpu_count(communicator);
+-        ddla::ddla_init(queue_);
+-        ddla::ddla_set(queue_, communicator);
++        ddla::DDLA_CHECK(ddla::ddlaInit(queue_, ddla::DdlaBackend::GPU));
++        try
++        {
++            validate_local_gpu_count(communicator, queue_);
++            ddla::DDLA_CHECK(ddla::ddlaSet(queue_, communicator));
++        }
++        catch (...)
++        {
++            ddla::ddlaDestroy(queue_);
++            throw;
++        }
+ #elif defined(__MAGMA_RI)
+         MAGMA_CHECK_RI(magma_init());
+         try
+         {
+-            validate_local_gpu_count(communicator);
++            validate_local_gpu_count(communicator, queue_);
+         }
+         catch (...)
+         {
+@@ -149,7 +152,7 @@
+     ~Context()
+     {
+ #ifdef __DDLA_RI
+-        ddla::ddla_destroy(queue_);
++        ddla::ddlaDestroy(queue_);
+ #elif defined(__MAGMA_RI)
+         if (queue_ != nullptr)
+             magma_queue_destroy(queue_);
+@@ -166,7 +169,7 @@
+ };
+ 
+ template <typename T>
+-inline void allocate(T** pointer, std::size_t count)
++inline void allocate(T** pointer, std::size_t count, Queue queue)
+ {
+     if (count == 0)
+     {
+@@ -174,19 +177,19 @@
+         return;
+     }
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(ddla::deviceMalloc(pointer, count * sizeof(T)));
++    ddla::DDLA_CHECK(ddla::ddlaMalloc(queue, pointer, count * sizeof(T)));
+ #elif defined(__MAGMA_RI)
+     MAGMA_CHECK_RI(magma_malloc(reinterpret_cast<void**>(pointer), count * sizeof(T)));
+ #endif
+ }
+ 
+ template <typename T>
+-inline void free(T* pointer)
++inline void free(T* pointer, Queue queue)
+ {
+     if (pointer == nullptr)
+         return;
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(ddla::deviceFree(pointer));
++    ddla::DDLA_CHECK(ddla::ddlaFree(queue, pointer));
+ #elif defined(__MAGMA_RI)
+     MAGMA_CHECK_RI(magma_free(pointer));
+ #endif
+@@ -199,9 +202,8 @@
+     if (count == 0)
+         return;
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(deviceMemcpyAsync(
+-        device_data, host_data, count * sizeof(T),
+-        ddla::deviceMemcpyHostToDevice, stream(queue)));
++    ddla::DDLA_CHECK(ddla::ddlaMemcpy(
++        queue, device_data, host_data, count * sizeof(T)));
+ #elif defined(__MAGMA_RI)
+     magma_setvector_async(
+         count, sizeof(T), host_data, 1, device_data, 1, queue);
+@@ -215,9 +217,8 @@
+     if (count == 0)
+         return;
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(deviceMemcpyAsync(
+-        host_data, device_data, count * sizeof(T),
+-        ddla::deviceMemcpyDeviceToHost, stream(queue)));
++    ddla::DDLA_CHECK(ddla::ddlaMemcpy(
++        queue, host_data, device_data, count * sizeof(T)));
+ #elif defined(__MAGMA_RI)
+     magma_getvector_async(
+         count, sizeof(T), device_data, 1, host_data, 1, queue);
+@@ -229,8 +230,7 @@
+     if (bytes == 0)
+         return;
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(deviceMemsetAsync(
+-        pointer, value, bytes, stream(queue)));
++    ddla::DDLA_CHECK(ddla::ddlaMemset(queue, pointer, value, bytes));
+ #elif defined(__MAGMA_RI)
+     MAGMA_CHECK_RI(magma_memset(pointer, value, bytes));
+ #endif
+@@ -239,8 +239,7 @@
+ inline void sync(Queue queue)
+ {
+ #ifdef __DDLA_RI
+-    ddla::DEVICE_CHECK(
+-        ddla::deviceStreamSynchronize(stream(queue)));
++    ddla::DDLA_CHECK(ddla::ddlaSynchronize(queue));
+ #elif defined(__MAGMA_RI)
+     magma_queue_sync(queue);
+ #endif
+@@ -258,9 +257,9 @@
+     Int*& ldb = transB == NoTrans ? n : k;
+     Int*& ldc = n;
+     ddla::gemmVbatched(
+-        transB, transA, n, m, k,
++        queue, transB, transA, n, m, k,
+         alpha, dB_array, ldb, dA_array, lda,
+-        beta, dC_array, ldc, batch_count, queue);
++        beta, dC_array, ldc, batch_count);
+ #elif defined(__MAGMA_RI)
+     Magma_Interface::gemm_vbatched(
+         transA, transB, m, n, k,
+@@ -291,13 +290,13 @@
+     Int* ldb_1 = transB_1 == NoTrans ? n_1 : k_1;
+     Int* ldc_1 = n_1;
+     ddla::gemmVbatched2s(
+-        transB_0, transA_0, n_0, m_0, k_0,
++        queue, transB_0, transA_0, n_0, m_0, k_0,
+         alpha_0, dB_array_0, ldb_0, dA_array_0, lda_0,
+         beta_0, dC_array_0, ldc_0,
+         transB_1, transA_1, n_1, m_1, k_1,
+         alpha_1, dAB_array_1, ldb_1, lda_1,
+         beta_1, dC_array_1, ldc_1, !C0_left,
+-        batch_count, segment_sizes.data(), segment_sizes.size(), queue);
++        batch_count, segment_sizes.data(), segment_sizes.size());
+ #elif defined(__MAGMA_RI)
+     Magma_Interface::gemm_vbatched_2s(
+         transA_0, transB_0, m_0, n_0, k_0,
+--- a/include/RI/ri/gpu/GPU_Data_Input.h
++++ b/include/RI/ri/gpu/GPU_Data_Input.h
+@@ -23,6 +23,7 @@
+ class Input
+ {
+   public:
++	GPU_Backend::Queue queue_ = nullptr;
+ 	using Tdata_GPU = GPU_Backend::Type_to_GPU<Tdata_CPU>;
+ 	using Same_data_layout = std::integral_constant<
+ 		bool,
+@@ -63,11 +64,12 @@
+ 	// 将对应的 C, V, D 放在 d_Cs, d_Vs, d_Ds 上
+ 	void upload(GPU_Backend::Queue queue)
+ 	{
++		this->queue_ = queue;
+ 		std::vector<std::size_t> h_data_begin(this->h_data.size()+1, 0);
+ 		for(std::size_t i=1; i<h_data_begin.size(); ++i)
+ 			h_data_begin[i] = h_data_begin[i-1] + this->h_data[i-1].size();
+ 
+-		GPU_Backend::allocate(&this->d_data, h_data_begin.back());
++		GPU_Backend::allocate(&this->d_data, h_data_begin.back(), queue);
+ 		for(std::size_t i=0; i<this->h_data.size(); ++i)
+ 			GPU_Backend::upload(
+ 				this->h_data[i].size(), this->h_data[i].data(),
+@@ -77,14 +79,14 @@
+ 		std::vector<Tdata_GPU*> d_array_(batchCount);							// 记录每个batch的 d_data 指针（CPU）
+ 		for(std::size_t i=0; i<batchCount; ++i)
+ 			d_array_[i] = this->d_data + this->h_array[i].pos + h_data_begin[this->h_array[i].thread_num];
+-		GPU_Backend::allocate(&this->d_array, batchCount);
++		GPU_Backend::allocate(&this->d_array, batchCount, queue);
+ 		GPU_Backend::upload(batchCount, d_array_.data(), this->d_array, queue);
+ 	}
+ 
+ 	~Input()
+ 	{
+-		GPU_Backend::free(this->d_data);
+-		GPU_Backend::free(this->d_array);
++		GPU_Backend::free(this->d_data, this->queue_);
++		GPU_Backend::free(this->d_array, this->queue_);
+ 	}
+ 
+   private:
+--- a/include/RI/ri/gpu/GPU_Data_Mul.h
++++ b/include/RI/ri/gpu/GPU_Data_Mul.h
+@@ -20,6 +20,7 @@
+ class Mul
+ {
+   public:
++	GPU_Backend::Queue queue_ = nullptr;
+ 	using Tdata_GPU = GPU_Backend::Type_to_GPU<Tdata_CPU>;
+ 
+ 	const Pack &insert_1st(const TA &Aa, const TAC &Ab, const Shape_Vector &shape)
+@@ -38,7 +39,8 @@
+ 
+ 	void upload_1st(GPU_Backend::Queue queue)
+ 	{
+-		GPU_Backend::allocate(&this->d_data, this->totalSize);
++		this->queue_ = queue;
++		GPU_Backend::allocate(&this->d_data, this->totalSize, queue);
+ 		GPU_Backend::memset(
+ 			this->d_data, 0, totalSize * sizeof(Tdata_GPU), queue);
+ 
+@@ -46,7 +48,7 @@
+ 		std::vector<Tdata_GPU*> d_array_(batchCount);							// 记录每个batch的 d_data 指针（CPU）
+ 		for (std::size_t i = 0; i < batchCount; i++)
+ 			d_array_[i] = this->d_data + this->h_array_1[i].pos;
+-		GPU_Backend::allocate(&this->d_array_1, batchCount);
++		GPU_Backend::allocate(&this->d_array_1, batchCount, queue);
+ 		GPU_Backend::upload(
+ 			batchCount, d_array_.data(), this->d_array_1, queue);
+ 	}
+@@ -65,20 +67,21 @@
+ 	// 在 GPU 上分配空间，并获取指针
+ 	void upload_2nd(GPU_Backend::Queue queue)
+ 	{
++		this->queue_ = queue;
+ 		const std::size_t batchCount = this->h_array_2.size();
+ 		std::vector<Tdata_GPU*> d_array_2_(batchCount);							// 记录每个batch的 d_data 指针（CPU）
+ 		for (std::size_t i = 0; i < batchCount; i++)
+ 			d_array_2_[i] = this->d_data + this->h_array_2[i].pos;
+-		GPU_Backend::allocate(&this->d_array_2, batchCount);
++		GPU_Backend::allocate(&this->d_array_2, batchCount, queue);
+ 		GPU_Backend::upload(
+ 			batchCount, d_array_2_.data(), this->d_array_2, queue);
+ 	}
+ 
+ 	~Mul()
+ 	{
+-		GPU_Backend::free(this->d_data);
+-		GPU_Backend::free(this->d_array_1);
+-		GPU_Backend::free(this->d_array_2);
++		GPU_Backend::free(this->d_data, this->queue_);
++		GPU_Backend::free(this->d_array_1, this->queue_);
++		GPU_Backend::free(this->d_array_2, this->queue_);
+ 	}
+ 
+ 	std::size_t totalSize = 0;                  // 总的数据数量
+--- a/include/RI/ri/gpu/GPU_Data_Output.h
++++ b/include/RI/ri/gpu/GPU_Data_Output.h
+@@ -25,6 +25,7 @@
+ class Output
+ {
+   public:
++	GPU_Backend::Queue queue_ = nullptr;
+ 	using Tdata_GPU = GPU_Backend::Type_to_GPU<Tdata_CPU>;
+ 	using Same_data_layout = std::integral_constant<
+ 		bool,
+@@ -46,7 +47,8 @@
+ 
+ 	void upload(GPU_Backend::Queue queue)
+ 	{
+-		GPU_Backend::allocate(&this->d_data, this->totalSize);
++		this->queue_ = queue;
++		GPU_Backend::allocate(&this->d_data, this->totalSize, queue);
+ 		GPU_Backend::memset(
+ 			this->d_data, 0, totalSize * sizeof(Tdata_GPU), queue);
+ 
+@@ -54,7 +56,7 @@
+ 		std::vector<Tdata_GPU*> d_array_(batchCount);							// 记录每个batch的 d_data 指针（CPU）
+ 		for (std::size_t i = 0; i < batchCount; i++)
+ 			d_array_[i] = this->d_data + this->h_array[i].pos;
+-		GPU_Backend::allocate(&this->d_array, batchCount);
++		GPU_Backend::allocate(&this->d_array, batchCount, queue);
+ 		GPU_Backend::upload(batchCount, d_array_.data(), this->d_array, queue);
+ 	}
+ 
+@@ -83,8 +85,8 @@
+ 
+ 	~Output()
+ 	{
+-		GPU_Backend::free(this->d_data);
+-		GPU_Backend::free(this->d_array);
++		GPU_Backend::free(this->d_data, this->queue_);
++		GPU_Backend::free(this->d_array, this->queue_);
+ 	}
+ 
+   private:
+--- a/include/RI/ri/gpu/GPU_Data_Tmp.h
++++ b/include/RI/ri/gpu/GPU_Data_Tmp.h
+@@ -20,6 +20,7 @@
+ class Tmp
+ {
+   public:
++	GPU_Backend::Queue queue_ = nullptr;
+ 	using Tdata_GPU = GPU_Backend::Type_to_GPU<Tdata_CPU>;
+ 
+ 	const Pack &insert(const Shape_Vector &shape)
+@@ -36,10 +37,11 @@
+ 	std::vector<GPU_Backend::Int> upload(
+ 		const std::size_t memory_limit, GPU_Backend::Queue queue)
+ 	{
++		this->queue_ = queue;
+ 		const std::size_t size_limit = std::min(this->totalSize, memory_limit / sizeof(Tdata_GPU));
+ 		const std::vector<std::vector<Pack>> h_array_segments = segment_points(this->h_array, size_limit);
+ 
+-		GPU_Backend::allocate(&this->d_data, size_limit);
++		GPU_Backend::allocate(&this->d_data, size_limit, queue);
+ 		GPU_Backend::memset(
+ 			this->d_data, 0, size_limit * sizeof(Tdata_GPU), queue);
+ 
+@@ -48,7 +50,7 @@
+ 		for(const auto &h_array_segment : h_array_segments)
+ 			for(const Pack &pack : h_array_segment)
+ 				d_array_.push_back(this->d_data + pack.pos);
+-		GPU_Backend::allocate(&this->d_array, batchCount);
++		GPU_Backend::allocate(&this->d_array, batchCount, queue);
+ 		GPU_Backend::upload(batchCount, d_array_.data(), this->d_array, queue);
+ 
+ 		std::vector<GPU_Backend::Int> segments_size;
+@@ -83,8 +85,8 @@
+ 
+ 	~Tmp()
+ 	{
+-		GPU_Backend::free(this->d_data);
+-		GPU_Backend::free(this->d_array);
++		GPU_Backend::free(this->d_data, this->queue_);
++		GPU_Backend::free(this->d_array, this->queue_);
+ 	}
+ 
+ 	std::size_t totalSize = 0;					// 总的数据数量
+--- a/include/RI/ri/gpu/Dim.h
++++ b/include/RI/ri/gpu/Dim.h
+@@ -16,6 +16,7 @@
+ class Dim
+ {
+   public:
++	GPU_Backend::Queue queue_ = nullptr;
+ 	void input(const int shape)
+ 	{
+ 		this->shapes.push_back(shape);
+@@ -27,14 +28,15 @@
+ 
+ 	void upload(GPU_Backend::Queue queue)
+ 	{
+-		GPU_Backend::allocate(&this->d_m, this->shapes.size() + 1);
++		this->queue_ = queue;
++		GPU_Backend::allocate(&this->d_m, this->shapes.size() + 1, queue);
+ 		GPU_Backend::upload(
+ 			this->shapes.size(), this->shapes.data(), this->d_m, queue);
+ 	}
+ 
+ 	~Dim()
+ 	{
+-		GPU_Backend::free(this->d_m);
++		GPU_Backend::free(this->d_m, this->queue_);
+ 	}
+ 
+ 	int* data() const

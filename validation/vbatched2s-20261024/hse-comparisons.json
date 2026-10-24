@@ -1,0 +1,434 @@
+[
+  {
+    "reference": "si64-single_point-1gpu-baseline-gpu-0",
+    "candidate": "si64-single_point-1gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 1.4210854715202004e-14,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-single_point-1gpu-baseline-gpu-1",
+    "candidate": "si64-single_point-1gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-single_point-1gpu-baseline-gpu-2",
+    "candidate": "si64-single_point-1gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-gpu-0",
+    "candidate": "si64-forces-1gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 1.4210854715202004e-14,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-gpu-1",
+    "candidate": "si64-forces-1gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 1.4210854715202004e-14,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-gpu-2",
+    "candidate": "si64-forces-1gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-cpu-0",
+    "candidate": "si64-forces-1gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 2.842170943040401e-14,
+      "force_ev_angstrom": 1.000000082740371e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-cpu-0",
+    "candidate": "si64-forces-1gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 1.000000082740371e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si64-forces-1gpu-baseline-cpu-0",
+    "candidate": "si64-forces-1gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 4.263256414560601e-14,
+      "force_ev_angstrom": 1.000000082740371e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-single_point-2gpu-baseline-gpu-0",
+    "candidate": "cspbi3_20-single_point-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 1.0913936421275138e-12,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-single_point-2gpu-baseline-gpu-1",
+    "candidate": "cspbi3_20-single_point-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 7.275957614183426e-13,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-single_point-2gpu-baseline-gpu-2",
+    "candidate": "cspbi3_20-single_point-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 1.8189894035458565e-12,
+      "force_ev_angstrom": 0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-gpu-0",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 1.0913936421275138e-12,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-gpu-1",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 3.637978807091713e-13,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-gpu-2",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 1.0913936421275138e-12,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-cpu-0",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 6.000000080108592e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-cpu-0",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 7.275957614183426e-13,
+      "force_ev_angstrom": 6.000000080108592e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "cspbi3_20-forces-2gpu-baseline-cpu-0",
+    "candidate": "cspbi3_20-forces-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 7.275957614183426e-13,
+      "force_ev_angstrom": 6.000000080108592e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-gpu-0",
+    "candidate": "si8-forces-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 5.684341886080802e-14,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0.0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-gpu-1",
+    "candidate": "si8-forces-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 1.2789769243681803e-13,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 0.0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-gpu-2",
+    "candidate": "si8-forces-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 2.842170943040401e-14,
+      "force_ev_angstrom": 0.0,
+      "stress_kbar": 1.000444171950221e-10
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-cpu-0",
+    "candidate": "si8-forces-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 1.8474111129762605e-13,
+      "force_ev_angstrom": 2.800000231673039e-09,
+      "stress_kbar": 2.9799998912949377e-08
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-cpu-0",
+    "candidate": "si8-forces-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 2.2737367544323206e-13,
+      "force_ev_angstrom": 2.800000231673039e-09,
+      "stress_kbar": 2.9799998912949377e-08
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si8-forces-2gpu-baseline-cpu-0",
+    "candidate": "si8-forces-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 1.7053025658242404e-13,
+      "force_ev_angstrom": 2.800000231673039e-09,
+      "stress_kbar": 2.9799998912949377e-08
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-06,
+      "force_ev_angstrom": 0.0001,
+      "stress_kbar": 0.001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si128-forces-2gpu-baseline-gpu-0",
+    "candidate": "si128-forces-2gpu-candidate-gpu-0",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 1.000000082740371e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si128-forces-2gpu-baseline-gpu-1",
+    "candidate": "si128-forces-2gpu-candidate-gpu-1",
+    "delta": {
+      "energy_ev_per_atom": 0.0,
+      "force_ev_angstrom": 1.000000082740371e-10,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  },
+  {
+    "reference": "si128-forces-2gpu-baseline-gpu-2",
+    "candidate": "si128-forces-2gpu-candidate-gpu-2",
+    "delta": {
+      "energy_ev_per_atom": 8.526512829121202e-14,
+      "force_ev_angstrom": 9.999978622943217e-11,
+      "stress_kbar": 0
+    },
+    "tolerances": {
+      "energy_ev_per_atom": 1e-08,
+      "force_ev_angstrom": 1e-06,
+      "stress_kbar": 0.0001
+    },
+    "same_scf_steps": true,
+    "passed": true
+  }
+]

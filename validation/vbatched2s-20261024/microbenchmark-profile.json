@@ -1,0 +1,120 @@
+{
+  "baseline-summary_cuda_api_sum.csv": [
+    {
+      "Time (%)": "31.1",
+      "Total Time (ns)": "37012121",
+      "Num Calls": "1524",
+      "Avg (ns)": "24286.2",
+      "Med (ns)": "610.0",
+      "Min (ns)": "470",
+      "Max (ns)": "31905728",
+      "StdDev (ns)": "818807.6",
+      "Name": "cudaMallocAsync_v11020"
+    },
+    {
+      "Time (%)": "26.0",
+      "Total Time (ns)": "30921906",
+      "Num Calls": "1530",
+      "Avg (ns)": "20210.4",
+      "Med (ns)": "12295.5",
+      "Min (ns)": "2030",
+      "Max (ns)": "399877",
+      "StdDev (ns)": "19916.5",
+      "Name": "cudaMemcpyAsync"
+    },
+    {
+      "Time (%)": "19.1",
+      "Total Time (ns)": "22679659",
+      "Num Calls": "1548",
+      "Avg (ns)": "14650.9",
+      "Med (ns)": "1890.0",
+      "Min (ns)": "1710",
+      "Max (ns)": "14626595",
+      "StdDev (ns)": "373374.7",
+      "Name": "cudaStreamSynchronize"
+    },
+    {
+      "Time (%)": "1.4",
+      "Total Time (ns)": "1682927",
+      "Num Calls": "1524",
+      "Avg (ns)": "1104.3",
+      "Med (ns)": "1050.0",
+      "Min (ns)": "721",
+      "Max (ns)": "46560",
+      "StdDev (ns)": "1227.1",
+      "Name": "cudaFreeAsync_v11020"
+    }
+  ],
+  "baseline-summary_cuda_gpu_kern_sum.csv": [
+    {
+      "Time (%)": "16.0",
+      "Total Time (ns)": "2533735",
+      "Instances": "1440",
+      "Avg (ns)": "1759.5",
+      "Med (ns)": "1696.0",
+      "Min (ns)": "1343",
+      "Max (ns)": "2656",
+      "StdDev (ns)": "354.8",
+      "Name": "<unnamed>::validate_and_max_dimensions(cublasOperation_t, cublasOperation_t, const int *, const int *, const int *, const int *, const int *, const int *, int, int *)"
+    }
+  ],
+  "candidate-summary_cuda_api_sum.csv": [
+    {
+      "Time (%)": "29.2",
+      "Total Time (ns)": "22858879",
+      "Num Calls": "810",
+      "Avg (ns)": "28220.8",
+      "Med (ns)": "20660.0",
+      "Min (ns)": "1940",
+      "Max (ns)": "366866",
+      "StdDev (ns)": "25199.4",
+      "Name": "cudaMemcpyAsync"
+    },
+    {
+      "Time (%)": "16.8",
+      "Total Time (ns)": "13114038",
+      "Num Calls": "804",
+      "Avg (ns)": "16311.0",
+      "Med (ns)": "660.0",
+      "Min (ns)": "560",
+      "Max (ns)": "11503381",
+      "StdDev (ns)": "405921.4",
+      "Name": "cudaMallocAsync_v11020"
+    },
+    {
+      "Time (%)": "12.3",
+      "Total Time (ns)": "9667923",
+      "Num Calls": "828",
+      "Avg (ns)": "11676.2",
+      "Med (ns)": "1870.0",
+      "Min (ns)": "1650",
+      "Max (ns)": "3195126",
+      "StdDev (ns)": "118495.8",
+      "Name": "cudaStreamSynchronize"
+    },
+    {
+      "Time (%)": "1.2",
+      "Total Time (ns)": "947914",
+      "Num Calls": "804",
+      "Avg (ns)": "1179.0",
+      "Med (ns)": "1130.0",
+      "Min (ns)": "670",
+      "Max (ns)": "15210",
+      "StdDev (ns)": "549.9",
+      "Name": "cudaFreeAsync_v11020"
+    }
+  ],
+  "candidate-summary_cuda_gpu_kern_sum.csv": [
+    {
+      "Time (%)": "12.0",
+      "Total Time (ns)": "1812462",
+      "Instances": "720",
+      "Avg (ns)": "2517.3",
+      "Med (ns)": "2432.0",
+      "Min (ns)": "2047",
+      "Max (ns)": "4000",
+      "StdDev (ns)": "391.4",
+      "Name": "void <unnamed>::validate_and_max_dimensions<(int)2>(<unnamed>::ValidationInput<T1>, int, int *)"
+    }
+  ]
+}
