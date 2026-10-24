@@ -1360,9 +1360,11 @@ void gemmVbatched(
 /**
  * @brief Two dependent variable-size GEMM stages that share a reusable temporary.
  *
- * Stage zero writes through d_C_array_0. For each host-resident segment in segment_sizes that temporary pointer array
- * is reused by stage one. Stage-zero beta must be zero, every segment must be positive, and the segment total must
- * equal batch_count.  Backend rules as for gemmVbatched.
+ * Stage zero writes through the full batch-count temporary pointer array d_C_array_0.
+ * Both stages use the corresponding pointer entries for each host-resident segment in segment_sizes.
+ * Entries in different segments may alias to reuse temporary device storage.
+ * Stage-zero beta must be zero, every segment must be positive, and the segment total must
+ * equal batch_count. Backend rules as for gemmVbatched.
  */
 template <DdlaBackend Backend = default_backend_v, typename T>
 void gemmVbatched2s(

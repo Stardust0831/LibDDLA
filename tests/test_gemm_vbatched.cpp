@@ -324,11 +324,11 @@ double run_standard_case(
 template <typename T>
 double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& handle)
 {
-    constexpr int batch_count = 3;
-    const std::vector<int> segments{2, 1};
-    const std::vector<int> m0{2, 3, 2};
-    const std::vector<int> n0{3, 2, 4};
-    const std::vector<int> k0{4, 2, 3};
+    constexpr int batch_count = 4;
+    const std::vector<int> segments{2, 2};
+    const std::vector<int> m0{2, 3, 2, 5};
+    const std::vector<int> n0{3, 2, 4, 2};
+    const std::vector<int> k0{4, 2, 3, 2};
     const std::vector<int> lda0 = m0;
     const std::vector<int> ldb0 = k0;
     const std::vector<int> ldc0 = m0;
@@ -398,18 +398,21 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
         }
     }
 
-    std::vector<std::vector<T>> temporary_slots(2);
-    temporary_slots[0].resize(std::max(
-        static_cast<std::size_t>(ldc0[0]) * n0[0],
-        static_cast<std::size_t>(ldc0[2]) * n0[2]));
-    temporary_slots[1].resize(
-        static_cast<std::size_t>(ldc0[1]) * n0[1]);
+    // Match LibRI: each segment packs its matrices independently into one buffer.
+    // Segment offsets differ (0,6 versus 0,8), so reusing the pointer-table prefix
+    // corrupts the second segment even though both segments fit in the buffer.
+    DeviceArray<T> temporary_storage(handle, 18, T{});
+    std::vector<T*> temporary_pointers{
+        temporary_storage.data(), temporary_storage.data() + 6,
+        temporary_storage.data(), temporary_storage.data() + 8};
+    DeviceArray<T*> d_tmp(handle, temporary_pointers);
 
     DeviceArray<int> d_m0(handle, m0), d_n0(handle, n0), d_k0(handle, k0);
     DeviceArray<int> d_lda0(handle, lda0), d_ldb0(handle, ldb0), d_ldc0(handle, ldc0);
     DeviceArray<int> d_m1(handle, m1), d_n1(handle, n1), d_k1(handle, k1);
     DeviceArray<int> d_lda1(handle, lda1), d_ldb1(handle, ldb1), d_ldc1(handle, ldc1);
-    DeviceMatrixBatch<T> d_A0(handle, A0), d_B0(handle, B0), d_tmp(handle, temporary_slots);
+    DeviceMatrixBatch<T> d_A0(handle, A0);
+    DeviceMatrixBatch<T> d_B0(handle, B0);
     DeviceMatrixBatch<T> d_AB1(handle, AB1), d_output(handle, output);
 
     auto invoke = [&](T beta0, const std::vector<int>& test_segments) {
@@ -433,7 +436,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
 
     if constexpr (std::is_same_v<T, double>)
     {
-        for (const auto& invalid : std::vector<std::vector<int>>{{0, 3}, {-1, 4}, {1, 1}})
+        for (const auto& invalid : std::vector<std::vector<int>>{{0, 4}, {-1, 5}, {1, 1}})
         {
             bool rejected = false;
             try
