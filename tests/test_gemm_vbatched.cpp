@@ -350,12 +350,13 @@ double run_two_stage_case(
         if (temporary_on_left)
         {
             m1[batch] = m0[batch];
-            n1[batch] = batch == 0 ? 2 : (batch == 1 ? 3 : 1);
+            // Stage one spans multiple tiles and needs its own maxima.
+            n1[batch] = batch == 0 ? 129 : (batch == 1 ? 3 : 1);
             k1[batch] = n0[batch];
         }
         else
         {
-            m1[batch] = batch == 0 ? 3 : (batch == 1 ? 2 : 4);
+            m1[batch] = batch == 0 ? 129 : (batch == 1 ? 2 : 4);
             n1[batch] = n0[batch];
             k1[batch] = m0[batch];
         }
