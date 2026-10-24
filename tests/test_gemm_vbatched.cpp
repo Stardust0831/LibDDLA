@@ -469,7 +469,10 @@ double run_two_stage_case(
             throw std::runtime_error("nonzero stage-zero beta was accepted");
 
         const auto output_before = d_output.download(output_sizes);
-        const auto temporary_before = temporary_storage.download(18);
+        const std::vector<T> temporary_before(18, T(123));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+            handle, temporary_storage.data(), temporary_before.data(), 18 * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
         const std::array<std::array<std::vector<int>, 6>, 2> dimensions{{
             {m0, n0, k0, lda0, ldb0, ldc0},
             {m1, n1, k1, lda1, ldb1, ldc1}}};
