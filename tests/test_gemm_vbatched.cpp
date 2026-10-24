@@ -322,14 +322,16 @@ double run_standard_case(
 }
 
 template <typename T>
-double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& handle)
+double run_two_stage_case(
+    bool temporary_on_left, char operation, const ddla::DdlaHandle_t& handle)
 {
     constexpr int batch_count = 4;
     const std::vector<int> segments{2, 2};
     const std::vector<int> m0{2, 3, 2, 5};
     const std::vector<int> n0{3, 2, 4, 2};
     const std::vector<int> k0{4, 2, 3, 2};
-    const std::vector<int> lda0 = m0;
+    const bool no_transpose = operation == 'N';
+    const std::vector<int> lda0 = no_transpose ? m0 : k0;
     const std::vector<int> ldb0 = k0;
     const std::vector<int> ldc0 = m0;
 
@@ -342,26 +344,28 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
 
     for (int batch = 0; batch < batch_count; ++batch)
     {
-        A0[batch] = make_matrix<T>(lda0[batch], k0[batch], 71 * batch + 1);
+        A0[batch] = make_matrix<T>(
+            lda0[batch], no_transpose ? k0[batch] : m0[batch], 71 * batch + 1);
         B0[batch] = make_matrix<T>(ldb0[batch], n0[batch], 71 * batch + 19);
         if (temporary_on_left)
         {
             m1[batch] = m0[batch];
-            n1[batch] = batch == 0 ? 2 : (batch == 1 ? 3 : 1);
+            // Stage one spans multiple tiles and needs its own maxima.
+            n1[batch] = batch == 0 ? 129 : (batch == 1 ? 3 : 1);
             k1[batch] = n0[batch];
         }
         else
         {
-            m1[batch] = batch == 0 ? 3 : (batch == 1 ? 2 : 4);
+            m1[batch] = batch == 0 ? 129 : (batch == 1 ? 2 : 4);
             n1[batch] = n0[batch];
             k1[batch] = m0[batch];
         }
-        lda1[batch] = m1[batch];
-        ldb1[batch] = k1[batch];
+        lda1[batch] = (temporary_on_left || no_transpose) ? m1[batch] : k1[batch];
+        ldb1[batch] = (temporary_on_left && !no_transpose) ? n1[batch] : k1[batch];
         ldc1[batch] = m1[batch] + 1;
         AB1[batch] = temporary_on_left
-            ? make_matrix<T>(ldb1[batch], n1[batch], 71 * batch + 37)
-            : make_matrix<T>(lda1[batch], k1[batch], 71 * batch + 37);
+            ? make_matrix<T>(ldb1[batch], no_transpose ? n1[batch] : k1[batch], 71 * batch + 37)
+            : make_matrix<T>(lda1[batch], no_transpose ? k1[batch] : m1[batch], 71 * batch + 37);
         output[batch] =
             make_matrix<T>(ldc1[batch], n1[batch], 71 * batch + 53);
         expected[batch] = output[batch];
@@ -376,14 +380,14 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
         std::vector<T> temporary(
             static_cast<std::size_t>(ldc0[batch]) * n0[batch], T{});
         reference_gemm(
-            'N', 'N',
+            operation, 'N',
             m0[batch], n0[batch], k0[batch], alpha0,
             A0[batch], lda0[batch], B0[batch], ldb0[batch],
             T{}, temporary, ldc0[batch]);
         if (temporary_on_left)
         {
             reference_gemm(
-                'N', 'N',
+                'N', operation,
                 m1[batch], n1[batch], k1[batch], alpha1,
                 temporary, lda1[batch], AB1[batch], ldb1[batch],
                 beta1, expected[batch], ldc1[batch]);
@@ -391,7 +395,7 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
         else
         {
             reference_gemm(
-                'N', 'N',
+                operation, 'N',
                 m1[batch], n1[batch], k1[batch], alpha1,
                 AB1[batch], lda1[batch], temporary, ldb1[batch],
                 beta1, expected[batch], ldc1[batch]);
@@ -415,18 +419,21 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
     DeviceMatrixBatch<T> d_B0(handle, B0);
     DeviceMatrixBatch<T> d_AB1(handle, AB1), d_output(handle, output);
 
+    std::array<std::array<int*, 6>, 2> dimension_arrays{{
+        {d_m0.data(), d_n0.data(), d_k0.data(), d_lda0.data(), d_ldb0.data(), d_ldc0.data()},
+        {d_m1.data(), d_n1.data(), d_k1.data(), d_lda1.data(), d_ldb1.data(), d_ldc1.data()}}};
     auto invoke = [&](T beta0, const std::vector<int>& test_segments) {
         ddla::gemmVbatched2s(
-            handle, 'N', 'N',
-            d_m0.data(), d_n0.data(), d_k0.data(),
-            alpha0, const_cast<const T* const*>(d_A0.data()), d_lda0.data(),
-            const_cast<const T* const*>(d_B0.data()), d_ldb0.data(),
-            beta0, d_tmp.data(), d_ldc0.data(),
-            'N', 'N',
-            d_m1.data(), d_n1.data(), d_k1.data(),
+            handle, operation, 'N',
+            dimension_arrays[0][0], dimension_arrays[0][1], dimension_arrays[0][2],
+            alpha0, const_cast<const T* const*>(d_A0.data()), dimension_arrays[0][3],
+            const_cast<const T* const*>(d_B0.data()), dimension_arrays[0][4],
+            beta0, d_tmp.data(), dimension_arrays[0][5],
+            temporary_on_left ? 'N' : operation, temporary_on_left ? operation : 'N',
+            dimension_arrays[1][0], dimension_arrays[1][1], dimension_arrays[1][2],
             alpha1, const_cast<const T* const*>(d_AB1.data()),
-            d_lda1.data(), d_ldb1.data(), beta1,
-            d_output.data(), d_ldc1.data(), temporary_on_left,
+            dimension_arrays[1][3], dimension_arrays[1][4], beta1,
+            d_output.data(), dimension_arrays[1][5], temporary_on_left,
             batch_count, test_segments.data(),
             static_cast<int>(test_segments.size()));
     };
@@ -461,6 +468,53 @@ double run_two_stage_case(bool temporary_on_left, const ddla::DdlaHandle_t& hand
         }
         if (!rejected_beta)
             throw std::runtime_error("nonzero stage-zero beta was accepted");
+
+        const auto output_before = d_output.download(output_sizes);
+        const std::vector<T> temporary_before(18, T(123));
+        ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+            handle, temporary_storage.data(), temporary_before.data(), 18 * sizeof(T)));
+        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+        const std::array<std::array<std::vector<int>, 6>, 2> dimensions{{
+            {m0, n0, k0, lda0, ldb0, ldc0},
+            {m1, n1, k1, lda1, ldb1, ldc1}}};
+        for (int stage = 0; stage < 2; ++stage)
+        {
+            for (int field = 0; field < 6; ++field)
+            {
+                int* const pointer = dimension_arrays[stage][field];
+                for (bool null_array : {false, true})
+                {
+                    if (null_array)
+                        dimension_arrays[stage][field] = nullptr;
+                    else
+                    {
+                        // Fail at the final batch, including the second segment.
+                        const int invalid = field < 3 ? -1 : 0;
+                        ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                            handle, pointer + batch_count - 1, &invalid, sizeof(int)));
+                        ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+                    }
+                    bool rejected = false;
+                    try
+                    {
+                        invoke(T{}, segments);
+                    }
+                    catch (const std::invalid_argument&)
+                    {
+                        rejected = true;
+                    }
+                    dimension_arrays[stage][field] = pointer;
+                    ddla::DDLA_CHECK(ddla::ddlaMemcpy(
+                        handle, pointer, dimensions[stage][field].data(), batch_count * sizeof(int)));
+                    ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
+                    if (!rejected)
+                        throw std::runtime_error("invalid two-stage dimensions were accepted");
+                    if (d_output.download(output_sizes) != output_before
+                        || temporary_storage.download(18) != temporary_before)
+                        throw std::runtime_error("two-stage validation modified matrix data");
+                }
+            }
+        }
     }
 
     const auto actual = d_output.download(output_sizes);
@@ -518,16 +572,19 @@ double run_type(const ddla::DdlaHandle_t& handle, int& case_count)
         maximum_error = std::max(maximum_error, error);
         ++case_count;
     }
-    const double left_error = run_two_stage_case<T>(true, handle);
-    std::cout << "DDLA_GEMM_VBATCHED_2S_CASE type=" << type_name
-              << " temporary=left error=" << left_error << '\n';
-    maximum_error = std::max(maximum_error, left_error);
-    ++case_count;
-    const double right_error = run_two_stage_case<T>(false, handle);
-    std::cout << "DDLA_GEMM_VBATCHED_2S_CASE type=" << type_name
-              << " temporary=right error=" << right_error << '\n';
-    maximum_error = std::max(maximum_error, right_error);
-    ++case_count;
+    for (char operation : {'N', 'T', 'C'})
+    {
+        const double left_error = run_two_stage_case<T>(true, operation, handle);
+        std::cout << "DDLA_GEMM_VBATCHED_2S_CASE type=" << type_name
+                  << " operation=" << operation << " temporary=left error=" << left_error << '\n';
+        maximum_error = std::max(maximum_error, left_error);
+        ++case_count;
+        const double right_error = run_two_stage_case<T>(false, operation, handle);
+        std::cout << "DDLA_GEMM_VBATCHED_2S_CASE type=" << type_name
+                  << " operation=" << operation << " temporary=right error=" << right_error << '\n';
+        maximum_error = std::max(maximum_error, right_error);
+        ++case_count;
+    }
 
     // An empty batch is a no-op whatever the pointers are.
     ddla::gemmVbatched<ddla::DdlaBackend::GPU, T>(

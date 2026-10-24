@@ -72,19 +72,38 @@ struct MaxDimensions
     int k;
 };
 
+struct DimensionArrays
+{
+    ddla::gpublasOperation_t transA;
+    ddla::gpublasOperation_t transB;
+    const int* m;
+    const int* n;
+    const int* k;
+    const int* lda;
+    const int* ldb;
+    const int* ldc;
+};
+
+template <int StageCount>
+struct ValidationInput
+{
+    DimensionArrays stages[StageCount];
+};
+
+template <int StageCount>
 __global__ void validate_and_max_dimensions(
-    ddla::gpublasOperation_t transA, ddla::gpublasOperation_t transB,
-    const int* m, const int* n, const int* k,
-    const int* lda, const int* ldb, const int* ldc,
+    ValidationInput<StageCount> input,
     int batch_count, int* summary)
 {
     const int batch = blockIdx.x * blockDim.x + threadIdx.x;
     if (batch >= batch_count)
         return;
 
-    const int mb = m[batch];
-    const int nb = n[batch];
-    const int kb = k[batch];
+    const DimensionArrays& dimensions = input.stages[blockIdx.y];
+    summary += 4 * blockIdx.y;
+    const int mb = dimensions.m[batch];
+    const int nb = dimensions.n[batch];
+    const int kb = dimensions.k[batch];
     if (mb < 0 || nb < 0 || kb < 0)
     {
         atomicCAS(summary + 3, 0, batch + 1);
@@ -92,14 +111,14 @@ __global__ void validate_and_max_dimensions(
     }
 
     const int lda_required =
-        transA == ddla::GPUBLAS_OP_N ? (mb > 1 ? mb : 1)
-                                    : (kb > 1 ? kb : 1);
+        dimensions.transA == ddla::GPUBLAS_OP_N ? (mb > 1 ? mb : 1)
+                                               : (kb > 1 ? kb : 1);
     const int ldb_required =
-        transB == ddla::GPUBLAS_OP_N ? (kb > 1 ? kb : 1)
-                                    : (nb > 1 ? nb : 1);
+        dimensions.transB == ddla::GPUBLAS_OP_N ? (kb > 1 ? kb : 1)
+                                               : (nb > 1 ? nb : 1);
     const int ldc_required = mb > 1 ? mb : 1;
-    if (lda[batch] < lda_required || ldb[batch] < ldb_required
-        || ldc[batch] < ldc_required)
+    if (dimensions.lda[batch] < lda_required || dimensions.ldb[batch] < ldb_required
+        || dimensions.ldc[batch] < ldc_required)
     {
         atomicCAS(summary + 3, 0, batch + 1);
         return;
@@ -131,36 +150,46 @@ ddla::gpublasOperation_t to_deblas_operation(char operation)
                                                   : ddla::GPUBLAS_OP_C;
 }
 
-MaxDimensions validate_dimensions(
-    const ddla::DdlaHandle_t& handle, ddla::gpublasOperation_t transA, ddla::gpublasOperation_t transB,
-    int* d_m, int* d_n, int* d_k,
-    int* d_lda, int* d_ldb, int* d_ldc,
+template <int StageCount>
+std::array<MaxDimensions, StageCount> validate_dimensions(
+    const ddla::DdlaHandle_t& handle, const ValidationInput<StageCount>& input,
     int batch_count)
 {
-    if (d_m == nullptr || d_n == nullptr || d_k == nullptr
-        || d_lda == nullptr || d_ldb == nullptr || d_ldc == nullptr)
-        throw std::invalid_argument("gemmVbatched: null dimension array");
+    for (const auto& dimensions : input.stages)
+    {
+        if (dimensions.m == nullptr || dimensions.n == nullptr || dimensions.k == nullptr
+            || dimensions.lda == nullptr || dimensions.ldb == nullptr || dimensions.ldc == nullptr)
+            throw std::invalid_argument("gemmVbatched: null dimension array");
+    }
 
+    constexpr std::size_t summary_bytes = 4 * StageCount * sizeof(int);
     int* d_summary = nullptr;
-    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, &d_summary, 4 * sizeof(int)));
-    ddla::DDLA_CHECK(ddla::ddlaMemset(handle, d_summary, 0, 4 * sizeof(int)));
+    ddla::DDLA_CHECK(ddla::ddlaMalloc(handle, &d_summary, summary_bytes));
+    ddla::DDLA_CHECK(ddla::ddlaMemset(handle, d_summary, 0, summary_bytes));
 
     constexpr int block_size = 256;
     const int grid_size = (batch_count + block_size - 1) / block_size;
     DDLA_LAUNCH_KERNEL(
-        handle, (validate_and_max_dimensions), dim3(grid_size), dim3(block_size), 0, transA, transB, d_m, d_n, d_k, d_lda, d_ldb, d_ldc,
+        handle, (validate_and_max_dimensions<StageCount>),
+        dim3(grid_size, StageCount), dim3(block_size), 0, input,
         batch_count, d_summary);
 
-    std::array<int, 4> summary{};
-    ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, summary.data(), d_summary, 4 * sizeof(int)));
+    std::array<int, 4 * StageCount> summary{};
+    ddla::DDLA_CHECK(ddla::ddlaMemcpy(handle, summary.data(), d_summary, summary_bytes));
     ddla::DDLA_CHECK(ddla::ddlaSynchronize(handle));
     ddla::DDLA_CHECK(ddla::ddlaFree(handle, d_summary));
 
-    if (summary[3] != 0)
-        throw std::invalid_argument(
-            "gemmVbatched: invalid dimensions at batch "
-            + std::to_string(summary[3] - 1));
-    return {summary[0], summary[1], summary[2]};
+    std::array<MaxDimensions, StageCount> maximum{};
+    for (int stage = 0; stage < StageCount; ++stage)
+    {
+        const int offset = 4 * stage;
+        if (summary[offset + 3] != 0)
+            throw std::invalid_argument(
+                "gemmVbatched: invalid dimensions at batch "
+                + std::to_string(summary[offset + 3] - 1));
+        maximum[stage] = {summary[offset], summary[offset + 1], summary[offset + 2]};
+    }
+    return maximum;
 }
 
 template <typename T>
@@ -362,9 +391,10 @@ void gemmVbatched(
 
     const gpublasOperation_t op_a = to_deblas_operation(transA);
     const gpublasOperation_t op_b = to_deblas_operation(transB);
+    const ValidationInput<1> dimensions{{
+        {op_a, op_b, d_m, d_n, d_k, d_lda, d_ldb, d_ldc}}};
     const MaxDimensions maximum = validate_dimensions(
-        handle, op_a, op_b, d_m, d_n, d_k, d_lda, d_ldb, d_ldc,
-        batch_count);
+        handle, dimensions, batch_count)[0];
     launch_core(
         handle, op_a, op_b, maximum, d_m, d_n, d_k,
         alpha, d_A_array, d_lda, d_B_array, d_ldb,
@@ -416,21 +446,20 @@ void gemmVbatched2s(
 
     const gpublasOperation_t op_a_0 = to_deblas_operation(transA_0);
     const gpublasOperation_t op_b_0 = to_deblas_operation(transB_0);
-    const MaxDimensions maximum_0 = validate_dimensions(
-        handle, op_a_0, op_b_0, d_m_0, d_n_0, d_k_0,
-        d_lda_0, d_ldb_0, d_ldc_0, batch_count);
     const gpublasOperation_t op_a_1 = to_deblas_operation(transA_1);
     const gpublasOperation_t op_b_1 = to_deblas_operation(transB_1);
-    const MaxDimensions maximum_1 = validate_dimensions(
-        handle, op_a_1, op_b_1, d_m_1, d_n_1, d_k_1,
-        d_lda_1, d_ldb_1, d_ldc_1, batch_count);
+    const ValidationInput<2> dimensions{{
+        {op_a_0, op_b_0, d_m_0, d_n_0, d_k_0, d_lda_0, d_ldb_0, d_ldc_0},
+        {op_a_1, op_b_1, d_m_1, d_n_1, d_k_1, d_lda_1, d_ldb_1, d_ldc_1}}};
+    // Validate both stages before launching either GEMM, with one host readback.
+    const auto maximum = validate_dimensions(handle, dimensions, batch_count);
 
     launch_core_2s(
-        handle, op_a_0, op_b_0, maximum_0,
+        handle, op_a_0, op_b_0, maximum[0],
         d_m_0, d_n_0, d_k_0, alpha_0,
         d_A_array_0, d_lda_0, d_B_array_0, d_ldb_0,
         beta_0, d_C_array_0, d_ldc_0,
-        op_a_1, op_b_1, maximum_1,
+        op_a_1, op_b_1, maximum[1],
         d_m_1, d_n_1, d_k_1, alpha_1,
         d_AB_array_1, d_lda_1, d_ldb_1,
         beta_1, d_C_array_1, d_ldc_1,
