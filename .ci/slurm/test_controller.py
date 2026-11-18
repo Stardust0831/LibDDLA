@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 from coordinator import cancel, done, job_states, parse_accounting
 from publish import admission
-from runtime import classify_junit, make_plan, report, test_file, write_json
+from runtime import classify_junit, copy_working_directory, make_plan, report, test_file, write_json
 from wait import collect_results
 
 
@@ -156,6 +156,19 @@ class ControllerTests(unittest.TestCase):
         (result / 'remote/summary.md').write_text('177 PASS / 2 FAIL\n')
         collect_results(result, target, self.root / 'step-summary.md')
         self.assertEqual((self.root / 'step-summary.md').read_text(), '177 PASS / 2 FAIL\n')
+
+    def test_working_copy_preserves_fixtures_and_execute_bits_without_acls(self):
+        source, target = self.root / 'original', self.root / 'private'
+        (source / 'data').mkdir(parents=True)
+        (source / 'data/input').write_text('matrix fixture')
+        (source / 'helper').write_text('#!/bin/sh\nexit 0\n')
+        (source / 'helper').chmod(0o755)
+        with patch('shutil.copystat', side_effect=AssertionError('ACL metadata must not be copied')):
+            copy_working_directory(source, target)
+        self.assertEqual((target / 'data/input').read_text(), 'matrix fixture')
+        self.assertEqual((target / 'helper').stat().st_mode & 0o777, 0o755)
+        (target / 'data/input').write_text('changed by test')
+        self.assertEqual((source / 'data/input').read_text(), 'matrix fixture')
 
 
 if __name__ == '__main__':

@@ -48,7 +48,7 @@ def job_states(jobs):
         return {}
     names = {j['job_id']: j['name'] for j in jobs.values()}
     ids = ','.join(names)
-    tasks = parse_accounting(capture(['sacct', '-X', '-n', '-P', '-j', ids,
+    tasks = parse_accounting(capture(['sacct', '--array', '-X', '-n', '-P', '-j', ids,
                                       '--format=JobID%64,JobName%128,State%30,ExitCode']), names)
     for receipt in jobs.values():
         prefix = receipt['job_id']

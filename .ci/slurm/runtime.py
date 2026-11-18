@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import tempfile
 import time
@@ -154,6 +155,23 @@ def classify_junit(path, expected, returncode):
     return 'PASS', duration, ''
 
 
+def copy_working_directory(source, destination, ancestors=()):
+    """Copy fixtures and executable bits, without filesystem-specific ACL/xattrs."""
+    resolved = source.resolve()
+    if resolved in ancestors:
+        raise ValueError('Cycle in the test working directory')
+    destination.mkdir()
+    for item in source.iterdir():
+        target = destination / item.name
+        if item.is_dir():
+            copy_working_directory(item, target, (*ancestors, resolved))
+        elif item.is_file():
+            shutil.copyfile(item, target)
+            target.chmod(stat.S_IMODE(item.stat().st_mode))
+        else:
+            raise ValueError('Unsupported working-directory entry: ' + str(item))
+
+
 def execute_case(root, group, index):
     plan = json.loads((root / 'results/plan.json').read_text())
     case_id = plan['groups'][group]['cases'][index]
@@ -182,9 +200,9 @@ def execute_case(root, group, index):
             private = Path(temporary)
             work = private / 'work'
             original_work = Path(properties(case)['WORKING_DIRECTORY'])
-            # Preserve relative fixtures and isolate files written by different tests.
-            # Reflinks are used where available; otherwise cp creates independent files.
-            subprocess.run(['cp', '-a', '--reflink=auto', str(original_work), str(work)], check=True, timeout=90)
+            # Do not transfer shared-filesystem ACLs to node-local temporary storage.
+            # The original directory remains untouched and relative fixtures are preserved.
+            copy_working_directory(original_work, work)
             (private / 'CTestTestfile.cmake').write_text(test_file(case, work))
             with (out / 'ctest.log').open('w') as stream:
                 result = subprocess.run(['ctest', '--test-dir', str(private), '--output-on-failure',
