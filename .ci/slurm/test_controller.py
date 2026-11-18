@@ -4,9 +4,10 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
 from unittest.mock import patch
 
-from coordinator import done, job_states, parse_accounting
+from coordinator import cancel, done, job_states, parse_accounting
 from publish import admission
 from runtime import classify_junit, make_plan, report, test_file, write_json
 
@@ -104,6 +105,16 @@ class ControllerTests(unittest.TestCase):
             queue.return_value.stderr = 'slurm_load_jobs error: Invalid job id specified'
             job_states(jobs)
             self.assertFalse(done(jobs['build']))
+
+    def test_completion_race_does_not_prevent_cancelling_other_arrays(self):
+        jobs = {name: {'job_id': number, 'name': name, 'array_size': 2, 'tasks': {}}
+                for name, number in [('already_finished', '123'), ('still_active', '456')]}
+        with patch('coordinator.subprocess.run', side_effect=[
+                subprocess.CompletedProcess([], 1, '', 'Invalid job id specified'),
+                subprocess.CompletedProcess([], 0, '', '')]) as command:
+            cancel(jobs)
+            self.assertEqual(command.call_count, 2)
+            self.assertEqual(command.call_args.args[0], ['scancel', '--name=still_active', '456'])
 
     def test_missing_result_and_slurm_failure_cannot_pass(self):
         plan = make_plan({'tests': [self.case('missing'), self.case('bad_slurm')]}, self.cfg, self.root)

@@ -88,10 +88,16 @@ def done(receipt):
 
 def cancel(jobs):
     # Both ID and exact name must match. Never cancel all jobs of the account.
+    errors = []
     for receipt in jobs.values():
         if not done(receipt):
-            subprocess.run(['scancel', '--name=' + receipt['name'], receipt['job_id']],
-                           env=clean_environment(), check=True, timeout=45)
+            response = subprocess.run(['scancel', '--name=' + receipt['name'], receipt['job_id']],
+                                      env=clean_environment(), capture_output=True, text=True, timeout=45)
+            # Completion may race cancellation. Continue cancelling the other arrays.
+            if response.returncode and 'Invalid job id specified' not in response.stderr:
+                errors.append(receipt['job_id'] + ': ' + response.stderr.strip())
+    if errors:
+        raise RuntimeError('; '.join(errors))
 
 
 def submit(root, cfg, group, resource, count=0):
