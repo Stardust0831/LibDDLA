@@ -50,8 +50,19 @@ def job_states(jobs):
     ids = ','.join(names)
     tasks = parse_accounting(capture(['sacct', '-X', '-n', '-P', '-j', ids,
                                       '--format=JobID%64,JobName%128,State%30,ExitCode']), names)
+    for receipt in jobs.values():
+        prefix = receipt['job_id']
+        receipt['tasks'] = {key: value for key, value in tasks.items() if key == prefix or key.startswith(prefix + '_')}
+    pending = ','.join(j['job_id'] for j in jobs.values() if not done(j))
+    if not pending:
+        return jobs
     # sacct can lag behind squeue and pending arrays can be compressed there.
-    queue = capture(['squeue', '-h', '-r', '-j', ids, '-o', '%i|%j|%T'])
+    response = subprocess.run(['squeue', '-h', '-r', '-j', pending, '-o', '%i|%j|%T'],
+                              capture_output=True, text=True, timeout=45, env=clean_environment())
+    # Slurm removes finished jobs from squeue before accounting necessarily catches up.
+    if response.returncode and 'Invalid job id specified' not in response.stderr:
+        raise RuntimeError('squeue failed: ' + response.stderr.strip())
+    queue = response.stdout
     for line in queue.splitlines():
         job, name, state = line.split('|')[:3]
         parent = job.split('_', 1)[0]
@@ -151,7 +162,9 @@ def run(root):
         parts = []
         for group, receipt in jobs.items():
             states = Counter(receipt['tasks'].get(key, {}).get('state', 'UNKNOWN') for key in task_ids(receipt))
-            parts.append(f"{group} job={receipt['job_id']} " + ' '.join(f'{key}={value}' for key, value in sorted(states.items())))
+            finished = sum(value for key, value in states.items() if key in TERMINAL)
+            parts.append(f"{group} job={receipt['job_id']} done={finished}/{len(task_ids(receipt))} "
+                         + ' '.join(f'{key}={value}' for key, value in sorted(states.items())))
         progress = '; '.join(parts)
         for path in sorted((out / 'cases').glob('*/result.json')):
             if path.parent.name not in seen:

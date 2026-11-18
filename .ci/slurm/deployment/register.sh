@@ -2,6 +2,7 @@
 set -euo pipefail
 # Read a fresh fork registration token from stdin; never persist or print it.
 docker run --rm --interactive --log-driver none \
+    --env ACTIONS_RUNNER_PRINT_LOG_TO_STDOUT=false \
     --user 1001:1001 --cap-drop ALL --security-opt no-new-privileges \
     --mount type=volume,src=libddla-daily-identity,dst=/home/runner \
     --workdir /home/runner \

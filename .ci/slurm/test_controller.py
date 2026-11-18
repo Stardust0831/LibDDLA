@@ -4,8 +4,9 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from coordinator import done, parse_accounting
+from coordinator import done, job_states, parse_accounting
 from publish import admission
 from runtime import classify_junit, make_plan, report, test_file, write_json
 
@@ -85,6 +86,24 @@ class ControllerTests(unittest.TestCase):
         self.assertFalse(done({'job_id': '123', 'array_size': 3, 'tasks': tasks}))
         with self.assertRaisesRegex(ValueError, 'identity'):
             parse_accounting('123_0|other-job|RUNNING|0:0', {'123': 'our-array'})
+
+    def test_finished_job_no_longer_in_squeue_uses_accounting(self):
+        jobs = {'build': {'job_id': '123', 'name': 'build', 'array_size': 0}}
+        with patch('coordinator.capture', return_value='123|build|COMPLETED|0:0'), \
+                patch('coordinator.subprocess.run') as queue:
+            job_states(jobs)
+            self.assertTrue(done(jobs['build']))
+            queue.assert_not_called()
+
+    def test_accounting_lag_after_queue_removal_is_not_a_failure(self):
+        jobs = {'build': {'job_id': '123', 'name': 'build', 'array_size': 0}}
+        with patch('coordinator.capture', return_value='123|build|RUNNING|0:0'), \
+                patch('coordinator.subprocess.run') as queue:
+            queue.return_value.returncode = 1
+            queue.return_value.stdout = ''
+            queue.return_value.stderr = 'slurm_load_jobs error: Invalid job id specified'
+            job_states(jobs)
+            self.assertFalse(done(jobs['build']))
 
     def test_missing_result_and_slurm_failure_cannot_pass(self):
         plan = make_plan({'tests': [self.case('missing'), self.case('bad_slurm')]}, self.cfg, self.root)
