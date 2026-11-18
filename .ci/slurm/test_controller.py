@@ -10,6 +10,7 @@ from unittest.mock import patch
 from coordinator import cancel, done, job_states, parse_accounting
 from publish import admission
 from runtime import classify_junit, make_plan, report, test_file, write_json
+from wait import collect_results
 
 
 class ControllerTests(unittest.TestCase):
@@ -140,6 +141,21 @@ class ControllerTests(unittest.TestCase):
             changed[field] = value
             with self.assertRaises(ValueError):
                 admission(changed, 'a' * 40)
+
+    def test_cancelled_run_still_collects_available_progress(self):
+        result, target = self.root / 'public', self.root / 'artifact'
+        result.mkdir()
+        (result / 'progress.log').write_text('build running\n')
+        collect_results(result, target, self.root / 'step-summary.md')
+        self.assertEqual((target / 'progress.log').read_text(), 'build running\n')
+        self.assertIn('INCOMPLETE', (target / 'remote/summary.md').read_text())
+
+    def test_completed_report_is_published_without_replacing_failure(self):
+        result, target = self.root / 'public', self.root / 'artifact'
+        (result / 'remote').mkdir(parents=True)
+        (result / 'remote/summary.md').write_text('177 PASS / 2 FAIL\n')
+        collect_results(result, target, self.root / 'step-summary.md')
+        self.assertEqual((self.root / 'step-summary.md').read_text(), '177 PASS / 2 FAIL\n')
 
 
 if __name__ == '__main__':

@@ -45,7 +45,11 @@ jobs:
         if: ${{ !inputs.runner_check }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 -u .ci/slurm/wait.py
+        run: exec python3 -u .ci/slurm/wait.py
+
+      - name: Collect available results and publish summary
+        if: ${{ always() && !inputs.runner_check }}
+        run: python3 .ci/slurm/wait.py --collect
 
       - name: Upload source, logs, JUnit and structured results
         if: ${{ always() && !inputs.runner_check }}
